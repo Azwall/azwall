@@ -1,0 +1,133 @@
+// The wallet: Aztec's EmbeddedWallet (PXE + stores), with account secrets kept in memory only (they come
+// from the app's secure storage), fees paid by the Sponsored FPC, and the gas cache of gas.ts.
+import { deriveSecretKeyFromSigningKey } from '@aztec/accounts/utils';
+import { NO_FROM } from '@aztec/aztec.js/account';
+import { AztecAddress } from '@aztec/aztec.js/addresses';
+import { getContractInstanceFromInstantiationParams, type InteractionWaitOptions, type SendReturn } from '@aztec/aztec.js/contracts';
+import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
+import { Fq, Fr } from '@aztec/aztec.js/fields';
+import { type AztecNode, waitForTx } from '@aztec/aztec.js/node';
+import type { ExecutionPayload } from '@aztec/aztec.js/tx';
+import { type Aliased, ContractInitializationStatus, type SendOptions } from '@aztec/aztec.js/wallet';
+import { SPONSORED_FPC_SALT } from '@aztec/constants';
+import { AccountFeePaymentMethodOptions } from '@aztec/entrypoints/account';
+import type { LogFn } from '@aztec/foundation/log';
+import type { AztecAsyncKVStore } from '@aztec/kv-store';
+import { SponsoredFPCContractArtifact } from '@aztec/noir-contracts.js/SponsoredFPC';
+import { TxHash } from '@aztec/stdlib/tx';
+import type { CompleteFeeOptionsConfig, FeeOptions } from '@aztec/wallet-sdk/base-wallet';
+import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embedded';
+
+import { GasCache } from './gas';
+import { log } from './log';
+import type { CachedStore } from './store';
+
+/** Testnet blocks are slow and proving is client-side; give mining a generous budget. */
+export const TX_TIMEOUT_S = 600;
+
+/** Account material as the app's secure storage holds it (hex strings). */
+export type AccountSecrets = { alias: string; signingKey: string; salt: string };
+
+export type Receipt = { txHash: string; status: string; blockNumber: number | null };
+
+type InMemoryAccount = { type: AccountType; secretKey: Fr; salt: Fr; signingKey: Buffer; alias: string };
+
+/** WalletDB whose account secrets never reach disk; other wallet data persists in the encrypted store. */
+class InMemoryAccountsDB extends WalletDB {
+  readonly #accounts = new Map<string, InMemoryAccount>();
+
+  constructor(store: AztecAsyncKVStore, userLog: LogFn) {
+    super(store, userLog);
+  }
+
+  override async storeAccount(
+    address: AztecAddress,
+    acc: { type: AccountType; secretKey: Fr; salt: Fr; signingKey: Fq | Buffer; alias: string | undefined },
+  ) {
+    const signingKey = Buffer.isBuffer(acc.signingKey) ? acc.signingKey : acc.signingKey.toBuffer();
+    this.#accounts.set(address.toString(), { ...acc, signingKey, alias: acc.alias ?? '' });
+  }
+
+  override async retrieveAccount(address: AztecAddress | string) {
+    const acc = this.#accounts.get(address.toString());
+    if (!acc) throw new Error(`Account ${address} is not unlocked`);
+    return { address, secretKey: acc.secretKey, salt: acc.salt, type: acc.type, signingKey: acc.signingKey };
+  }
+
+  override async listAccounts(): Promise<Aliased<AztecAddress>[]> {
+    return [...this.#accounts.entries()].map(([address, acc]) => ({ alias: acc.alias, item: AztecAddress.fromStringUnsafe(address) }));
+  }
+
+  override async deleteAccount(address: AztecAddress) {
+    this.#accounts.delete(address.toString());
+  }
+}
+
+export async function sponsoredFpc() {
+  const instance = await getContractInstanceFromInstantiationParams(SponsoredFPCContractArtifact, { salt: new Fr(SPONSORED_FPC_SALT) });
+  return { instance, artifact: SponsoredFPCContractArtifact };
+}
+
+export const toReceipt = (r: { txHash: TxHash; status: unknown; blockNumber?: number | bigint | null }): Receipt => ({
+  txHash: r.txHash.toString(),
+  status: String(r.status),
+  blockNumber: r.blockNumber === undefined || r.blockNumber === null ? null : Number(r.blockNumber),
+});
+
+export class AzwallWallet extends EmbeddedWallet {
+  readonly gas = new GasCache();
+  stores: CachedStore[] = [];
+
+  constructor(...args: ConstructorParameters<typeof EmbeddedWallet>) {
+    super(...args);
+    // WalletDB keeps its store private; reuse it so non-secret wallet data keeps persisting (encrypted).
+    const store = (args[2] as unknown as { store: AztecAsyncKVStore }).store;
+    this.walletDB = new InMemoryAccountsDB(store, m => log('walletdb', m));
+    this.gas.instrument(this);
+  }
+
+  get node(): AztecNode {
+    return this.aztecNode;
+  }
+
+  override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
+    return this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
+  }
+
+  /** Pays every fee through the Sponsored FPC unless the caller picks a fee payer. */
+  override async completeFeeOptions(config: CompleteFeeOptionsConfig): Promise<FeeOptions> {
+    const base = await super.completeFeeOptions(config);
+    if (config.feePayer) return base;
+    const fpc = await sponsoredFpc();
+    return {
+      ...base,
+      walletFeePaymentMethod: new SponsoredFeePaymentMethod(fpc.instance.address),
+      accountFeePaymentMethodOptions: config.from !== NO_FROM ? AccountFeePaymentMethodOptions.EXTERNAL : base.accountFeePaymentMethodOptions,
+    };
+  }
+
+  /** Registers a Schnorr account from its secrets and returns its manager; nothing is sent. */
+  async addAccount(acc: AccountSecrets) {
+    const signingKey = Fq.fromHexString(acc.signingKey);
+    const secretKey = await deriveSecretKeyFromSigningKey(signingKey);
+    return this.createSchnorrAccount(secretKey, Fr.fromHexString(acc.salt), signingKey, acc.alias);
+  }
+
+  async isDeployed(address: AztecAddress): Promise<boolean> {
+    const metadata = await this.getContractMetadata(address);
+    return metadata.initializationStatus === ContractInitializationStatus.INITIALIZED;
+  }
+
+  async waitForReceipt(txHash: string): Promise<Receipt> {
+    return toReceipt(await waitForTx(this.aztecNode, TxHash.fromString(txHash), { timeout: TX_TIMEOUT_S }));
+  }
+
+  async flushStores(): Promise<void> {
+    await Promise.all(this.stores.map(s => s.flush()));
+  }
+
+  async shutdown(): Promise<void> {
+    await this.flushStores();
+    await this.stop();
+  }
+}

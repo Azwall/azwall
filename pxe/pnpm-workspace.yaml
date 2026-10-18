@@ -1,5 +1,6 @@
 packages:
   - shared
+  - v5
   - v6
 
 # Node-only native addons pulled in transitively; the web view build never loads them.

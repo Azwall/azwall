@@ -20,3 +20,6 @@ azwall-core.workspace = true
 azwall-prover.workspace = true
 thiserror.workspace = true
 uniffi = { version = "0.32", features = ["cli"] }
+
+[dev-dependencies]
+serde_json.workspace = true

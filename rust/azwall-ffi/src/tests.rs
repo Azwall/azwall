@@ -51,3 +51,14 @@ impl PartialEq for AzwallError {
         self.to_string() == other.to_string()
     }
 }
+
+#[test]
+fn exposes_pxe_bundles_and_open_params() {
+    let core = core();
+    let id = core.default_network_id();
+    let network = core.networks().into_iter().find(|n| n.id == id).unwrap();
+    assert!(!network.pxe_bundle.is_empty());
+    let params: serde_json::Value = serde_json::from_str(&core.pxe_open_params(id.clone()).unwrap()).unwrap();
+    assert_eq!(params["id"], id.as_str());
+    assert!(params["expected"]["l1ChainId"].is_u64());
+}

@@ -36,6 +36,8 @@ pub struct NetworkSpec {
     pub barretenberg: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub noir: Option<String>,
+    /// PXE host bundle (`pxe/<bundle>/`, built into `assets/pxe/<bundle>/`) running this Aztec version.
+    pub pxe: String,
     /// Public endpoint used when `.env` sets none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_rpc: Option<String>,
@@ -116,6 +118,9 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
     if n.label.trim().is_empty() {
         return bad("empty label");
     }
+    if n.pxe.is_empty() || !n.pxe.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        return bad("pxe must name a bundle directory (a-z, 0-9)");
+    }
     if major_version(&n.aztec).is_none() {
         return bad("aztec version must start with a numeric major");
     }
@@ -144,9 +149,9 @@ mod tests {
           "schema": 1,
           "default": "net-a",
           "networks": [
-            { "id": "net-a", "label": "A", "aztec": "6.0.0-rc.3", "barretenberg": "6.0.0-rc.6",
+            { "id": "net-a", "label": "A", "aztec": "6.0.0-rc.3", "barretenberg": "6.0.0-rc.6", "pxe": "v6",
               "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 } },
-            { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0",
+            { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
               "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
           ]
         }"#
@@ -175,7 +180,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_ids_versions_and_urls() {
-        for (from, to) in [("\"net-a\",", "\"Net A\","), ("6.0.0-rc.3", "next"), ("https://a.example", "ftp://a")] {
+        for (from, to) in [("\"net-a\",", "\"Net A\","), ("6.0.0-rc.3", "next"), ("https://a.example", "ftp://a"), ("\"v6\"", "\"../x\"")] {
             let json = sample_json().replace(from, to);
             assert!(Registry::from_json(&json).is_err(), "accepted {to}");
         }

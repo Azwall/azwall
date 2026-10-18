@@ -66,6 +66,7 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   installBbMemo();
   const node = createAztecNodeClient(network.rpcUrl, { maxBatchSize: network.rpcMaxBatch });
   const check = await checkNetwork(node, network);
+  log('open', `node ${check.nodeVersion} is compatible; opening the encrypted stores`);
   const { l1ContractAddresses } = await node.getNodeInfo();
   const suffix = `${check.l1ChainId}-${l1ContractAddresses.rollupAddress.toString().slice(2, 10)}`;
   const names = { pxe: `pxe-${suffix}`, wallet: `wallet-${suffix}` };
@@ -80,6 +81,7 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
     createLogger('azwall:store'),
   );
   const stores = [await CachedStore.wrap(pxeStore as never, 'pxe'), await CachedStore.wrap(walletStore as never, 'wallet')];
+  log('open', 'stores open; creating the PXE');
   const simulator = new WASMSimulator();
   const wallet = await AzwallWallet.create<AzwallWallet>(node, {
     pxe: { store: pxeStore as never, simulator, proverOrOptions: new NativeKernelProver(simulator, bridge, network.id) },

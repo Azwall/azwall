@@ -1,0 +1,41 @@
+{
+  "name": "@azwall/pxe-v5",
+  "private": true,
+  "description": "PXE host for Aztec 5.1.0 (testnet v5)",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@aztec/accounts": "5.1.0",
+    "@aztec/aztec.js": "5.1.0",
+    "@aztec/bb-prover": "5.1.0",
+    "@aztec/bb.js": "5.1.0",
+    "@aztec/constants": "5.1.0",
+    "@aztec/entrypoints": "5.1.0",
+    "@aztec/foundation": "5.1.0",
+    "@aztec/kv-store": "5.1.0",
+    "@aztec/noir-acvm_js": "5.1.0",
+    "@aztec/noir-contracts.js": "5.1.0",
+    "@aztec/noir-noirc_abi": "5.1.0",
+    "@aztec/noir-protocol-circuits-types": "5.1.0",
+    "@aztec/protocol-contracts": "5.1.0",
+    "@aztec/pxe": "5.1.0",
+    "@aztec/simulator": "5.1.0",
+    "@aztec/sqlite3mc-wasm": "5.1.0",
+    "@aztec/stdlib": "5.1.0",
+    "@aztec/wallet-sdk": "5.1.0",
+    "@aztec/wallets": "5.1.0",
+    "@azwall/pxe-shared": "workspace:*",
+    "buffer": "6.0.3",
+    "process": "0.11.10"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vite-plugin-node-polyfills": "0.28.0",
+    "vitest": "5.0.5"
+  }
+}

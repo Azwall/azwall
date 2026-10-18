@@ -30,6 +30,19 @@ pub struct AppConfig {
     pub unavailable: Vec<String>,
 }
 
+impl ResolvedNetwork {
+    /// The `network` parameter of the PXE host's `open` call (pxe/*/src/open.ts, `NetworkParams`).
+    pub fn pxe_open_params(&self, rpc_max_batch: u32) -> serde_json::Value {
+        serde_json::json!({
+            "id": self.spec.id,
+            "rpcUrl": self.rpc_url,
+            "rpcMaxBatch": rpc_max_batch,
+            "aztec": self.spec.aztec,
+            "expected": self.spec.expected,
+        })
+    }
+}
+
 impl AppConfig {
     /// Resolves every network's RPC URL: `.env` first, then the registry's `defaultRpc`.
     /// A network with neither is listed in `unavailable`; the default network must resolve.
@@ -88,9 +101,9 @@ mod tests {
       "schema": 1,
       "default": "net-a",
       "networks": [
-        { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0",
+        { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0", "pxe": "v6",
           "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 } },
-        { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0",
+        { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
           "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
       ]
     }"#;
@@ -139,6 +152,17 @@ mod tests {
         let back = AppConfig::from_json(&config.to_json()).unwrap();
         assert_eq!(back, config);
         assert!(config.to_json().contains("\"rpcUrl\""));
+    }
+
+    #[test]
+    fn pxe_open_params_match_the_host_api() {
+        let registry = Registry::from_json(REGISTRY).unwrap();
+        let config = AppConfig::resolve(&registry, &EnvMap::new()).unwrap();
+        let params = config.network("net-a").unwrap().pxe_open_params(config.rpc_max_batch);
+        assert_eq!(params["rpcUrl"], "https://a.example");
+        assert_eq!(params["rpcMaxBatch"], 3);
+        assert_eq!(params["expected"]["rollupVersion"], 10);
+        assert!(params["expected"].get("vkTreeRoot").is_none());
     }
 
     #[test]

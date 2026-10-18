@@ -46,6 +46,8 @@ pub struct Network {
     pub aztec_version: String,
     pub barretenberg_version: String,
     pub rpc_url: String,
+    /// PXE host bundle to load: `assets/pxe/<pxe_bundle>/index.html`.
+    pub pxe_bundle: String,
     /// False when this build has no Barretenberg binding for the network's release.
     pub prover_supported: bool,
 }
@@ -58,6 +60,7 @@ impl From<&ResolvedNetwork> for Network {
             aztec_version: n.spec.aztec.clone(),
             barretenberg_version: n.spec.barretenberg.clone(),
             rpc_url: n.rpc_url.clone(),
+            pxe_bundle: n.spec.pxe.clone(),
             prover_supported: bindings::binding_for(&n.spec.barretenberg).is_some(),
         }
     }
@@ -110,6 +113,12 @@ impl WalletCore {
             rollup_version: compat.node.rollup_version,
             mismatches: compat.mismatches,
         })
+    }
+
+    /// JSON `network` parameter for the PXE host's `open` call.
+    pub fn pxe_open_params(&self, network_id: String) -> Result<String, AzwallError> {
+        let network = self.config.network(&network_id)?;
+        Ok(network.pxe_open_params(self.config.rpc_max_batch).to_string())
     }
 
     /// Loads the network's Barretenberg release ahead of the first proof (unloading any other).
