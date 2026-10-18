@@ -32,3 +32,7 @@ DerivedData/
 .idea/
 *.iml
 ios/Azwall/Info.plist
+
+# PXE hosts (JavaScript)
+node_modules/
+pxe/*/dist/

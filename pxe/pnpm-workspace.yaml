@@ -1,0 +1,11 @@
+packages:
+  - shared
+  - v6
+
+# Node-only native addons pulled in transitively; the web view build never loads them.
+allowBuilds:
+  leveldown: false
+  lmdb: false
+  msgpackr-extract: false
+  protobufjs: false
+  esbuild: true

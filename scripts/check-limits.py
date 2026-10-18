@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Enforces the code size rules: at most 600 lines per source file and 50 lines per function.
 
-Covers Rust, Kotlin and Swift sources, skipping generated code and build output. A function is
+Covers Rust, Kotlin, Swift and TypeScript sources, skipping generated code and build output. A function is
 measured from its signature line to its closing brace. Braces inside strings and comments are
 ignored on a best-effort basis (good enough for this codebase's style).
 
@@ -14,10 +14,15 @@ from pathlib import Path
 MAX_FILE_LINES = 600
 MAX_FUNCTION_LINES = 50
 ROOT = Path(__file__).resolve().parent.parent
-SKIP_PARTS = {"target", "build", ".build", ".gradle", "generated", "vendor", "node_modules"}
+SKIP_PARTS = {"target", "build", ".build", ".gradle", "generated", "vendor", "node_modules", "dist"}
 FUNCTION = {
     ".rs": re.compile(r"^\s*(pub(\([^)]*\))?\s+)?(const\s+)?(async\s+)?(unsafe\s+)?(extern\s+\"C\"\s+)?fn\s+\w+"),
     ".kt": re.compile(r"^\s*((private|internal|public|protected|override|inline|suspend|operator)\s+)*fun\s"),
+    ".ts": re.compile(
+        r"^\s*((export\s+)?(default\s+)?(async\s+)?function\b"
+        r"|((public|private|protected|static|async|override|readonly|get|set)\s+)*#?(?!if\b|for\b|while\b|switch\b|catch\b|return\b)\w+\s*(<[^>]*>)?\(.*\)\s*(:\s*[^=]+)?\{\s*$"
+        r"|(export\s+)?(const|let)\s+\w+.*=>\s*\{\s*$)"
+    ),
     ".swift": re.compile(r"^\s*(@\w+\s+)*((private|fileprivate|public|internal|static|override|mutating|nonisolated|convenience)\s+)*(func\s|init[?(]|init<)"),
 }
 STRIP = re.compile(r'"(\\.|[^"\\])*"|\'(\\.|[^\'\\])\'|//.*$')

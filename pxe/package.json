@@ -1,0 +1,12 @@
+{
+  "name": "azwall-pxe",
+  "private": true,
+  "description": "Aztec PXE hosts, one per Aztec version, run by the native apps in a hidden web view",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --filter './v*' build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@12.11.2"
+}
