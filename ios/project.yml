@@ -22,20 +22,33 @@ targets:
       - path: ../assets/crs
         type: folder
         buildPhase: resources
+      # PXE hosts, one per Aztec version (pxe/, built into assets/pxe/), served to a hidden web view.
+      - path: ../assets/pxe
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: AzwallKit
+        product: AzwallKit
+      - package: AzwallKit
+        product: AzwallPlatform
       - package: AzwallRust
     preBuildScripts:
       - name: Resolve network config
         script: |
           cd "$SRCROOT/.." && cargo run --quiet -p azwall-core --bin azwall-config -- --out assets/azwall-config.json
+          cd "$SRCROOT/../pxe" && pnpm install --frozen-lockfile --silent && pnpm build
         outputFiles:
           - $(SRCROOT)/../assets/azwall-config.json
+          - $(SRCROOT)/../assets/pxe
     info:
       path: Azwall/Info.plist
       properties:
         CFBundleDisplayName: Azwall
         UILaunchScreen: {}
+        NSFaceIDUsageDescription: Azwall uses Face ID to unlock your wallet and confirm sensitive actions.
+        # The PXE host page is served from the app itself on 127.0.0.1 (a secure context for Web Crypto).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.azwall

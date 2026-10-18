@@ -112,3 +112,14 @@ version's circuits and prover must be reviewed anyway. Adding one takes:
 3. the PXE bundle for that Aztec version.
 
 The tests fail if a network has no binding or no RPC key, so a half-added version cannot ship.
+
+## When a version is retired
+
+An upgrade does not move funds: it deploys a new rollup, and the funds stay on the old one. Every rollup
+that has existed stays reachable through the L1 Registry, and assets bridged from L1 can leave any of
+them through their portal. Tokens that exist only on L2 have no automatic path; that depends on their
+issuer. In practice, Aztec sets a withdrawal deadline before retiring a version (for v4, June 25, 2026).
+
+Because Azwall embeds every version, the same key keeps opening the old account after an upgrade. The
+next step is a migration flow: withdraw to L1 through the portal on the old rollup, then deposit on the
+new one, one transaction on each version.

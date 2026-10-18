@@ -54,15 +54,14 @@ pays off (see [native proving](native-proving.md)).
 In the native apps, each PXE bundle runs in a **headless JavaScript runtime** owned by the app,
 with no visible web page:
 
-- Android: a hidden WebView, or a JavaScript engine embedded in the app;
-- iOS: a hidden `WKWebView`, or JavaScriptCore.
+- Android: a hidden `WebView`, the page served from the APK over `https://appassets.androidplatform.net`;
+- iOS: a hidden `WKWebView`, the page served by the app on the loopback address.
 
 The runtime only exposes a small bridge to native code: the proving call above, the store, and
 the wallet API calls coming from the UI and from dApps. The UI itself stays native.
 
-{: .note }
-> This is the next step of the native apps. The prototype ran the same PXE in a WebView worker,
-> with the native prover behind it, and sent real transactions on the testnet that way.
+On a Pixel 3, through this path, an account activation proves in 15.3 s (7 circuits) and a private
+token mint in 14.6 s, both accepted and mined on the testnet.
 
 ## Costs of the choice
 

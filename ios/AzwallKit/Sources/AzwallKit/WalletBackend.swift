@@ -8,14 +8,19 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
     public let barretenbergVersion: String
     /// Host of the RPC endpoint only: the path may carry an API key.
     public let rpcHost: String
+    /// PXE host bundle: `pxe/<pxeBundle>/index.html` in the app's resources.
+    public let pxeBundle: String
     public let proverSupported: Bool
 
-    public init(id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, proverSupported: Bool) {
+    public init(
+        id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, pxeBundle: String, proverSupported: Bool
+    ) {
         self.id = id
         self.label = label
         self.aztecVersion = aztecVersion
         self.barretenbergVersion = barretenbergVersion
         self.rpcHost = rpcHost
+        self.pxeBundle = pxeBundle
         self.proverSupported = proverSupported
     }
 }
@@ -50,6 +55,8 @@ public protocol WalletBackend: Sendable {
     func networks() -> [NetworkInfo]
     func defaultNetworkId() -> String
     func checkNode(networkId: String) throws -> NodeCheck
+    /// JSON `network` parameter of the PXE host's `open` call.
+    func pxeOpenParams(networkId: String) throws -> String
     /// Loads the network's Barretenberg release ahead of the first proof.
     func prepareProver(networkId: String) throws
     /// Proves an AZS2 request from the network's PXE and returns the AZP1 response.

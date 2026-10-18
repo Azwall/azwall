@@ -22,6 +22,10 @@ public struct RustWalletBackend: WalletBackend {
         NodeCheck(try rust { try core.checkNode(networkId: networkId) })
     }
 
+    public func pxeOpenParams(networkId: String) throws -> String {
+        try rust { try core.pxeOpenParams(networkId: networkId) }
+    }
+
     public func prepareProver(networkId: String) throws {
         try rust { try core.prepareProver(networkId: networkId) }
     }
@@ -54,6 +58,7 @@ extension NetworkInfo {
             aztecVersion: network.aztecVersion,
             barretenbergVersion: network.barretenbergVersion,
             rpcHost: hostOf(network.rpcUrl),
+            pxeBundle: network.pxeBundle,
             proverSupported: network.proverSupported
         )
     }

@@ -22,8 +22,9 @@ networks.json        Supported networks: Aztec version, Barretenberg release, ex
 rust/azwall-core     Registry, .env resolution, node JSON-RPC client and compatibility check
 rust/azwall-prover   Multi-release Chonk prover (dlopen per Barretenberg release)
 rust/azwall-ffi      uniffi API for Kotlin and Swift
+pxe/                 PXE hosts in JavaScript, one per Aztec version (v5, v6), run in a hidden web view
 android/             Gradle project: core (bindings wrapper) + app (Compose UI)
-ios/                 AzwallKit (pure Swift), AzwallRust (FFI wrapper), Azwall app (XcodeGen)
+ios/                 AzwallKit (wallet logic + platform), AzwallRust (FFI wrapper), Azwall app (XcodeGen)
 scripts/             Native builds, bindings, CRS, tests, size limits
 ```
 
@@ -32,7 +33,8 @@ scripts/             Native builds, bindings, CRS, tests, size limits
 - Rust ≥ 1.89 with `rustup target add aarch64-linux-android x86_64-linux-android`
 - [cargo-ndk](https://github.com/bbqsrc/cargo-ndk), JDK 17+, Android SDK (platform 37) and NDK 27
 - For iOS: macOS, Xcode with Swift ≥ 6.4, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-- To build Barretenberg: CMake ≥ 3.24, Ninja, Node ≥ 22, Python 3
+- Node ≥ 22 and pnpm (PXE hosts)
+- To build Barretenberg: CMake ≥ 3.24, Ninja, Python 3
 
 ```bash
 export NDK_HOME=$HOME/Android/Sdk/ndk/27.3.13750724

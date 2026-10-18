@@ -65,12 +65,29 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
 4. `cargo test`: `registry_releases` fails if a network has no binding, `registry_file` if
    `.env.example` lacks its key.
 
+## The PXE host
+
+`pxe/` holds one JavaScript package per Aztec version (`pxe/v5`, `pxe/v6`), each built into
+`assets/pxe/<bundle>/` and run by the apps in a web view the user never sees. They share
+`pxe/shared`: the JSON message bridge, the proof framing and parameter validation.
+
+| | Android | iOS |
+|---|---|---|
+| Web view | `WebView`, page served from the APK over `https://appassets.androidplatform.net` (`WebViewAssetLoader`) | `WKWebView`, page served by the app on `http://127.0.0.1:476xx` (one fixed port per bundle, so the stores keep their origin) |
+| Page → app | `AzwallAndroid.postMessage` (`@JavascriptInterface`) | `webkit.messageHandlers.azwall` |
+| App → page | `evaluateJavascript("azwallHost.receive(…)")` | `evaluateJavaScript("azwallHost.receive(…)")` |
+| Vault | Keystore AES-GCM key, biometric or device credential | Keychain item with `.userPresence` |
+
+Both origins are secure contexts, which the PXE's Web Crypto and its encrypted SQLite-OPFS stores require.
+The app calls the host (`open`, `addAccount`, `balances`, `transfer`…); the host calls the app back for
+`prove`, which runs the network's Barretenberg release in Rust.
+
 ## Not done yet
 
-- **PXE**: the PXE is TypeScript and versioned with Aztec. The plan is one PXE bundle per Aztec
-  version, run in a headless JS runtime (hidden WebView / WKWebView, or JavaScriptCore), calling
-  `WalletCore.prove` for Chonk proofs. Accounts, notes and dApp sessions then live per network.
-- **Barretenberg for iOS**: build each release as a dynamic framework named
-  `AzBB_<release>.framework` (see `rust/azwall-prover/src/library.rs`) and embed it.
-- **Key storage**: Android Keystore / iOS Keychain with biometric unlock, as in the prototype.
+- **iOS has not been compiled yet** (written without a Mac), and Barretenberg is not built for iOS: build each
+  release as a dynamic framework named `AzBB_<release>.framework` (see `rust/azwall-prover/src/library.rs`).
+- **Migration between versions**: when a network is retired, Aztec asks users to withdraw before a deadline.
+  The registry should mark retired networks with that deadline, and the wallet should offer a migration
+  (withdraw through the L1 portal on the old rollup, deposit on the new one).
+- **dApp browser** (done in the prototype), and receiving notification of incoming private transfers.
 - **Native ACVM** for protocol circuits (the prototype's `acvm.rs`), per Noir version.
