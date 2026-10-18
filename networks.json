@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "default": "testnet-v6",
+  "networks": [
+    {
+      "id": "testnet-v6",
+      "label": "Testnet (v6)",
+      "aztec": "6.0.0-rc.3",
+      "barretenberg": "6.0.0-rc.6",
+      "noir": "1.0.0-rc.3",
+      "defaultRpc": "https://aztec-testnet.drpc.org",
+      "expected": {
+        "l1ChainId": 11155111,
+        "rollupVersion": 3409706519,
+        "vkTreeRoot": "0x13eeb174d4119b221a22721853261759f57a65a57e864ad78b840b23cde69e02",
+        "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
+      }
+    },
+    {
+      "id": "testnet-v5",
+      "label": "Testnet (v5)",
+      "aztec": "5.1.0",
+      "barretenberg": "5.1.0",
+      "defaultRpc": "https://v5.testnet.rpc.aztec-labs.com",
+      "expected": {
+        "l1ChainId": 11155111,
+        "rollupVersion": 1821665230
+      }
+    }
+  ]
+}

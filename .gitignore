@@ -1,0 +1,32 @@
+# Rust
+target/
+
+# Secrets and generated config
+.env
+/assets/
+
+# Native builds
+/vendor/
+/build/
+
+# Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/core/src/main/jniLibs/
+android/core/src/generated/
+*.apk
+*.aab
+
+# iOS
+ios/Azwall.xcodeproj/
+ios/AzwallKit/.build/
+ios/AzwallKit/Sources/AzwallCoreFFI/generated/
+xcuserdata/
+DerivedData/
+
+# OS / editors
+.DS_Store
+.idea/
+*.iml

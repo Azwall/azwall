@@ -1,0 +1,29 @@
+[package]
+name = "azwall-prover"
+description = "Native Chonk prover: several Barretenberg releases side by side, one per Aztec version"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["bb-v5", "bb-v6"]
+# One feature per Barretenberg API binding. Adding an Aztec version whose Barretenberg API differs
+# means adding a binding here (renamed dependency + src/bindings/<name>.rs). See docs/versions.md.
+bb-v5 = ["dep:bb5"]
+bb-v6 = ["dep:bb6"]
+
+[dependencies]
+thiserror.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+libloading = "0.8"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# Typed bbapi commands generated from each release's msgpack schema. Neither declares `links`,
+# so both coexist in one build. The `ffi` feature is off: the library is loaded with dlopen.
+bb5 = { package = "barretenberg-rs", version = "=5.1.0", default-features = false, optional = true }
+bb6 = { package = "barretenberg-rs", version = "=6.0.0-rc.6", default-features = false, optional = true }
+
+[dev-dependencies]
+azwall-core.workspace = true

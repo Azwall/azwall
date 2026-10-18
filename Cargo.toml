@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["rust/azwall-core", "rust/azwall-prover"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.89"
+
+[workspace.dependencies]
+azwall-core = { path = "rust/azwall-core" }
+azwall-prover = { path = "rust/azwall-prover" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+log = "0.4"
+
+# Proving must not run unoptimised, even in debug builds of the app.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
