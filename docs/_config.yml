@@ -12,7 +12,7 @@ mermaid:
   version: "12.2.0"
 
 aux_links:
-  GitHub: https://github.com/youtpout/azwall
+  GitHub: https://github.com/Azwall/azwall
 aux_links_new_tab: true
 
 back_to_top: true

@@ -5,7 +5,7 @@ nav_order: 4
 
 # Development
 
-The [README](https://github.com/youtpout/azwall#readme) has every command. In short:
+The [README](https://github.com/Azwall/azwall#readme) has every command. In short:
 
 ```bash
 cp .env.example .env            # RPC endpoint per network
@@ -34,5 +34,5 @@ scripts/test-all.sh
 ## Rules
 
 Contributors and coding agents follow
-[AGENTS.md](https://github.com/youtpout/azwall/blob/main/AGENTS.md): English everywhere, the size
+[AGENTS.md](https://github.com/Azwall/azwall/blob/main/AGENTS.md): English everywhere, the size
 limits, tests with every change, secrets only in `.env`, latest stable toolchains.

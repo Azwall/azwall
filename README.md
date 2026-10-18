@@ -8,7 +8,7 @@ A mobile wallet for [Aztec](https://aztec.network), native on both platforms:
   network registry, RPC configuration, node checks, and the native Chonk prover (Barretenberg).
 
 The app supports **several Aztec versions at once** (testnet v5, testnet v6, …), each with its own
-Barretenberg release, side by side in one process. Documentation: https://youtpout.github.io/azwall/
+Barretenberg release, side by side in one process. Documentation: https://azwall.github.io/azwall/
 (sources in [docs/](docs/)).
 
 It builds on the findings of the [azwall-prototype](https://github.com/youtpout/azwall-prototype)
