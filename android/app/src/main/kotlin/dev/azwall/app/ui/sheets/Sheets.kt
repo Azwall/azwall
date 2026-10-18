@@ -53,6 +53,13 @@ private val rowColors @Composable get() = ListItemDefaults.colors(containerColor
 @Composable
 fun NetworksSheet(networks: List<NetworkInfo>, current: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) =
     Sheet("Networks", onDismiss) {
+        Text(
+            "Your keys are the same on every network, but each network runs its own Aztec version: " +
+                "your address, balances and history are different on each.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+        )
         networks.forEach { n ->
             ListItem(
                 headlineContent = { Text(n.label) },

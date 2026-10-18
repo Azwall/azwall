@@ -105,7 +105,7 @@ private fun Backup(key: String, busy: Boolean, onBack: () -> Unit, onDone: () ->
                 "and without it a lost phone means lost funds.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Panel { Text(key.chunked(16).joinToString("\n"), style = MonoStyle, modifier = Modifier.padding(20.dp)) }
+        Panel { Text(groupKey(key), style = MonoStyle, modifier = Modifier.padding(20.dp)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = saved, onCheckedChange = { saved = it })
             Text("I wrote my key down somewhere safe")

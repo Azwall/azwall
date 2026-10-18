@@ -50,7 +50,7 @@ fun ProvingOverlay(job: ProvingJob) {
         }
     }
     val seconds = ((now - job.startedAt) / 1000).coerceAtLeast(0)
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.97f)) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

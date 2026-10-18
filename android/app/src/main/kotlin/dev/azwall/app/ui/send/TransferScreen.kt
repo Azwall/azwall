@@ -63,7 +63,10 @@ fun TransferScreen(
     onSubmit: (TransferKind, TokenView, String, BigInteger) -> Unit,
 ) {
     var tokenIndex by rememberSaveable { mutableIntStateOf(0) }
-    var publicSide by rememberSaveable { mutableStateOf(mode == TransferMode.SHIELD) }
+    // Shield starts on the side that holds funds: make public funds private, else private funds public.
+    var publicSide by rememberSaveable {
+        mutableStateOf(mode == TransferMode.SHIELD && (tokens.firstOrNull()?.balance?.publicAmount?.signum() ?: 0) > 0)
+    }
     var to by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable { mutableStateOf("") }
     val token = tokens.getOrNull(tokenIndex) ?: return

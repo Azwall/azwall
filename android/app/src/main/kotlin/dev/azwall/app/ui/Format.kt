@@ -55,3 +55,7 @@ fun activityAmount(item: ActivityItem): String? {
 /** Human-sized error text: the first line, without the method prefix the bridge adds. */
 fun friendlyError(message: String?): String =
     message.orEmpty().lineSequence().firstOrNull().orEmpty().substringAfter(": ", message.orEmpty()).ifBlank { "Something went wrong" }
+
+/** A 32-byte hex key as four lines of four 4-character groups, easy to copy by hand. */
+fun groupKey(key: String): String =
+    key.removePrefix("0x").chunked(4).chunked(4).joinToString("\n") { it.joinToString(" ") }

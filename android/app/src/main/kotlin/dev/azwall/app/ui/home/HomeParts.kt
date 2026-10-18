@@ -57,7 +57,13 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             actions.onActivate,
             Icons.Outlined.RocketLaunch,
         )
-        else -> state.tokens.firstOrNull()?.let { TokenHero(it, actions) } ?: Text("—", style = MaterialTheme.typography.displaySmall)
+        state.tokens.isEmpty() -> Notice(
+            "Your account is ready",
+            "Add a token to see its private and public balances. On testnet, Settings can create a test token for you.",
+            "Add a token",
+            actions.onAddToken,
+        )
+        else -> TokenHero(state.tokens.first(), actions)
     }
 }
 

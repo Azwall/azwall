@@ -152,7 +152,7 @@ fun SecretKeyDialog(key: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Anyone with this key controls the account. Never share it.", color = WalletTheme.colors.danger)
-                Text(key.chunked(16).joinToString("\n"), style = MonoStyle)
+                Text(dev.azwall.app.ui.groupKey(key), style = MonoStyle)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
