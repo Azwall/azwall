@@ -1,0 +1,8 @@
+[bindings.kotlin]
+package_name = "dev.azwall.core.ffi"
+cdylib_name = "azwall_ffi"
+
+[bindings.swift]
+module_name = "AzwallCoreFFI"
+ffi_module_name = "azwall_ffiFFI"
+ffi_module_filename = "azwall_ffiFFI"

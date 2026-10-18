@@ -1,0 +1,22 @@
+[package]
+name = "azwall-ffi"
+description = "Kotlin and Swift bindings (uniffi) over azwall-core and azwall-prover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "azwall_ffi"
+# cdylib for Android (JNA), staticlib for the iOS XCFramework, lib for Rust tests.
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+azwall-core.workspace = true
+azwall-prover.workspace = true
+thiserror.workspace = true
+uniffi = { version = "0.32", features = ["cli"] }

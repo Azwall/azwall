@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["rust/azwall-core", "rust/azwall-prover"]
+members = ["rust/azwall-core", "rust/azwall-prover", "rust/azwall-ffi"]
 
 [workspace.package]
 version = "0.1.0"
