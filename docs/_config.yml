@@ -1,0 +1,23 @@
+title: Azwall
+description: A native mobile wallet for Aztec, with every network version side by side and native proving.
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+mermaid:
+  version: "12.2.0"
+
+aux_links:
+  GitHub: https://github.com/youtpout/azwall
+aux_links_new_tab: true
+
+back_to_top: true
+back_to_top_text: Back to top
+footer_content: Azwall is MIT licensed.
+
+exclude:
+  - bench/
