@@ -3,7 +3,7 @@
 #
 # Usage: scripts/gen-bindings.sh kotlin|swift
 #   kotlin → android/core/src/generated/kotlin/
-#   swift  → ios/AzwallKit/Sources/AzwallCoreFFI/generated/ (Swift) and build/ios/headers/ (C header, modulemap)
+#   swift  → ios/AzwallRust/Sources/AzwallCoreFFI/generated/ (Swift) and build/ios/headers/ (C header, modulemap)
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 LANG_=${1:?usage: gen-bindings.sh kotlin|swift}
@@ -23,7 +23,7 @@ case "$LANG_" in
     TMP=$(mktemp -d)
     trap 'rm -rf "$TMP"' EXIT
     bindgen swift "$TMP"
-    SWIFT_OUT=ios/AzwallKit/Sources/AzwallCoreFFI/generated
+    SWIFT_OUT=ios/AzwallRust/Sources/AzwallCoreFFI/generated
     HEADERS=build/ios/headers
     rm -rf "$SWIFT_OUT" "$HEADERS" && mkdir -p "$SWIFT_OUT" "$HEADERS"
     cp "$TMP"/*.swift "$SWIFT_OUT/"

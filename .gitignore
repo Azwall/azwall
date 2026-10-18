@@ -22,7 +22,8 @@ android/core/src/generated/
 # iOS
 ios/Azwall.xcodeproj/
 ios/AzwallKit/.build/
-ios/AzwallKit/Sources/AzwallCoreFFI/generated/
+ios/AzwallRust/Sources/AzwallCoreFFI/generated/
+ios/AzwallRust/.build/
 xcuserdata/
 DerivedData/
 
@@ -30,3 +31,4 @@ DerivedData/
 .DS_Store
 .idea/
 *.iml
+ios/Azwall/Info.plist

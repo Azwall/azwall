@@ -1,0 +1,44 @@
+# XcodeGen spec: `xcodegen generate` (in ios/) writes Azwall.xcodeproj, which is not committed.
+# Build the Rust core first: scripts/build-ios.sh, then scripts/fetch-crs.sh.
+name: Azwall
+options:
+  bundleIdPrefix: dev.azwall
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  AzwallKit:
+    path: AzwallKit
+  AzwallRust:
+    path: AzwallRust
+targets:
+  Azwall:
+    type: application
+    platform: iOS
+    sources:
+      - Azwall
+      # Generated: networks.json + .env (azwall-config) and the CRS (scripts/fetch-crs.sh).
+      - path: ../assets/azwall-config.json
+        buildPhase: resources
+      - path: ../assets/crs
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: AzwallKit
+      - package: AzwallRust
+    preBuildScripts:
+      - name: Resolve network config
+        script: |
+          cd "$SRCROOT/.." && cargo run --quiet -p azwall-core --bin azwall-config -- --out assets/azwall-config.json
+        outputFiles:
+          - $(SRCROOT)/../assets/azwall-config.json
+    info:
+      path: Azwall/Info.plist
+      properties:
+        CFBundleDisplayName: Azwall
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.azwall
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
