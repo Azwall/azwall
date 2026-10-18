@@ -131,8 +131,8 @@ class WalletSessionTest {
         val s = session().apply { open() }
         s.transactions.send(TransferKind.SHIELD, TokenInfo("0xt", "Test", "TST", 6), "", BigInteger.TEN)
         assertEquals("addr-abab", pxe.sent.single()["to"]!!.jsonPrimitive.content)
-        val added = s.addAccount("Savings")
-        assertEquals("addr-cdcd", added.address)
+        val added = s.addAccount("Savings", importedKey = "0x" + "12".repeat(32))
+        assertEquals("addr-1212", added.address)
         assertEquals(listOf("main", "Savings"), s.state.value.accounts.map { it.alias })
         assertTrue(s.state.value.selected == added.address)
         pxe.mined.complete(Unit) // let the background confirmation finish

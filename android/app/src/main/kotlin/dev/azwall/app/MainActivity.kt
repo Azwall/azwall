@@ -1,32 +1,23 @@
 package dev.azwall.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.azwall.app.ui.NetworkScreen
+import dev.azwall.app.ui.AzwallApp
+import dev.azwall.app.ui.theme.AzwallTheme
 
-class MainActivity : ComponentActivity() {
+/** A FragmentActivity, because the biometric prompt is shown by a fragment. */
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val app = application as AzwallApplication
+        val container = (application as AzwallApplication).container
         setContent {
-            val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
-            MaterialTheme(colorScheme = colors) {
-                Surface {
-                    val model = viewModel { WalletViewModel({ app.backend }) }
-                    val state by model.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(Unit) { model.load() }
-                    NetworkScreen(state, onSelect = model::select, onPrepareProver = model::prepareProver)
-                }
+            AzwallTheme {
+                val vm = viewModel { AppViewModel(container) }
+                AzwallApp(vm) { title -> authenticator(title) }
             }
         }
     }

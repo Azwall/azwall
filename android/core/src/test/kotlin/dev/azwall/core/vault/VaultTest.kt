@@ -69,10 +69,20 @@ class VaultTest {
 
     @Test
     fun signingKeysAreNormalised() {
-        assertEquals(key, Vault.parseSigningKey("  AB".repeat(1).trim() + "ab".repeat(31)))
-        assertEquals(key, Vault.parseSigningKey("0x" + "AB".repeat(32)))
+        val valid = "0x" + "12".repeat(32)
+        assertEquals(valid, Vault.parseSigningKey("  " + "12".repeat(32) + " "))
+        assertEquals("0x" + "1a".repeat(32), Vault.parseSigningKey("0x" + "1A".repeat(32)))
         assertThrows(IllegalArgumentException::class.java) { Vault.parseSigningKey("0x1234") }
         assertThrows(IllegalArgumentException::class.java) { Vault.parseSigningKey("zz".repeat(32)) }
+        assertThrows(IllegalArgumentException::class.java) { Vault.parseSigningKey("ff".repeat(32)) }
+        assertThrows(IllegalArgumentException::class.java) { Vault.parseSigningKey("00".repeat(32)) }
+    }
+
+    @Test
+    fun newKeysAreValidAndDistinct() {
+        val keys = (1..50).map { Vault.newSigningKey() }
+        keys.forEach { assertEquals(it, Vault.parseSigningKey(it)) }
+        assertEquals(50, keys.toSet().size)
     }
 
     @Test

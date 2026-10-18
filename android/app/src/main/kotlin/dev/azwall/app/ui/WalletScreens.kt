@@ -1,0 +1,152 @@
+package dev.azwall.app.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import dev.azwall.app.AppViewModel
+import dev.azwall.app.Auth
+import dev.azwall.app.BuildConfig
+import dev.azwall.app.ui.home.HomeActions
+import dev.azwall.app.ui.home.HomeScreen
+import dev.azwall.app.ui.receive.ReceiveScreen
+import dev.azwall.app.ui.send.ProvingOverlay
+import dev.azwall.app.ui.send.TransferMode
+import dev.azwall.app.ui.send.TransferScreen
+import dev.azwall.app.ui.settings.SecretKeyDialog
+import dev.azwall.app.ui.settings.SettingsActions
+import dev.azwall.app.ui.settings.SettingsInfo
+import dev.azwall.app.ui.settings.SettingsScreen
+import dev.azwall.app.ui.sheets.AccountsSheet
+import dev.azwall.app.ui.sheets.AddTokenSheet
+import dev.azwall.app.ui.sheets.NetworksSheet
+import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.WalletSession
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private enum class Route { HOME, SEND, SHIELD, RECEIVE, SETTINGS }
+
+private enum class Sheet { NONE, NETWORKS, ACCOUNTS, ADD_TOKEN }
+
+/** How often balances are refreshed while the wallet is on screen. */
+private const val REFRESH_MS = 20_000L
+
+@Composable
+fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, dismissMessage: () -> Unit) {
+    var route by rememberSaveable { mutableStateOf(Route.HOME) }
+    var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
+    val state by session.state.collectAsStateWithLifecycle()
+    val proving by session.transactions.proving.collectAsStateWithLifecycle()
+    val nodes by vm.nodes.collectAsStateWithLifecycle()
+    AutoRefresh(session)
+    BackHandler(enabled = route != Route.HOME) { route = Route.HOME }
+    val home = { route = Route.HOME }
+    when (route) {
+        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, { route = it }, { sheet = it }))
+        Route.SEND, Route.SHIELD -> TransferScreen(
+            mode = if (route == Route.SEND) TransferMode.SEND else TransferMode.SHIELD,
+            tokens = state.tokens,
+            me = state.account?.address.orEmpty(),
+            busy = busy,
+            onBack = home,
+        ) { kind, token, to, amount ->
+            vm.run("Sent. It will appear in your balance once in a block.") { it.transactions.send(kind, token.info, to, amount) }
+            home()
+        }
+        Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
+        Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, home)
+    }
+    WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }
+    proving?.let { ProvingOverlay(it) }
+}
+
+private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) -> Unit, open: (Sheet) -> Unit) = HomeActions(
+    onNetworks = { open(Sheet.NETWORKS) },
+    onAccounts = { open(Sheet.ACCOUNTS) },
+    onSettings = { go(Route.SETTINGS) },
+    onSend = { go(Route.SEND) },
+    onReceive = { go(Route.RECEIVE) },
+    onShield = { go(Route.SHIELD) },
+    onAddToken = { open(Sheet.ADD_TOKEN) },
+    onActivate = { vm.run("Account activation sent.") { it.transactions.deployAccount() } },
+    onRefresh = { vm.run { it.refresh() } },
+    onCopied = {},
+)
+
+@Composable
+private fun AutoRefresh(session: WalletSession) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(session) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(REFRESH_MS)
+                session.refresh()
+            }
+        }
+    }
+}
+
+@Composable
+private fun WalletSheets(vm: AppViewModel, session: WalletSession, sheet: Sheet, busy: Boolean, auth: (String) -> Auth, close: () -> Unit) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val networks by vm.networks.collectAsStateWithLifecycle()
+    when (sheet) {
+        Sheet.NONE -> Unit
+        Sheet.NETWORKS -> NetworksSheet(networks, state.network.id, onSelect = { vm.switchNetwork(it); close() }, onDismiss = close)
+        Sheet.ACCOUNTS -> AccountsSheet(
+            state.accounts,
+            state.selected,
+            onSelect = { session.select(it); close() },
+            onCreate = { alias, key -> vm.addAccount(alias, key, auth("Save the new account")); close() },
+            onDismiss = close,
+        )
+        Sheet.ADD_TOKEN -> AddTokenSheet(busy, onAdd = { address -> vm.run("Token added.") { it.addToken(address) }; close() }, onDismiss = close)
+    }
+}
+
+@Composable
+private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, back: () -> Unit) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val nodes by vm.nodes.collectAsStateWithLifecycle()
+    val proverReady by vm.proverReady.collectAsStateWithLifecycle()
+    var revealed by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val info = remember(nodes, proverReady, state.network) {
+        SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id)
+    }
+    val network = state.network.id
+    SettingsScreen(state, info, busy, SettingsActions(
+        onBack = back,
+        onRename = { name -> state.account?.let { vm.renameAccount(it.address, name, auth("Rename the account")) } },
+        onRevealKey = { scope.launch { revealed = runCatching { vm.revealKey(state.selected!!, auth("Show the secret key")) }.getOrNull() } },
+        onCheckNode = { vm.checkNode(network) },
+        onLoadProver = { vm.loadProver(network) },
+        onCreateTestToken = { name, symbol -> vm.run("Token creation sent.") { it.transactions.deployTestToken(name, symbol) } },
+        onMint = { token, amount, private -> mint(vm, token, amount, private) },
+        onLock = { vm.lock() },
+        onWipe = { vm.wipe(auth("Remove the wallet")) },
+    ))
+    revealed?.let { key -> SecretKeyDialog(key, onCopy = { clipboard.setText(AnnotatedString(key)) }, onDismiss = { revealed = null }) }
+}
+
+private fun mint(vm: AppViewModel, token: String, amount: String, private: Boolean) = vm.run("Mint sent.") { session ->
+    val info = session.state.value.tokens.first { it.info.address == token }.info
+    session.transactions.mint(info, Amounts.parse(amount, info.decimals), private)
+}
+
+private fun coreVersion(): String = runCatching { dev.azwall.core.ffi.coreVersion() }.getOrDefault("?")
+
+private fun releases(): List<String> = runCatching { dev.azwall.core.ffi.supportedBarretenbergReleases() }.getOrDefault(emptyList())

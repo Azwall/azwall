@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.azwall"
-        minSdk = 28
+        minSdk = 30
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
@@ -32,7 +32,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 val repoRoot = rootDir.parentFile
@@ -53,7 +56,15 @@ val generateAzwallConfig by tasks.registering(Exec::class) {
     outputs.file(repoRoot.resolve("assets/azwall-config.json"))
 }
 
-tasks.named("preBuild") { dependsOn(generateAzwallConfig) }
+// pxe/<bundle> → assets/pxe/<bundle>/ (one PXE host per Aztec version, see networks.json).
+val buildPxeHosts by tasks.registering(Exec::class) {
+    workingDir = repoRoot.resolve("pxe")
+    commandLine("sh", "-c", "pnpm install --frozen-lockfile --silent && pnpm build")
+    inputs.files(fileTree(repoRoot.resolve("pxe")) { include("*/src/**", "*/package.json", "*/vite.config.ts", "pnpm-lock.yaml") })
+    outputs.dir(repoRoot.resolve("assets/pxe"))
+}
+
+tasks.named("preBuild") { dependsOn(generateAzwallConfig, buildPxeHosts) }
 
 dependencies {
     implementation(project(":core"))
@@ -66,6 +77,10 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment.ktx)
+    implementation(libs.zxing.core)
+    implementation(libs.compose.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

@@ -131,7 +131,7 @@ class WalletSession(
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
     suspend fun addAccount(alias: String, importedKey: String? = null): AccountView {
-        val key = importedKey?.let(Vault::parseSigningKey) ?: client.newSigningKey()
+        val key = importedKey?.let(Vault::parseSigningKey) ?: Vault.newSigningKey()
         val secrets = AccountSecrets(alias.trim().ifEmpty { "Account ${contents.accounts.size + 1}" }, key, Vault.ZERO_SALT)
         contents = vault.addAccount(contents, secrets)
         val view = register(secrets)

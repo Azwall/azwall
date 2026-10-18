@@ -77,11 +77,23 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
         /** Salt 0: the address is then a function of the signing key alone, so restoring needs only the key. */
         const val ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
-        /** Normalises a signing key typed or pasted by the user; throws on anything but 32 bytes of hex. */
+        /** Order of the Grumpkin scalar field: Aztec signing keys are elements of it. */
+        val GRUMPKIN_ORDER = java.math.BigInteger("30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47", 16)
+
+        /** Normalises a signing key typed or pasted by the user; throws unless it is a non-zero Grumpkin scalar. */
         fun parseSigningKey(input: String): String {
             val body = input.trim().removePrefix("0x").lowercase()
             require(body.length == 64 && body.all { it in "0123456789abcdef" }) { "a signing key is 64 hexadecimal characters" }
+            val value = java.math.BigInteger(body, 16)
+            require(value.signum() > 0 && value < GRUMPKIN_ORDER) { "this is not a valid Aztec signing key" }
             return "0x$body"
+        }
+
+        /** A fresh signing key: 64 random bytes reduced modulo the field order (bias below 2^-250). */
+        fun newSigningKey(random: SecureRandom = SecureRandom()): String {
+            val wide = java.math.BigInteger(1, ByteArray(64).also(random::nextBytes))
+            val key = wide.mod(GRUMPKIN_ORDER).takeIf { it.signum() > 0 } ?: java.math.BigInteger.ONE
+            return "0x" + key.toString(16).padStart(64, '0')
         }
     }
 }
