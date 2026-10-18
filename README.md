@@ -98,5 +98,5 @@ LIVE=1 scripts/test-all.sh
 
 ## Conventions
 
-See [CONTRIBUTING.md](CONTRIBUTING.md): English everywhere, at most 600 lines per file and 50
+See [AGENTS.md](AGENTS.md): English everywhere, at most 600 lines per file and 50
 lines per function (`scripts/check-limits.py`).
