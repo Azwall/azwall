@@ -13,29 +13,29 @@ uniffi::setup_scaffolding!();
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum AzwallError {
-    #[error("{message}")]
-    Config { message: String },
+    #[error("{detail}")]
+    Config { detail: String },
     #[error("unknown network '{id}'")]
     UnknownNetwork { id: String },
-    #[error("{message}")]
-    Node { message: String },
-    #[error("{message}")]
-    Prover { message: String },
+    #[error("{detail}")]
+    Node { detail: String },
+    #[error("{detail}")]
+    Prover { detail: String },
 }
 
 impl From<CoreError> for AzwallError {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::UnknownNetwork(id) => Self::UnknownNetwork { id },
-            CoreError::Rpc(message) => Self::Node { message },
-            other => Self::Config { message: other.to_string() },
+            CoreError::Rpc(message) => Self::Node { detail: message },
+            other => Self::Config { detail: other.to_string() },
         }
     }
 }
 
 impl From<ProverError> for AzwallError {
     fn from(e: ProverError) -> Self {
-        Self::Prover { message: e.to_string() }
+        Self::Prover { detail: e.to_string() }
     }
 }
 
