@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 // Pure Swift wallet logic (models, view state). No native code, so `swift test` runs anywhere.
 import PackageDescription
 

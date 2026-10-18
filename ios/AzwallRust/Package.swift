@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 // The Rust core for iOS: the XCFramework and uniffi bindings built by scripts/build-ios.sh, and
 // the WalletBackend implementation over them.
 import PackageDescription

@@ -30,7 +30,7 @@ scripts/             Native builds, bindings, CRS, tests, size limits
 
 - Rust ≥ 1.89 with `rustup target add aarch64-linux-android x86_64-linux-android`
 - [cargo-ndk](https://github.com/bbqsrc/cargo-ndk), JDK 17+, Android SDK (platform 37) and NDK 27
-- For iOS: macOS, Xcode 16+, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+- For iOS: macOS, Xcode with Swift ≥ 6.4, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - To build Barretenberg: CMake ≥ 3.24, Ninja, Node ≥ 22, Python 3
 
 ```bash
