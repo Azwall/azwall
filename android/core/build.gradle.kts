@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -40,8 +41,11 @@ tasks.named("preBuild") { dependsOn(generateUniffiBindings) }
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    api(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.webkit)
     implementation(libs.jna) { artifact { type = "aar" } }
 
     testImplementation(libs.junit)
     testImplementation(libs.jna)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

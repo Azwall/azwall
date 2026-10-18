@@ -15,6 +15,7 @@ class MappingTest {
             aztecVersion = "6.0.0-rc.3",
             barretenbergVersion = "6.0.0-rc.6",
             rpcUrl = "https://lb.drpc.org/aztec-testnet/SECRET",
+            pxeBundle = "v6",
             proverSupported = true,
         )
         val info = network.toInfo()

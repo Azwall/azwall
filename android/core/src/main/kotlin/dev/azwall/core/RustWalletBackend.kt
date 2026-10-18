@@ -14,6 +14,8 @@ class RustWalletBackend(private val core: WalletCore) : WalletBackend {
 
     override fun checkNode(networkId: String): NodeCheck = rust { core.checkNode(networkId).toCheck() }
 
+    override fun pxeOpenParams(networkId: String): String = rust { core.pxeOpenParams(networkId) }
+
     override fun prepareProver(networkId: String) = rust { core.prepareProver(networkId) }
 
     override fun prove(networkId: String, request: ByteArray): ByteArray = rust { core.prove(networkId, request) }
@@ -37,6 +39,7 @@ internal fun Network.toInfo() = NetworkInfo(
     aztecVersion = aztecVersion,
     barretenbergVersion = barretenbergVersion,
     rpcHost = hostOf(rpcUrl),
+    pxeBundle = pxeBundle,
     proverSupported = proverSupported,
 )
 

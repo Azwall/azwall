@@ -1,0 +1,121 @@
+package dev.azwall.core.pxe
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * Runs one PXE host bundle (`assets/pxe/<bundle>/`) in a web view the user never sees. The page is served
+ * from the APK over https://appassets.androidplatform.net, a secure context, which the PXE's crypto and
+ * its encrypted SQLite-OPFS stores require. One host runs at a time: the selected network's.
+ */
+class PxeHost private constructor(
+    val bundle: String,
+    private val webView: WebView,
+    val channel: PxeChannel,
+    private val scope: CoroutineScope,
+) {
+    /** Aztec version reported by the page once loaded. */
+    var aztecVersion: String = ""
+        private set
+
+    fun destroy() {
+        channel.close("the PXE host was stopped")
+        scope.cancel()
+        main.post { webView.destroy() }
+    }
+
+    companion object {
+        private const val TAG = "AzwallPxe"
+        private const val HOST = "appassets.androidplatform.net"
+        private const val READY_TIMEOUT_MS = 60_000L
+        private val main = Handler(Looper.getMainLooper())
+
+        /** Loads the bundle and returns once the page reported `ready`. */
+        suspend fun start(context: Context, bundle: String, handlers: Map<String, NativeHandler>): PxeHost {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            lateinit var webView: WebView
+            val channel = PxeChannel({ json -> main.post { webView.evaluateJavascript("azwallHost.receive(${JsonPrimitive(json)})", null) } }, handlers, scope)
+            // Subscribe before the page loads: events are not replayed.
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect { logEvent(it) } }
+            val ready = scope.async(start = CoroutineStart.UNDISPATCHED) { channel.events.first { it.name == "ready" } }
+            webView = withContext(Dispatchers.Main) { createWebView(context.applicationContext, channel, bundle) }
+            val host = PxeHost(bundle, webView, channel, scope)
+            val event = try {
+                withTimeout(READY_TIMEOUT_MS) { ready.await() }
+            } catch (e: Exception) {
+                host.destroy()
+                throw PxeException("the PXE host $bundle did not start: ${e.message}")
+            }
+            host.aztecVersion = runCatching { event.data.jsonObject["aztec"]!!.jsonPrimitive.content }.getOrDefault("")
+            return host
+        }
+
+        @SuppressLint("SetJavaScriptEnabled")
+        private fun createWebView(context: Context, channel: PxeChannel, bundle: String): WebView {
+            val loader = WebViewAssetLoader.Builder()
+                .setDomain(HOST)
+                .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+                .build()
+            return WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                webViewClient = AssetClient(loader)
+                addJavascriptInterface(Bridge(channel), "AzwallAndroid")
+                loadUrl("https://$HOST/assets/pxe/$bundle/index.html")
+            }
+        }
+
+        private fun logEvent(event: PxeEvent) {
+            if (event.name != "log") return
+            val data = runCatching { event.data.jsonObject }.getOrNull()
+            val message = data?.get("message")?.jsonPrimitive?.content ?: event.data.toString()
+            val scope = data?.get("scope")?.jsonPrimitive?.content ?: "pxe"
+            when (data?.get("level")?.jsonPrimitive?.content) {
+                "error" -> Log.e(TAG, "[$scope] $message")
+                "warn" -> Log.w(TAG, "[$scope] $message")
+                else -> Log.i(TAG, "[$scope] $message")
+            }
+        }
+    }
+
+    /** Serves the bundle from the APK and keeps the page on its own origin. */
+    private class AssetClient(private val loader: WebViewAssetLoader) : WebViewClient() {
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+            loader.shouldInterceptRequest(request.url)?.also { response ->
+                // Streaming compilation requires the exact WASM MIME type.
+                if (request.url.path.orEmpty().endsWith(".wasm")) response.mimeType = "application/wasm"
+            }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
+    }
+
+    /** `AzwallAndroid.postMessage(json)` in the page. Called on a WebView background thread. */
+    private class Bridge(private val channel: PxeChannel) {
+        @JavascriptInterface
+        fun postMessage(json: String) = channel.receive(json)
+    }
+}

@@ -10,6 +10,8 @@ data class NetworkInfo(
     val barretenbergVersion: String,
     /** Host of the RPC endpoint only: the path may carry an API key. */
     val rpcHost: String,
+    /** PXE host bundle: `assets/pxe/<pxeBundle>/index.html`. */
+    val pxeBundle: String,
     val proverSupported: Boolean,
 )
 
@@ -32,6 +34,9 @@ interface WalletBackend {
     fun defaultNetworkId(): String
 
     fun checkNode(networkId: String): NodeCheck
+
+    /** JSON `network` parameter of the PXE host's `open` call. */
+    fun pxeOpenParams(networkId: String): String
 
     /** Loads the network's Barretenberg release ahead of the first proof. */
     fun prepareProver(networkId: String)

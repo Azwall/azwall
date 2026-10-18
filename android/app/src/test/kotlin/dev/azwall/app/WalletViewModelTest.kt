@@ -31,8 +31,9 @@ private class FakeBackend : WalletBackend {
         prepared += networkId
     }
     override fun prove(networkId: String, request: ByteArray) = request
+    override fun pxeOpenParams(networkId: String) = "{}"
 
-    private fun network(id: String, bb: String) = NetworkInfo(id, id, "x", bb, "node.example", proverSupported = true)
+    private fun network(id: String, bb: String) = NetworkInfo(id, id, "x", bb, "node.example", "v6", proverSupported = true)
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

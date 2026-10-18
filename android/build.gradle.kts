@@ -4,4 +4,5 @@ plugins {
     // AGP 9 compiles Kotlin itself; this pins the Kotlin Gradle plugin it uses to libs.versions.toml.
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
