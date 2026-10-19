@@ -158,6 +158,7 @@ export class AzwallWallet extends EmbeddedWallet {
         return looksLikeToken(artifact) ? address.toString() : null;
       }),
     );
+    log('tokens', `${addresses.length} contracts registered in the PXE`);
     return tokens.filter(t => t !== null);
   }
 

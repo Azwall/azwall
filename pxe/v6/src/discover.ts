@@ -3,6 +3,7 @@
 // even when the history of what was done is not: Aztec has no index of an account's private transactions.
 import type { ContractArtifact } from '@aztec-labs/stdlib/abi';
 
+import { log } from './log';
 import { balances, tokenInfo, type TokenBalance, type TokenInfo } from './token';
 import type { AzwallWallet } from './wallet';
 
@@ -31,5 +32,7 @@ export async function discoverTokens(wallet: AzwallWallet, owner: string, known:
       }
     }),
   );
-  return found.filter(t => t !== null);
+  const held = found.filter(t => t !== null);
+  log('tokens', `${candidates.length} registered token(s) not followed, ${held.length} held: ${held.map(t => t.symbol).join(', ') || '-'}`);
+  return held;
 }
