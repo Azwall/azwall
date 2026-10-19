@@ -3,6 +3,7 @@ package dev.azwall.core.wallet
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.AccountSecrets
+import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
@@ -51,6 +52,8 @@ data class SessionState(
     val selected: String? = null,
     val tokens: List<TokenView> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
+    /** Tokens the account holds that are not followed yet, found among the contracts dApps registered. */
+    val found: List<FoundToken> = emptyList(),
     val refreshing: Boolean = false,
     val error: String? = null,
 ) {
@@ -77,6 +80,7 @@ class WalletSession(
     private val running = MutableStateFlow<RunningPxe?>(null)
     private val pxe: RunningPxe? get() = running.value
     private val refreshLock = Mutex()
+    private var lastDiscovery = 0L
     val transactions = Transactions(this)
     val dapps = DappLink(this)
 
@@ -112,7 +116,8 @@ class WalletSession(
 
     fun select(address: String) {
         if (_state.value.accounts.none { it.address == address }) return
-        _state.update { it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }) }
+        lastDiscovery = 0L
+        _state.update { it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList()) }
         scope.launch { refresh() }
     }
 
@@ -132,6 +137,7 @@ class WalletSession(
                     error = null,
                 )
             }
+            if (deployed) discoverTokens(account.address)
         } catch (e: Exception) {
             _state.update { it.copy(error = e.message) }
         } finally {
@@ -165,6 +171,31 @@ class WalletSession(
         return info
     }
 
+    /** Follows a found token; its balance is already known. */
+    fun followFound(token: FoundToken) {
+        store.addToken(token.info)
+        _state.update { s -> s.copy(tokens = s.tokens + TokenView(token.info, token.balance), found = s.found - token) }
+    }
+
+    /** Stops suggesting a found token. */
+    fun dismissFound(token: FoundToken) {
+        store.dismiss(token.address)
+        _state.update { s -> s.copy(found = s.found - token) }
+    }
+
+    /**
+     * Discovery is a hint: a failure leaves the suggestions as they were. It simulates calls on every candidate,
+     * so it runs at most once per [DISCOVERY_MS] (the home screen refreshes more often).
+     */
+    private suspend fun discoverTokens(owner: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastDiscovery < DISCOVERY_MS) return
+        lastDiscovery = now
+        val known = store.tokens.map { it.address } + store.dismissed
+        val found = runCatching { client.discoverTokens(owner, known) }.getOrNull() ?: return
+        _state.update { s -> if (s.selected == owner) s.copy(found = found) else s }
+    }
+
     fun removeToken(address: String) {
         store.removeToken(address)
         _state.update { s -> s.copy(tokens = s.tokens.filterNot { it.info.address.equals(address, true) }) }
@@ -182,4 +213,8 @@ class WalletSession(
 
     private suspend fun register(secrets: AccountSecrets): AccountView =
         AccountView(secrets.alias, client.addAccount(secrets), secrets.signingKey, deployed = null)
+
+    private companion object {
+        const val DISCOVERY_MS = 60_000L
+    }
 }

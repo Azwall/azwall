@@ -25,6 +25,12 @@ Approved transactions land in the wallet's **activity** like its own: the gatewa
 (`dappTx` events: proving, sent with its hash, or failed), and the app follows the hash to a block. The
 row shows what the transaction does (its first call) and the site that asked for it.
 
+dApps register the contracts they call in the wallet's PXE, which keeps them. The wallet looks there for
+**tokens the account holds but does not follow** (standard Token functions, non-zero balance) and suggests
+them on the home screen: one tap follows a token, another dismisses it for good. This also finds tokens
+from interactions made before the wallet recorded dApp activity; Aztec keeps no index of an account's
+private transactions, so the history itself cannot be rebuilt.
+
 ## How a dApp connects
 
 ```mermaid

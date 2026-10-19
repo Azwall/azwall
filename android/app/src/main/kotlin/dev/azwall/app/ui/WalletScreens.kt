@@ -144,6 +144,8 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) ->
     onReceive = { go(Route.RECEIVE) },
     onShield = { go(Route.SHIELD) },
     onAddToken = { open(Sheet.ADD_TOKEN) },
+    onFollowFound = { token -> session.followFound(token) },
+    onDismissFound = { token -> session.dismissFound(token) },
     onActivate = { vm.run("Account activation sent.") { it.transactions.deployAccount() } },
     onRefresh = { vm.run { it.refresh() } },
     onCopied = {},

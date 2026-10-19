@@ -56,6 +56,13 @@ data class TokenBalance(val token: String, val private: String, val public: Stri
     val publicAmount: BigInteger get() = BigInteger(public)
 }
 
+/** A token the account holds that the wallet does not follow yet (pxe/<bundle>/src/discover.ts). */
+@Serializable
+data class FoundToken(val address: String, val name: String, val symbol: String, val decimals: Int, val private: String, val public: String) {
+    val info: TokenInfo get() = TokenInfo(address, name, symbol, decimals)
+    val balance: TokenBalance get() = TokenBalance(address, private, public)
+}
+
 @Serializable
 data class DeployedToken(val token: String, val txHash: String)
 
@@ -97,6 +104,12 @@ class PxeClient(private val caller: PxeCaller) {
     suspend fun balances(owner: String, tokens: List<String>): List<TokenBalance> = typed(
         "balances",
         buildJsonObject { put("owner", owner); putJsonArray("tokens") { tokens.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } },
+    )
+
+    /** Tokens registered in the PXE (by dApps too) outside [known], that [owner] holds. */
+    suspend fun discoverTokens(owner: String, known: List<String>): List<FoundToken> = typed(
+        "discoverTokens",
+        buildJsonObject { put("owner", owner); putJsonArray("known") { known.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } },
     )
 
     suspend fun transfer(kind: TransferKind, from: String, to: String, token: String, amount: BigInteger): String {

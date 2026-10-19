@@ -18,6 +18,7 @@ import { TxHash } from '@aztec/stdlib/tx';
 import type { CompleteFeeOptionsConfig, FeeOptions } from '@aztec/wallet-sdk/base-wallet';
 import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embedded';
 
+import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
 import { log } from './log';
 import type { CachedStore } from './store';
@@ -138,6 +139,19 @@ export class AzwallWallet extends EmbeddedWallet {
   /** The receipt as it stands, without waiting: to reconcile transactions whose wait was interrupted. */
   async txReceipt(txHash: string): Promise<Receipt> {
     return toReceipt(await this.aztecNode.getTxReceipt(TxHash.fromString(txHash)));
+  }
+
+  /** Contracts registered in this PXE (by the wallet or by dApps) whose artifact is a token's. */
+  async registeredTokens(): Promise<string[]> {
+    const addresses = await this.pxe.getContracts();
+    const tokens = await Promise.all(
+      addresses.map(async address => {
+        const instance = await this.pxe.getContractInstance(address);
+        const artifact = instance && (await this.pxe.getContractArtifact(instance.originalContractClassId));
+        return looksLikeToken(artifact) ? address.toString() : null;
+      }),
+    );
+    return tokens.filter(t => t !== null);
   }
 
   async flushStores(): Promise<void> {

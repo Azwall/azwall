@@ -49,6 +49,7 @@ import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.CircleAction
 import dev.azwall.app.ui.components.CopyAddress
 import dev.azwall.app.ui.theme.WalletTheme
+import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 
@@ -62,6 +63,8 @@ data class HomeActions(
     val onReceive: () -> Unit,
     val onShield: () -> Unit,
     val onAddToken: () -> Unit,
+    val onFollowFound: (FoundToken) -> Unit,
+    val onDismissFound: (FoundToken) -> Unit,
     val onActivate: () -> Unit,
     val onRefresh: () -> Unit,
     val onCopied: () -> Unit,
@@ -83,6 +86,7 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
                         Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Activity") })
                     }
                 }
+                item { FoundTokens(state.found, actions.onFollowFound, actions.onDismissFound) }
                 if (tab == 0) tokenItems(state, actions) else activityItems(state)
                 item { Spacer(Modifier.height(32.dp)) }
             }
@@ -145,13 +149,13 @@ private fun ActionRow(state: SessionState, actions: HomeActions) {
 }
 
 private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions) {
-    if (state.tokens.isEmpty()) {
+    if (state.tokens.isEmpty() && state.found.isEmpty()) {
         item { EmptyHint("No tokens yet", "Add a token by its address to see its private and public balances.", "Add a token", actions.onAddToken) }
     }
     items(state.tokens, key = { it.info.address }) { TokenRow(it) }
 }
 
 private fun LazyListScope.activityItems(state: SessionState) {
-    if (state.activity.isEmpty()) item { EmptyHint("No activity yet", "Transactions you make from this account appear here.") }
+    if (state.activity.isEmpty()) item { EmptyHint("No activity yet", "Transactions you make from this account, here or in dApps, appear here.") }
     items(state.activity, key = { it.id }) { ActivityRow(it) }
 }

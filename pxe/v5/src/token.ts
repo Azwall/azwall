@@ -23,7 +23,9 @@ export async function registerToken(wallet: AzwallWallet, token: string): Promis
   const address = addr(token);
   const instance = await wallet.node.getContract(address);
   if (!instance) throw new Error(`no contract at ${token} on this network`);
-  await wallet.registerContract(instance, TokenContractArtifact);
+  // A token a dApp registered keeps its own artifact (its class may differ from this package's Token).
+  const { isArtifactRegistered } = await wallet.getContractClassMetadata(instance.currentContractClassId);
+  await wallet.registerContract(instance, isArtifactRegistered ? undefined : TokenContractArtifact);
   return TokenContract.at(address, wallet);
 }
 

@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -40,6 +41,7 @@ private class FakePxe : PxeCaller {
     val mined = CompletableDeferred<Unit>()
     var waitError: String? = null
     var receiptOutcome = "success"
+    val discoveryKnown = mutableListOf<List<String>>()
     val sent = mutableListOf<JsonObject>()
 
     override suspend fun call(method: String, params: JsonObject): JsonElement {
@@ -54,6 +56,10 @@ private class FakePxe : PxeCaller {
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "deployAccount", "transfer" -> { sent += params; """{"txHash":"0xhash${sent.size}"}""" }
             "waitForTx" -> { waitError?.let { throw PxeException(it) }; mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
+            "discoverTokens" -> {
+                val known = params["known"]!!.jsonArray.map { it.jsonPrimitive.content }.also { discoveryKnown += it }
+                if ("0xpal" in known) "[]" else """[{"address":"0xpal","name":"Palmyr USD","symbol":"PUSD","decimals":6,"private":"0","public":"5000000"}]"""
+            }
             "txReceipt" -> """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":12,"outcome":"$receiptOutcome"}"""
             else -> "null"
         }
@@ -188,5 +194,28 @@ class WalletSessionTest {
         assertEquals(ActivityStatus.FAILED, item.status)
         assertEquals(Transactions.REVERTED, item.error)
         assertTrue(WalletStore(tmp.root, network.id).unsettled().isEmpty())
+    }
+
+    @Test
+    fun tokensFromDappsAreSuggestedAndFollowedInOneTap() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        val found = s.state.value.found.single()
+        assertEquals("PUSD", found.symbol)
+        s.followFound(found)
+        assertTrue(s.state.value.found.isEmpty())
+        assertEquals(BigInteger("5000000"), s.state.value.tokens.single().balance?.publicAmount)
+        assertEquals(listOf("0xpal"), WalletStore(tmp.root, network.id).tokens.map { it.address })
+    }
+
+    @Test
+    fun dismissedTokensAreNotSuggestedAgain() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        s.dismissFound(s.state.value.found.single())
+        s.select("addr-abab") // resets the discovery throttle
+        advanceUntilIdle()
+        assertTrue(s.state.value.found.isEmpty())
+        assertTrue("0xpal" in pxe.discoveryKnown.last())
     }
 }

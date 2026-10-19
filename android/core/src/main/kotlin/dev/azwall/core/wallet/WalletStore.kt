@@ -31,7 +31,12 @@ data class ActivityItem(
 )
 
 @Serializable
-private data class StoredNetwork(val tokens: List<TokenInfo> = emptyList(), val activity: List<ActivityItem> = emptyList())
+private data class StoredNetwork(
+    val tokens: List<TokenInfo> = emptyList(),
+    val activity: List<ActivityItem> = emptyList(),
+    /** Found tokens the user chose not to follow: not suggested again. */
+    val dismissed: List<String> = emptyList(),
+)
 
 /**
  * Non-secret wallet data of one network: the tokens the user follows and the transaction history.
@@ -49,6 +54,12 @@ class WalletStore(private val dir: File, private val networkId: String) {
     fun addToken(token: TokenInfo) {
         if (data.tokens.any { it.address.equals(token.address, ignoreCase = true) }) return
         save(data.copy(tokens = data.tokens + token))
+    }
+
+    val dismissed: List<String> get() = data.dismissed
+
+    fun dismiss(address: String) {
+        if (address !in data.dismissed) save(data.copy(dismissed = data.dismissed + address))
     }
 
     fun removeToken(address: String) = save(data.copy(tokens = data.tokens.filterNot { it.address.equals(address, ignoreCase = true) }))
