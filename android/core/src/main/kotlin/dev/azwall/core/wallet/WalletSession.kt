@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -72,9 +74,15 @@ class WalletSession(
     private val _state = MutableStateFlow(SessionState(network))
     val state: StateFlow<SessionState> = _state.asStateFlow()
     internal val store = WalletStore(storeDir, network.id)
-    private var pxe: RunningPxe? = null
+    private val running = MutableStateFlow<RunningPxe?>(null)
+    private val pxe: RunningPxe? get() = running.value
     private val refreshLock = Mutex()
     val transactions = Transactions(this)
+    val dapps = DappLink(this)
+
+    /** Events of the running PXE host (they restart with it). */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    internal val pxeEvents: Flow<PxeEvent> = running.flatMapLatest { it?.events ?: emptyFlow() }
 
     internal val client: PxeClient get() = pxe?.client ?: error("the wallet is not open")
 
@@ -83,8 +91,8 @@ class WalletSession(
         store.failInterrupted()
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
         try {
-            val running = launcher.launch(network).also { pxe = it }
-            val check = running.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
+            val host = launcher.launch(network).also { running.value = it }
+            val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
             val accounts = contents.accounts.map { register(it) }
             _state.update {
                 it.copy(phase = Phase.READY, check = check, accounts = accounts, selected = it.selected ?: accounts.firstOrNull()?.address)
@@ -96,8 +104,8 @@ class WalletSession(
     }
 
     fun close() {
-        pxe?.let { running -> scope.launch { runCatching { running.client.close() }; running.stop() } }
-        pxe = null
+        pxe?.let { host -> scope.launch { runCatching { host.client.close() }; host.stop() } }
+        running.value = null
     }
 
     fun select(address: String) {

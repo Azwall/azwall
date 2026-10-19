@@ -12,7 +12,14 @@ through the standard Aztec **wallet-sdk extension protocol**, the one browser-ex
 implement. A dApp written for an extension wallet works in Azwall unchanged.
 
 {: .note }
-> The dApp browser below runs in the Tauri prototype and is being ported to the native apps.
+> On Android, the **Explore** section (from the menu) is a browser whose home page is Google. A test dApp
+> connected through it on a Pixel 3, and a contract was deployed on testnet v6 from the page, proven
+> natively in 15 s. The iOS browser is still to come.
+
+Requests from the dApp appear in a **panel docked under the page**, not over it. The page stays usable:
+it can be scrolled to read its emojis while the panel is open, and only the panel's buttons answer.
+The panel collapses to its title and buttons to give the page back the screen. The emojis are compared
+once, right after the key exchange; later requests do not repeat them.
 
 ## How a dApp connects
 

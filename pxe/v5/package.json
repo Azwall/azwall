@@ -4,7 +4,7 @@
   "description": "PXE host for Aztec 5.1.0 (testnet v5)",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.content-script.config.ts",
     "test": "vitest run",
     "typecheck": "tsc -p ."
   },

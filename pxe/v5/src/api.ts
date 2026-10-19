@@ -6,6 +6,7 @@ import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
 import { Fq } from '@aztec/aztec.js/fields';
 import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, int, object, str, strings } from '@azwall/pxe-shared';
 
+import { DappGateway } from './dapp/gateway';
 import { openWallet, type NetworkParams } from './open';
 import { addr, balances, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
@@ -38,6 +39,7 @@ function hexToBytes(h: string): Uint8Array {
 
 export function createHandlers(bridge: Bridge): Handlers {
   let wallet: AzwallWallet | null = null;
+  let dapps: DappGateway | null = null;
   const w = () => {
     if (!wallet) throw new Error('the PXE is not open');
     return wallet;
@@ -45,8 +47,10 @@ export function createHandlers(bridge: Bridge): Handlers {
   const handlers: Record<string, (p: Params) => Promise<unknown>> = {
     open: async p => {
       if (wallet) throw new Error('the PXE is already open');
-      const opened = await openWallet(bridge, networkParams(object(p, 'network')), hexToBytes(hex(p, 'dbKey', 32)));
+      const network = networkParams(object(p, 'network'));
+      const opened = await openWallet(bridge, network, hexToBytes(hex(p, 'dbKey', 32)));
       wallet = opened.wallet;
+      dapps = new DappGateway(bridge, opened.wallet, network);
       return opened.check;
     },
     close: async () => {
@@ -70,6 +74,9 @@ export function createHandlers(bridge: Bridge): Handlers {
     deployToken: async p => deployToken(w(), str(p, 'admin'), str(p, 'name'), str(p, 'symbol'), int(p, 'decimals')),
     mint: async p => ({ txHash: await mint(w(), str(p, 'admin'), str(p, 'token'), str(p, 'to'), amount(p, 'amount'), bool(p, 'private')) }),
     flush: async () => w().flushStores(),
+    // A message from the content script of the page at `origin` (taken from the native web view, not the page).
+    dappMessage: async p => dapps?.receive(int(p, 'tabId'), str(p, 'origin'), JSON.parse(str(p, 'message')), str(p, 'account')),
+    dappDisconnect: async p => dapps?.disconnect(str(p, 'sessionId')),
   };
   return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
 }

@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.zxing.core)
     implementation(libs.compose.icons.extended)

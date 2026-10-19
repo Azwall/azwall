@@ -104,6 +104,9 @@ class PxeClient(private val caller: PxeCaller) {
         return field("mint", p, "txHash")
     }
 
+    /** An untyped call, for methods whose payload is opaque to the app (dApp messages). */
+    suspend fun callRaw(method: String, params: JsonObject): JsonElement = caller.call(method, params)
+
     private suspend inline fun <reified T> typed(method: String, params: JsonObject): T =
         json.decodeFromJsonElement(caller.call(method, params))
 

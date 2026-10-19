@@ -22,8 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.CallMade
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.QrCode2
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,6 +56,7 @@ import dev.azwall.core.wallet.SessionState
 data class HomeActions(
     val onNetworks: () -> Unit,
     val onAccounts: () -> Unit,
+    val onMenu: () -> Unit,
     val onSettings: () -> Unit,
     val onSend: () -> Unit,
     val onReceive: () -> Unit,
@@ -91,10 +92,12 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
 
 @Composable
 private fun TopBar(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = actions.onMenu) { Icon(Icons.Outlined.Menu, "Menu") }
+        Spacer(Modifier.weight(1f))
         NetworkPill(state.network.label, healthy = nodeOk ?: (state.phase == Phase.READY), onClick = actions.onNetworks)
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = actions.onSettings) { Icon(Icons.Outlined.Settings, "Settings") }
+        IconButton(onClick = actions.onReceive) { Icon(Icons.Outlined.QrCode2, "Receive") }
     }
 }
 

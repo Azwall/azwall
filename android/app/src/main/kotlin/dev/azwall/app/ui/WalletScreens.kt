@@ -1,6 +1,12 @@
 package dev.azwall.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -9,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.Lifecycle
@@ -18,6 +25,13 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.azwall.app.AppViewModel
 import dev.azwall.app.Auth
 import dev.azwall.app.BuildConfig
+import dev.azwall.app.ui.browser.BrowserScreen
+import dev.azwall.app.ui.browser.DappRequests
+import dev.azwall.app.ui.browser.AppDrawer
+import dev.azwall.app.ui.browser.MenuItem
+import dev.azwall.app.ui.browser.MainTab
+import dev.azwall.app.ui.browser.rememberBrowser
+import dev.azwall.app.ui.browser.ConnectionsSheet
 import dev.azwall.app.ui.home.HomeActions
 import dev.azwall.app.ui.home.HomeScreen
 import dev.azwall.app.ui.receive.ReceiveScreen
@@ -38,23 +52,74 @@ import kotlinx.coroutines.launch
 
 private enum class Route { HOME, SEND, SHIELD, RECEIVE, SETTINGS }
 
-private enum class Sheet { NONE, NETWORKS, ACCOUNTS, ADD_TOKEN }
+private enum class Sheet { NONE, NETWORKS, ACCOUNTS, ADD_TOKEN, CONNECTIONS }
 
 /** How often balances are refreshed while the wallet is on screen. */
 private const val REFRESH_MS = 20_000L
 
 @Composable
 fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, dismissMessage: () -> Unit) {
+    var tab by rememberSaveable { mutableStateOf(MainTab.WALLET) }
     var route by rememberSaveable { mutableStateOf(Route.HOME) }
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
-    val state by session.state.collectAsStateWithLifecycle()
     val proving by session.transactions.proving.collectAsStateWithLifecycle()
-    val nodes by vm.nodes.collectAsStateWithLifecycle()
+    val state by session.state.collectAsStateWithLifecycle()
+    val browser = rememberBrowser(session)
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val openMenu: () -> Unit = { scope.launch { drawer.open() } }
     AutoRefresh(session)
-    BackHandler(enabled = route != Route.HOME) { route = Route.HOME }
-    val home = { route = Route.HOME }
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        // Swiping open would fight with the web page's own gestures: the menu opens from its button only.
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            AppDrawer(state, tab) { item ->
+                scope.launch { drawer.close() }
+                when (item) {
+                    MenuItem.WALLET -> { tab = MainTab.WALLET; route = Route.HOME }
+                    MenuItem.EXPLORE -> tab = MainTab.EXPLORE
+                    MenuItem.SETTINGS -> { tab = MainTab.WALLET; route = Route.SETTINGS }
+                    MenuItem.LOCK -> vm.lock()
+                }
+            }
+        },
+    ) {
+        // dApp requests dock under the page, which shrinks but stays usable above them.
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) {
+                if (tab == MainTab.EXPLORE) {
+                    val sessions by session.dapps.sessions.collectAsStateWithLifecycle()
+                    BrowserScreen(browser, sessions, onMenu = openMenu, onConnections = { sheet = Sheet.CONNECTIONS })
+                } else {
+                    WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu)
+                }
+            }
+            DappRequests(vm, onShowPage = { tab = MainTab.EXPLORE })
+        }
+    }
+    WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }
+    proving?.let { ProvingOverlay(it) }
+}
+
+@Composable
+private fun WalletRoutes(
+    vm: AppViewModel,
+    session: WalletSession,
+    busy: Boolean,
+    auth: (String) -> Auth,
+    dismissMessage: () -> Unit,
+    route: Route,
+    go: (Route) -> Unit,
+    open: (Sheet) -> Unit,
+    openMenu: () -> Unit,
+) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val nodes by vm.nodes.collectAsStateWithLifecycle()
+    BackHandler(enabled = route != Route.HOME) { go(Route.HOME) }
+    val home = { go(Route.HOME) }
     when (route) {
-        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, { route = it }, { sheet = it }))
+        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, go, open, openMenu))
         Route.SEND, Route.SHIELD -> TransferScreen(
             mode = if (route == Route.SEND) TransferMode.SEND else TransferMode.SHIELD,
             tokens = state.tokens,
@@ -68,11 +133,10 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
         Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
         Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, home)
     }
-    WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }
-    proving?.let { ProvingOverlay(it) }
 }
 
-private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) -> Unit, open: (Sheet) -> Unit) = HomeActions(
+private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) -> Unit, open: (Sheet) -> Unit, menu: () -> Unit) = HomeActions(
+    onMenu = menu,
     onNetworks = { open(Sheet.NETWORKS) },
     onAccounts = { open(Sheet.ACCOUNTS) },
     onSettings = { go(Route.SETTINGS) },
@@ -113,6 +177,10 @@ private fun WalletSheets(vm: AppViewModel, session: WalletSession, sheet: Sheet,
             onDismiss = close,
         )
         Sheet.ADD_TOKEN -> AddTokenSheet(busy, onAdd = { address -> vm.run("Token added.") { it.addToken(address) }; close() }, onDismiss = close)
+        Sheet.CONNECTIONS -> {
+            val sessions by session.dapps.sessions.collectAsStateWithLifecycle()
+            ConnectionsSheet(sessions, state.network.label, onDisconnect = { id -> vm.run { it.dapps.disconnect(id) } }, onDismiss = close)
+        }
     }
 }
 

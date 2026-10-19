@@ -5,6 +5,7 @@ import dev.azwall.core.AzwallRuntime
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.KeystoreSecretBox
 import dev.azwall.core.vault.Vault
+import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.PxeLauncher
 import java.io.File
 
@@ -15,6 +16,8 @@ interface AppDeps {
     val vault: Vault
     val launcher: PxeLauncher
     val storeDir: File
+    /** The user's answers to dApp requests, shared by the browser and the PXE hosts. */
+    val approvals: DappApprovals
     var lastNetwork: String?
 
     /** Deletes the vault and its Keystore key. */
@@ -28,7 +31,8 @@ class AppContainer(context: Context) : AppDeps {
 
     override val backend: WalletBackend by lazy { AzwallRuntime.create(app) }
     override val vault = Vault(File(app.filesDir, "vault.bin"), box)
-    override val launcher: PxeLauncher = AndroidPxeLauncher(app) { backend }
+    override val approvals = DappApprovals()
+    override val launcher: PxeLauncher = AndroidPxeLauncher(app, approvals) { backend }
     override val storeDir = File(app.filesDir, "wallet")
 
     override var lastNetwork: String?

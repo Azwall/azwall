@@ -60,6 +60,9 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
 
     private var contents: VaultContents? = null
 
+    /** dApp requests waiting for the user (the browser shows them as sheets). */
+    val approvals get() = deps.approvals
+
     fun boot() {
         if (_phase.value != AppPhase.Booting) return
         viewModelScope.launch {
@@ -86,6 +89,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         val current = (_phase.value as? AppPhase.Unlocked)?.session ?: return@action
         if (current.network.id == id) return@action
         current.close()
+        deps.approvals.rejectAll()
         deps.lastNetwork = id
         start(contents ?: error("the wallet is locked"))
     }
