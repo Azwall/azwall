@@ -17,6 +17,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -160,7 +162,9 @@ private fun TokenPicker(tokens: List<TokenView>, selected: Int, onSelect: (Int) 
     Surface(onClick = { open = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TokenBadge(token.symbol, token.address, size = 32.dp)
-            Text("${token.name} (${token.symbol})", style = MaterialTheme.typography.titleSmall)
+            Text("${token.name} (${token.symbol})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            // Says the row opens a list of tokens.
+            Icon(if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown, "Choose a token")
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             tokens.forEachIndexed { i, t ->
