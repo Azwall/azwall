@@ -81,7 +81,7 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
     async () => dbKey.slice(),
     createLogger('azwall:store'),
   );
-  const stores = [await CachedStore.wrap(pxeStore as never, 'pxe'), await CachedStore.wrap(walletStore as never, 'wallet')];
+  const stores = [await CachedStore.wrap(pxeStore as never, names.pxe), await CachedStore.wrap(walletStore as never, names.wallet)];
   log('open', 'stores open; creating the PXE');
   const simulator = new WASMSimulator();
   const wallet = await AzwallWallet.create<AzwallWallet>(node, {

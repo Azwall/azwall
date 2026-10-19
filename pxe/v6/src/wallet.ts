@@ -143,9 +143,11 @@ export class AzwallWallet extends EmbeddedWallet {
 
   /** Where the PXE stands: its last synced block (number and time, in seconds) and the chain's tip. */
   async syncStatus(): Promise<{ syncedBlock: number; syncedAt: number; tip: number }> {
-    const [header, tip] = await Promise.all([this.pxe.getSyncedBlockHeader(), this.aztecNode.getBlockNumber()]);
-    const g = header.globalVariables;
-    return { syncedBlock: Number(g.blockNumber), syncedAt: Number(g.timestamp), tip: Number(tip) };
+    const tip = Number(await this.aztecNode.getBlockNumber());
+    // A PXE that never synced has no header yet: it starts from the beginning.
+    const header = await this.pxe.getSyncedBlockHeader().catch(() => undefined);
+    const g = header?.globalVariables;
+    return { syncedBlock: g ? Number(g.blockNumber) : 0, syncedAt: g ? Number(g.timestamp) : 0, tip };
   }
 
   /** Contracts registered in this PXE (by the wallet or by dApps) whose artifact is a token's. */

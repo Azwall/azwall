@@ -24,6 +24,7 @@ class StatusTextTest {
     fun aLateSyncSaysHowFarBehind() {
         val from = SyncStatus(syncedBlock = 7_341, syncedAt = now / 1000 - 36 * 3600, tip = 8_581)
         assertEquals("Syncing PXE · 1,240 blocks behind (36 h)", statusText(ready.copy(task = BackgroundTask.Syncing(from)), now))
+        assertEquals("Syncing PXE · 8,581 blocks behind", statusText(ready.copy(task = BackgroundTask.Syncing(SyncStatus(0, 0, 8_581))), now))
         assertEquals("Syncing PXE…", statusText(ready.copy(task = BackgroundTask.Syncing(from.copy(syncedBlock = 8_581))), now))
     }
 

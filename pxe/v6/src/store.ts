@@ -34,6 +34,8 @@ const SCHEMA_SQL = `
 `;
 
 const FLUSH_DEBOUNCE_MS = 250;
+/** Under continuous writes the debounce never fires: flush at least this often while anything is pending. */
+const FLUSH_MAX_WAIT_MS = 2_000;
 
 type Stmt = { sql: string; bind: unknown[] | undefined };
 type Bind = unknown[] | undefined;
@@ -66,6 +68,7 @@ export class CachedStore {
   #flushing: Promise<void> | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #closed = false;
+  #pendingSince: number | undefined;
   readonly #bornAt = performance.now();
 
   private constructor(
@@ -105,7 +108,9 @@ export class CachedStore {
 
     // Load: one SELECT on the disk database, inserted into memory in one transaction.
     const t0 = performance.now();
+    await keepJournal(diskAll, name);
     const rows = await diskAll('SELECT slot, container, key, key_count, hash, value FROM data');
+    checkNotReset(name, rows.length);
     mem.exec('BEGIN');
     const ins = mem.prepare('INSERT INTO data (slot, container, key, key_count, hash, value) VALUES (?, ?, ?, ?, ?, ?)');
     try {
@@ -128,18 +133,7 @@ export class CachedStore {
     };
     d.cache = cache;
 
-    const onHidden = () => {
-      if (document.visibilityState !== 'hidden') return;
-      const n = cache.stats.pendingStatements;
-      const t = performance.now();
-      log('store', `${name}: app hidden, flushing ${n} pending statements`);
-      void cache.flush().then(() => log('store', `${name}: hidden flush done in ${(performance.now() - t).toFixed(0)} ms`));
-    };
-    // In the PXE worker there is no document: the page forwards visibility changes (lib/remote_wallet.ts).
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onHidden);
-      window.addEventListener('pagehide', () => void cache.flush());
-    }
+    flushWhenHidden(cache, name);
 
     log('store', `${name}: ${rows.length} rows loaded into memory in ${cache.stats.loadMs.toFixed(0)} ms`);
     return cache;
@@ -202,7 +196,8 @@ export class CachedStore {
     this.stats.pendingGroups = this.#pending.length;
     this.stats.pendingStatements += group.length;
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => void this.flush(), FLUSH_DEBOUNCE_MS);
+    const waited = performance.now() - (this.#pendingSince ??= performance.now());
+    this.#timer = setTimeout(() => void this.flush(), Math.max(0, Math.min(FLUSH_DEBOUNCE_MS, FLUSH_MAX_WAIT_MS - waited)));
   }
 
   /** Writes every committed group to disk in one transaction. Resolves when the disk is caught up. */
@@ -211,6 +206,7 @@ export class CachedStore {
     if (!this.#pending.length) return Promise.resolve();
     const groups = this.#pending;
     this.#pending = [];
+    this.#pendingSince = undefined;
     this.stats.pendingGroups = 0;
     this.stats.pendingStatements = 0;
     const count = groups.reduce((a, g) => a + g.length, 0);
@@ -228,6 +224,7 @@ export class CachedStore {
         this.stats.flushes++;
         this.stats.lastFlushMs = performance.now() - t0;
         this.stats.lastFlushStatements = count;
+        rememberRows(this.stats.name, this.rowCount());
         this.stats.history.push([Math.round(t0 - this.#bornAt), count, this.stats.lastFlushBytes, Math.round(this.stats.lastFlushMs)]);
       })
       .catch(err => {
@@ -244,4 +241,53 @@ export class CachedStore {
       });
     return this.#flushing;
   }
+}
+
+/**
+ * The OPFS pool behind the disk database rewrites a file header whenever a file is created or deleted, and in the
+ * default DELETE mode SQLite creates and deletes its rollback journal on every transaction. A process killed during
+ * such a write leaves a header the pool cannot validate, and it drops the file. With PERSIST the journal file
+ * stays, so a transaction only writes pages, which the journal protects.
+ */
+async function keepJournal(diskAll: (sql: string) => Promise<unknown[][]>, name: string): Promise<void> {
+  const mode = await diskAll('PRAGMA journal_mode = PERSIST').catch(err => [[`error: ${err instanceof Error ? err.message : err}`]]);
+  if (String(mode[0]?.[0]).toLowerCase() !== 'persist') log('store', `${name}: journal mode is ${String(mode[0]?.[0])}, not persist`, 'warn');
+}
+
+/** Rows the store held at its last flush, per store name: a store found empty after holding data was reset. */
+function rowsKey(name: string): string {
+  return `azwall:store-rows:${name}`;
+}
+
+function rememberRows(name: string, rows: number): void {
+  try {
+    localStorage.setItem(rowsKey(name), String(rows));
+  } catch {
+    // diagnostics only (no localStorage in a worker or a private context)
+  }
+}
+
+/** Reports loudly a store that comes back empty after holding data: something wiped or detached it. */
+function checkNotReset(name: string, loaded: number): void {
+  let before = 0;
+  try {
+    before = Number(localStorage.getItem(rowsKey(name)) ?? 0);
+  } catch {
+    return;
+  }
+  if (loaded === 0 && before > 0) log('store', `${name}: STORE RESET — it held ${before} rows at its last flush and opens empty`, 'error');
+  rememberRows(name, loaded);
+}
+
+/** Android pauses (then may kill) a hidden web view: write everything pending as soon as the app is hidden. */
+function flushWhenHidden(cache: CachedStore, name: string): void {
+  // In the PXE worker there is no document: the page forwards visibility changes (lib/remote_wallet.ts).
+  if (typeof document === 'undefined') return;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    const t = performance.now();
+    log('store', `${name}: app hidden, flushing ${cache.stats.pendingStatements} pending statements`);
+    void cache.flush().then(() => log('store', `${name}: hidden flush done in ${(performance.now() - t).toFixed(0)} ms`));
+  });
+  window.addEventListener('pagehide', () => void cache.flush());
 }

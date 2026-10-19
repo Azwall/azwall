@@ -78,7 +78,9 @@ fun statusText(state: SessionState, now: Long = System.currentTimeMillis()): Str
         is BackgroundTask.Syncing -> {
             val from = task.from?.takeIf { it.blocksBehind > 0 } ?: return "Syncing PXE…"
             val blocks = if (from.blocksBehind == 1L) "1 block" else String.format(java.util.Locale.US, "%,d blocks", from.blocksBehind)
-            return "Syncing PXE · $blocks behind (${lag(now - from.syncedAt * 1000)})"
+            // A PXE that never synced has no block time to measure from.
+            val since = if (from.syncedAt > 0) " (${lag(now - from.syncedAt * 1000)})" else ""
+            return "Syncing PXE · $blocks behind$since"
         }
         BackgroundTask.FindingTokens -> return "Reading your tokens and history…"
         null -> Unit
