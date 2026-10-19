@@ -16,7 +16,8 @@ import type { LogFn } from '@aztec-labs/foundation/log';
 import type { AztecAsyncKVStore } from '@aztec-labs/kv-store';
 import { SponsoredFPCContractArtifact } from '@aztec-labs/noir-contracts.js/SponsoredFPC';
 import { TxHash } from '@aztec-labs/stdlib/tx';
-import type { CompleteFeeOptionsConfig, FeeOptions } from '@aztec-labs/wallet-sdk/base-wallet';
+import { BaseWallet, type CompleteFeeOptionsConfig, type FeeOptions } from '@aztec-labs/wallet-sdk/base-wallet';
+import { Gas } from '@aztec-labs/stdlib/gas';
 import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec-labs/wallets/embedded';
 
 import { looksLikeToken } from './discover';
@@ -107,7 +108,18 @@ export class AzwallWallet extends EmbeddedWallet {
   }
 
   override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
+    if (opts.from !== NO_FROM && this.#pqAccounts.has(opts.from.toString())) return this.#sendFromPq(payload, opts);
     return this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
+  }
+
+  /**
+   * EmbeddedWallet estimates gas by simulating the account through a stub chosen by account type, and has none for
+   * the post-quantum account: prove directly instead, with the network's admission limits (sponsored on testnet).
+   */
+  async #sendFromPq<W extends InteractionWaitOptions>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
+    await this.pxe.sync();
+    const gasSettings = { ...opts.fee?.gasSettings, gasLimits: await this.getMaxTxGasLimits(), teardownGasLimits: Gas.empty() };
+    return BaseWallet.prototype.sendTx.call(this, payload, { ...opts, fee: { ...opts.fee, gasSettings } }) as Promise<SendReturn<W>>;
   }
 
   /** Pays every fee through the Sponsored FPC unless the caller picks a fee payer. */

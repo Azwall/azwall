@@ -40,20 +40,30 @@ async function tokenFrom(wallet: AzwallWallet, account: string, label: string): 
   return ms;
 }
 
-export async function pqExperiment(wallet: AzwallWallet) {
+/** `pqOnly` skips the Schnorr baseline (already measured). Failures are logged: the reply goes nowhere. */
+export async function pqExperiment(wallet: AzwallWallet, pqOnly = false) {
+  try {
+    return await run(wallet, pqOnly);
+  } catch (err) {
+    log('pq', `FAILED: ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`, 'error');
+    throw err;
+  }
+}
+
+async function run(wallet: AzwallWallet, pqOnly: boolean) {
   const seed = Fr.random();
   log('pq', `building ${2 ** DEPTH} one-time keys`);
   const [levels, keygenMs] = await timed('one-time keys and Merkle tree', () =>
     buildTree(seed, DEPTH, n => n % 128 === 0 && log('pq', `${n} keys`)),
   );
-  const schnorr = await wallet.addAccount({ alias: 'pq-baseline', signingKey: Fq.random().toString(), salt: Fr.ZERO.toString() });
   const pq = await wallet.addPqAccount(seed, levels);
-  log('pq', `accounts: schnorr ${schnorr.address}, pq ${pq.address}`);
+  const schnorr = pqOnly ? null : await wallet.addAccount({ alias: 'pq-baseline', signingKey: Fq.random().toString(), salt: Fr.ZERO.toString() });
+  log('pq', `accounts: pq ${pq.address}${schnorr ? `, schnorr ${schnorr.address}` : ''}`);
   const result = {
     keygenMs,
-    schnorrDeployMs: await deploy(wallet, schnorr, 'Schnorr'),
+    schnorrDeployMs: schnorr ? await deploy(wallet, schnorr, 'Schnorr') : null,
     pqDeployMs: await deploy(wallet, pq, 'PQ'),
-    schnorrTxMs: await tokenFrom(wallet, schnorr.address.toString(), 'Schnorr'),
+    schnorrTxMs: schnorr ? await tokenFrom(wallet, schnorr.address.toString(), 'Schnorr') : null,
     pqTxMs: await tokenFrom(wallet, pq.address.toString(), 'PQ'),
   };
   log('pq', `RESULT ${JSON.stringify(result)}`);

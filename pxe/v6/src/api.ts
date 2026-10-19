@@ -81,7 +81,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     tokenHistory: async p => tokenHistory(w(), str(p, 'owner'), strings(p, 'tokens')),
     syncStatus: async () => w().syncStatus(),
     // Experimental, run from a debugger: measures a post-quantum account against Schnorr (pq/experiment.ts).
-    pqExperiment: async () => pqExperiment(w()),
+    pqExperiment: async p => pqExperiment(w(), bool(p, 'pqOnly')),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),
     // A message from the content script of the page at `origin` (taken from the native web view, not the page).
