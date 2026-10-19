@@ -12,6 +12,8 @@ describe('describe', () => {
     const lines = describeMessage('sendTx', [{ calls: [{ name: 'cast_vote', to: '0xab' }], authWitnesses: [{}] }]);
     expect(lines).toEqual(['cast_vote on 0xab', '1 authorization(s) attached']);
     expect(describeMessage('getAccounts', [])).toEqual([]);
+    const sponsored = describeMessage('sendTx', [{ calls: [{ name: 'sponsor_unconditionally', to: '0xf' }, { name: 'claim', to: '0xc' }] }]);
+    expect(sponsored[0]).toBe('claim on 0xc');
   });
 
   it('flags batches that contain a transaction', () => {

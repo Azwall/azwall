@@ -62,6 +62,10 @@ data class SyncStatus(val syncedBlock: Long, val syncedAt: Long, val tip: Long) 
     val blocksBehind: Long get() = (tip - syncedBlock).coerceAtLeast(0)
 }
 
+/** One private token transfer of the account, read back from the chain (pxe/<bundle>/src/history.ts). */
+@Serializable
+data class TokenMove(val token: String, val txHash: String, val block: Long, val at: Long, val from: String, val to: String, val amount: String)
+
 /** A token the account holds that the wallet does not follow yet (pxe/<bundle>/src/discover.ts). */
 @Serializable
 data class FoundToken(val address: String, val name: String, val symbol: String, val decimals: Int, val private: String, val public: String) {
@@ -109,6 +113,12 @@ class PxeClient(private val caller: PxeCaller) {
 
     suspend fun balances(owner: String, tokens: List<String>): List<TokenBalance> = typed(
         "balances",
+        buildJsonObject { put("owner", owner); putJsonArray("tokens") { tokens.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } },
+    )
+
+    /** The private transfers of [owner] on [tokens], as the PXE decrypts them from the chain. */
+    suspend fun tokenHistory(owner: String, tokens: List<String>): List<TokenMove> = typed(
+        "tokenHistory",
         buildJsonObject { put("owner", owner); putJsonArray("tokens") { tokens.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } },
     )
 

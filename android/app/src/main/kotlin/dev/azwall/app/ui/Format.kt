@@ -33,6 +33,7 @@ fun activityTitle(item: ActivityItem): String = when (item.kind) {
     ActivityKind.MINT -> "Minted"
     ActivityKind.DEPLOY_TOKEN -> "Token created" + (item.symbol?.let { " ($it)" } ?: "")
     ActivityKind.DAPP -> item.summary ?: "App transaction"
+    ActivityKind.RECEIVE -> "Received privately"
 }
 
 /** What the proving screen says while [kind] is being proven. */
@@ -45,6 +46,7 @@ fun provingTitle(kind: ActivityKind): String = when (kind) {
     ActivityKind.MINT -> "Minting"
     ActivityKind.DEPLOY_TOKEN -> "Creating the token"
     ActivityKind.DAPP -> "Proving the app's transaction"
+    ActivityKind.RECEIVE -> "Receiving"
 }
 
 /** "−1.5 TST", "+10 TST" or null for transactions without an amount. */
@@ -53,7 +55,7 @@ fun activityAmount(item: ActivityItem): String? {
     val text = "${Amounts.format(amount, item.decimals ?: 0)} ${item.symbol.orEmpty()}".trim()
     return when (item.kind) {
         ActivityKind.SEND_PRIVATE, ActivityKind.SEND_PUBLIC -> "−$text"
-        ActivityKind.MINT -> "+$text"
+        ActivityKind.MINT, ActivityKind.RECEIVE -> "+$text"
         else -> text
     }
 }
@@ -78,7 +80,7 @@ fun statusText(state: SessionState, now: Long = System.currentTimeMillis()): Str
             val blocks = if (from.blocksBehind == 1L) "1 block" else String.format(java.util.Locale.US, "%,d blocks", from.blocksBehind)
             return "Syncing PXE · $blocks behind (${lag(now - from.syncedAt * 1000)})"
         }
-        BackgroundTask.FindingTokens -> return "Looking for your tokens…"
+        BackgroundTask.FindingTokens -> return "Reading your tokens and history…"
         null -> Unit
     }
     val pending = state.activity.count { it.status == ActivityStatus.PENDING }

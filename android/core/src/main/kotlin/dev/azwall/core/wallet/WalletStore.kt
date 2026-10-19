@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-enum class ActivityKind { DEPLOY_ACCOUNT, SEND_PRIVATE, SEND_PUBLIC, SHIELD, UNSHIELD, MINT, DEPLOY_TOKEN, DAPP }
+enum class ActivityKind { DEPLOY_ACCOUNT, SEND_PRIVATE, SEND_PUBLIC, SHIELD, UNSHIELD, MINT, DEPLOY_TOKEN, DAPP, RECEIVE }
 
 enum class ActivityStatus { PROVING, PENDING, CONFIRMED, FAILED }
 
@@ -63,6 +63,14 @@ class WalletStore(private val dir: File, private val networkId: String) {
     }
 
     fun removeToken(address: String) = save(data.copy(tokens = data.tokens.filterNot { it.address.equals(address, ignoreCase = true) }))
+
+    /** Adds items the store does not have yet (by id), in one write. */
+    fun addMissing(items: List<ActivityItem>) {
+        val ids = data.activity.mapTo(HashSet()) { it.id }
+        val fresh = items.filter { it.id !in ids }
+        if (fresh.isEmpty()) return
+        save(data.copy(activity = (data.activity + fresh).sortedByDescending { it.createdAt }.take(MAX_ACTIVITY)))
+    }
 
     /** Inserts or replaces the item with the same id; keeps the newest [MAX_ACTIVITY] items. */
     fun upsert(item: ActivityItem) {

@@ -36,6 +36,7 @@ import dev.azwall.app.ui.shortAddress
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.app.ui.timeAgo
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.ActivityKind
 import dev.azwall.core.wallet.ActivityStatus
 import dev.azwall.core.wallet.Amounts
 import dev.azwall.core.wallet.Phase
@@ -150,7 +151,7 @@ internal fun ActivityRow(item: ActivityItem) {
             val detail = listOfNotNull(
                 timeAgo(item.createdAt),
                 item.origin?.let { "via ${it.removePrefix("https://")}" },
-                item.counterparty?.let { "to ${shortAddress(it)}" },
+                item.counterparty?.let { if (item.kind == ActivityKind.RECEIVE) "from ${shortAddress(it)}" else "to ${shortAddress(it)}" },
                 item.blockNumber?.let { "block $it" },
             )
             Text(detail.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

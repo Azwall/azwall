@@ -8,6 +8,7 @@ import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, i
 
 import { DappGateway } from './dapp/gateway';
 import { discoverTokens } from './discover';
+import { tokenHistory } from './history';
 import { openWallet, type NetworkParams } from './open';
 import { addr, balances, registerTokens, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
@@ -76,6 +77,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     deployToken: async p => deployToken(w(), str(p, 'admin'), str(p, 'name'), str(p, 'symbol'), int(p, 'decimals')),
     mint: async p => ({ txHash: await mint(w(), str(p, 'admin'), str(p, 'token'), str(p, 'to'), amount(p, 'amount'), bool(p, 'private')) }),
     registerTokens: async p => registerTokens(w(), strings(p, 'tokens')),
+    tokenHistory: async p => tokenHistory(w(), str(p, 'owner'), strings(p, 'tokens')),
     syncStatus: async () => w().syncStatus(),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),

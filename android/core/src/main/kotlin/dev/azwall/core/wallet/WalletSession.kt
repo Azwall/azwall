@@ -189,6 +189,7 @@ class WalletSession(
     /** Follows a found token; its balance is already known. */
     fun followFound(token: FoundToken) {
         store.addToken(token.info)
+        lastDiscovery = 0L // the next refresh reads the new token's history
         _state.update { s -> s.copy(tokens = s.tokens + TokenView(token.info, token.balance), found = s.found - token) }
     }
 
@@ -209,7 +210,17 @@ class WalletSession(
         val known = store.tokens.map { it.address } + store.dismissed
         _state.update { it.copy(task = BackgroundTask.FindingTokens) }
         val found = runCatching { client.discoverTokens(owner, known) }.getOrNull()
+        importHistory(owner)
         _state.update { s -> s.copy(task = null, found = if (found != null && s.selected == owner) found else s.found) }
+    }
+
+    /** Adds the private transfers the PXE reads back from the chain that the history does not have. */
+    private suspend fun importHistory(owner: String) {
+        val tokens = store.tokens
+        if (tokens.isEmpty()) return
+        val moves = runCatching { client.tokenHistory(owner, tokens.map { it.address }) }.getOrNull() ?: return
+        store.addMissing(History.items(owner, moves, tokens, store.activity(owner)))
+        _state.update { s -> if (s.selected == owner) s.copy(activity = store.activity(owner)) else s }
     }
 
     fun removeToken(address: String) {

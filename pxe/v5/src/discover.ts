@@ -12,8 +12,10 @@ export type FoundToken = TokenInfo & Pick<TokenBalance, 'private' | 'public'>;
 /** The functions of Aztec's standard Token contract the wallet reads and calls. */
 const TOKEN_FUNCTIONS = ['balance_of_private', 'balance_of_public', 'public_get_symbol', 'public_get_decimals', 'transfer'];
 
-export function looksLikeToken(artifact: Pick<ContractArtifact, 'functions'> | undefined): boolean {
-  const names = new Set((artifact?.functions ?? []).map(f => f.name));
+export function looksLikeToken(artifact: Pick<ContractArtifact, 'functions' | 'nonDispatchPublicFunctions'> | undefined): boolean {
+  // Public functions are listed apart from the private and utility ones (they run through public_dispatch).
+  const all = [...(artifact?.functions ?? []), ...(artifact?.nonDispatchPublicFunctions ?? [])];
+  const names = new Set(all.map(f => f.name));
   return TOKEN_FUNCTIONS.every(n => names.has(n));
 }
 

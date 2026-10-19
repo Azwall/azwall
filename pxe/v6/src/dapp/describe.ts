@@ -4,6 +4,9 @@
 /** Methods that change state or sign, and therefore need an approval per call. */
 export const NEEDS_APPROVAL = new Set(['sendTx', 'createAuthWit']);
 
+/** Fee-paying contract functions (Sponsored FPC, FPC entrypoints). */
+const FEE_FUNCTIONS = new Set(['sponsor_unconditionally', 'fee_entrypoint_private', 'fee_entrypoint_public']);
+
 type Json = Record<string, unknown>;
 
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
@@ -23,7 +26,10 @@ export function describeCall(call: unknown): string {
 export function describeMessage(type: string, args: unknown[]): string[] {
   const first = obj(args[0]);
   if (type === 'sendTx') {
-    const calls = list(first.calls).map(describeCall);
+    // The fee payment comes first in the payload but says nothing of what the dApp does: list it last.
+    const isFee = (c: unknown) => FEE_FUNCTIONS.has(String(obj(c).name));
+    const all = list(first.calls);
+    const calls = [...all.filter(c => !isFee(c)), ...all.filter(isFee)].map(describeCall);
     const authwits = list(first.authWitnesses).length;
     return authwits ? [...calls, `${authwits} authorization(s) attached`] : calls;
   }

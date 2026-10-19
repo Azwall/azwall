@@ -31,6 +31,6 @@ class StatusTextTest {
     fun pendingTransactionsAreCounted() {
         val item = ActivityItem("a", "0xme", ActivityKind.MINT, ActivityStatus.PENDING, 1)
         assertEquals("Waiting for 2 transactions to be mined…", statusText(ready.copy(activity = listOf(item, item.copy(id = "b"))), now))
-        assertEquals("Looking for your tokens…", statusText(ready.copy(task = BackgroundTask.FindingTokens), now))
+        assertEquals("Reading your tokens and history…", statusText(ready.copy(task = BackgroundTask.FindingTokens), now))
     }
 }
