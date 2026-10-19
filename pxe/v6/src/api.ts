@@ -9,6 +9,7 @@ import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, i
 import { DappGateway } from './dapp/gateway';
 import { discoverTokens } from './discover';
 import { tokenHistory } from './history';
+import { pqExperiment } from './pq/experiment';
 import { openWallet, type NetworkParams } from './open';
 import { addr, balances, registerTokens, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
@@ -79,6 +80,8 @@ export function createHandlers(bridge: Bridge): Handlers {
     registerTokens: async p => registerTokens(w(), strings(p, 'tokens')),
     tokenHistory: async p => tokenHistory(w(), str(p, 'owner'), strings(p, 'tokens')),
     syncStatus: async () => w().syncStatus(),
+    // Experimental, run from a debugger: measures a post-quantum account against Schnorr (pq/experiment.ts).
+    pqExperiment: async () => pqExperiment(w()),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),
     // A message from the content script of the page at `origin` (taken from the native web view, not the page).

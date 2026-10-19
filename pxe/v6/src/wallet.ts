@@ -8,7 +8,8 @@ import { SponsoredFeePaymentMethod } from '@aztec-labs/aztec.js/fee';
 import { Fq, Fr } from '@aztec-labs/aztec.js/fields';
 import { type AztecNode, waitForTx } from '@aztec-labs/aztec.js/node';
 import type { ExecutionPayload } from '@aztec-labs/aztec.js/tx';
-import { type Aliased, ContractInitializationStatus, type SendOptions } from '@aztec-labs/aztec.js/wallet';
+import { AccountManager, type Aliased, ContractInitializationStatus, type SendOptions } from '@aztec-labs/aztec.js/wallet';
+import { poseidon2Hash } from '@aztec-labs/foundation/crypto/poseidon';
 import { SPONSORED_FPC_SALT } from '@aztec-labs/constants';
 import { AccountFeePaymentMethodOptions } from '@aztec-labs/entrypoints/account';
 import type { LogFn } from '@aztec-labs/foundation/log';
@@ -20,6 +21,7 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec-labs/wallets/
 
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
+import { PqAccountContract } from './pq/account';
 import { log } from './log';
 import type { CachedStore } from './store';
 
@@ -118,6 +120,24 @@ export class AzwallWallet extends EmbeddedWallet {
       walletFeePaymentMethod: new SponsoredFeePaymentMethod(fpc.instance.address),
       accountFeePaymentMethodOptions: config.from !== NO_FROM ? AccountFeePaymentMethodOptions.EXTERNAL : base.accountFeePaymentMethodOptions,
     };
+  }
+
+  /** Experimental post-quantum accounts (pq/account.ts), by address: not in the walletDB, which only knows built-in types. */
+  readonly #pqAccounts = new Map<string, AccountManager>();
+
+  override async getAccountFromAddress(address: AztecAddress) {
+    const pq = this.#pqAccounts.get(address.toString());
+    return pq ? pq.getAccount() : super.getAccountFromAddress(address);
+  }
+
+  /** Registers a post-quantum account whose one-time keys are `levels` (from `seed`); nothing is sent. */
+  async addPqAccount(seed: Fr, levels: Fr[][]): Promise<AccountManager> {
+    const secretKey = await poseidon2Hash([seed, new Fr(1)]);
+    const contract = new PqAccountContract(seed, levels);
+    const manager = await AccountManager.create(this, secretKey, contract, { salt: Fr.ZERO });
+    await this.registerContract(manager.getInstance(), await contract.getContractArtifact(), secretKey);
+    this.#pqAccounts.set(manager.address.toString(), manager);
+    return manager;
   }
 
   /** Registers a Schnorr account from its secrets and returns its manager; nothing is sent. */
