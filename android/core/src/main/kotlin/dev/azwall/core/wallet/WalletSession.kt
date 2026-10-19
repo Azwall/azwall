@@ -89,6 +89,7 @@ class WalletSession(
     /** Starts the PXE, opens the network and registers every account. Failures land in [state]. */
     suspend fun open() {
         store.failInterrupted()
+        scope.launch { dapps.followActivity() }
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
         try {
             val host = launcher.launch(network).also { running.value = it }

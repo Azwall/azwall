@@ -14,7 +14,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 import { log } from '../log';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
-import { batchNeedsApproval, describeMessage, NEEDS_APPROVAL } from './describe';
+import { batchNeedsApproval, describeMessage, NEEDS_APPROVAL, txHashOf } from './describe';
 import { rawCall } from './raw_call';
 
 const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.1.0' };
@@ -122,17 +122,34 @@ export class DappGateway {
     if (m.type === 'requestCapabilities') return this.#capabilities(session, args[0]);
     if (!this.#granted.has(session.sessionId)) throw new Error('call requestCapabilities first');
     if (m.type === 'getAccounts') return [{ alias: 'main', item: this.#account }];
-    if (NEEDS_APPROVAL.has(m.type) || (m.type === 'batch' && batchNeedsApproval(args))) {
-      const authwit = m.type === 'createAuthWit';
-      const ok = await this.#ask({
-        kind: authwit ? 'authwit' : 'transaction',
-        origin: session.origin,
-        title: authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?',
-        details: describeMessage(m.type, args),
-      });
-      if (!ok) throw new Error('the user rejected the request');
+    if (!NEEDS_APPROVAL.has(m.type) && !(m.type === 'batch' && batchNeedsApproval(args))) return rawCall(this.wallet, m.type, args);
+    const authwit = m.type === 'createAuthWit';
+    const details = describeMessage(m.type, args);
+    const ok = await this.#ask({
+      kind: authwit ? 'authwit' : 'transaction',
+      origin: session.origin,
+      title: authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?',
+      details,
+    });
+    if (!ok) throw new Error('the user rejected the request');
+    return authwit ? rawCall(this.wallet, m.type, args) : this.#send(session, m.type, args, details);
+  }
+
+  /**
+   * An approved transaction, reported to the app as it goes (`dappTx` events) so it lands in the wallet's
+   * activity like the wallet's own: proving, then sent with its hash (the app follows it to a block) or failed.
+   */
+  async #send(session: ActiveSession, type: string, args: unknown[], details: string[]): Promise<unknown> {
+    const tx = { id: crypto.randomUUID(), account: this.#account, origin: session.origin, summary: details[0] ?? type };
+    this.bridge.emit('dappTx', { ...tx, status: 'proving' });
+    try {
+      const result = await rawCall(this.wallet, type, args);
+      this.bridge.emit('dappTx', { ...tx, status: 'sent', txHash: txHashOf(result) });
+      return result;
+    } catch (err) {
+      this.bridge.emit('dappTx', { ...tx, status: 'failed', error: errorMessage(err) });
+      throw err;
     }
-    return rawCall(this.wallet, m.type, args);
   }
 
   async #capabilities(session: ActiveSession, manifest: unknown): Promise<unknown> {

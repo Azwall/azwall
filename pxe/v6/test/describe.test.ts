@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { batchNeedsApproval, describeCall, describeMessage } from '../src/dapp/describe';
+import { batchNeedsApproval, describeCall, describeMessage, txHashOf } from '../src/dapp/describe';
 
 describe('describe', () => {
   it('names calls by function, kind and short target', () => {
@@ -18,5 +18,15 @@ describe('describe', () => {
     expect(batchNeedsApproval([[{ name: 'simulateTx' }, { name: 'sendTx' }]])).toBe(true);
     expect(batchNeedsApproval([[{ name: 'simulateTx' }]])).toBe(false);
     expect(batchNeedsApproval(['nope'])).toBe(false);
+  });
+
+  it('finds the hash of the transaction a call sent', () => {
+    const hash = `0x${'ab'.repeat(32)}`;
+    const txHash = { toString: () => hash };
+    expect(txHashOf(txHash)).toBe(hash);
+    expect(txHashOf({ txHash, blockNumber: 5 })).toBe(hash);
+    expect(txHashOf([{ name: 'simulateTx', result: 1 }, { name: 'sendTx', result: txHash }])).toBe(hash);
+    expect(txHashOf({ status: 'ok' })).toBeUndefined();
+    expect(txHashOf(undefined)).toBeUndefined();
   });
 });

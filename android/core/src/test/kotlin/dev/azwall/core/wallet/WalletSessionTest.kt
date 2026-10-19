@@ -12,7 +12,11 @@ import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.vault.SecretBox
 import dev.azwall.core.vault.Vault
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -22,6 +26,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -73,12 +78,18 @@ class WalletSessionTest {
 
     private val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0-rc.3", "6.0.0-rc.6", "node", "v6", true)
     private val pxe = FakePxe()
+    private val scopes = mutableListOf<CoroutineScope>()
+
+    @After
+    fun cancelSessions() = scopes.forEach { it.cancel() }
 
     private fun TestScope.session(): WalletSession {
         val vault = Vault(tmp.root.resolve("vault"), PlainBox)
         val contents = vault.create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
         val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = emptyFlow<PxeEvent>(); override fun stop() {} } }
-        return WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, this)
+        // The session runs endless collectors: a scope on the test scheduler (advanceUntilIdle runs it), cancelled after.
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
+        return WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
     }
 
     @Test

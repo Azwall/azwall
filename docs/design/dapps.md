@@ -21,6 +21,10 @@ it can be scrolled to read its emojis while the panel is open, and only the pane
 The panel collapses to its title and buttons to give the page back the screen. The emojis are compared
 once, right after the key exchange; later requests do not repeat them.
 
+Approved transactions land in the wallet's **activity** like its own: the gateway reports each one
+(`dappTx` events: proving, sent with its hash, or failed), and the app follows the hash to a block. The
+row shows what the transaction does (its first call) and the site that asked for it.
+
 ## How a dApp connects
 
 ```mermaid

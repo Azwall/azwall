@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-enum class ActivityKind { DEPLOY_ACCOUNT, SEND_PRIVATE, SEND_PUBLIC, SHIELD, UNSHIELD, MINT, DEPLOY_TOKEN }
+enum class ActivityKind { DEPLOY_ACCOUNT, SEND_PRIVATE, SEND_PUBLIC, SHIELD, UNSHIELD, MINT, DEPLOY_TOKEN, DAPP }
 
 enum class ActivityStatus { PROVING, PENDING, CONFIRMED, FAILED }
 
@@ -25,6 +25,9 @@ data class ActivityItem(
     val counterparty: String? = null,
     val blockNumber: Long? = null,
     val error: String? = null,
+    /** DAPP items: the site that asked for the transaction, and what it does (its first call). */
+    val origin: String? = null,
+    val summary: String? = null,
 )
 
 @Serializable

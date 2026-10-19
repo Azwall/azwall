@@ -36,3 +36,19 @@ export function describeMessage(type: string, args: unknown[]): string[] {
 export function batchNeedsApproval(args: unknown[]): boolean {
   return list(args[0]).some(b => NEEDS_APPROVAL.has(String(obj(b).name)));
 }
+
+const TX_HASH = /^0x[0-9a-f]{64}$/i;
+
+/**
+ * The hash of the transaction a dApp call sent: sendTx returns a TxHash or a receipt (with `wait`), and a batch
+ * returns its results in a list. Only a few levels deep: results are dApp-shaped, not trusted.
+ */
+export function txHashOf(result: unknown, depth = 0): string | undefined {
+  if (result === null || result === undefined || depth > 4) return undefined;
+  if (Array.isArray(result)) return result.map(r => txHashOf(r, depth + 1)).find(h => h !== undefined);
+  const text = String(result);
+  if (TX_HASH.test(text)) return text;
+  if (typeof result !== 'object') return undefined;
+  const o = result as Json;
+  return txHashOf(o.txHash, depth + 1) ?? txHashOf(o.result, depth + 1);
+}

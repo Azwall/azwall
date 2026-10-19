@@ -90,7 +90,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         return sent
     }
 
-    private suspend fun confirm(sent: ActivityItem) {
+    internal suspend fun confirm(sent: ActivityItem) {
         val done = try {
             val receipt = session.client.waitForTx(sent.txHash!!)
             sent.copy(status = ActivityStatus.CONFIRMED, blockNumber = receipt.blockNumber)

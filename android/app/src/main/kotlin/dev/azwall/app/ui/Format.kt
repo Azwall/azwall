@@ -28,6 +28,7 @@ fun activityTitle(item: ActivityItem): String = when (item.kind) {
     ActivityKind.UNSHIELD -> "Made public"
     ActivityKind.MINT -> "Minted"
     ActivityKind.DEPLOY_TOKEN -> "Token created" + (item.symbol?.let { " ($it)" } ?: "")
+    ActivityKind.DAPP -> item.summary ?: "App transaction"
 }
 
 /** What the proving screen says while [kind] is being proven. */
@@ -39,6 +40,7 @@ fun provingTitle(kind: ActivityKind): String = when (kind) {
     ActivityKind.UNSHIELD -> "Making funds public"
     ActivityKind.MINT -> "Minting"
     ActivityKind.DEPLOY_TOKEN -> "Creating the token"
+    ActivityKind.DAPP -> "Proving the app's transaction"
 }
 
 /** "−1.5 TST", "+10 TST" or null for transactions without an amount. */

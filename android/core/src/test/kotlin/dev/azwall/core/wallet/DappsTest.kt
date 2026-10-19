@@ -9,10 +9,14 @@ import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
 import dev.azwall.core.vault.SecretBox
 import dev.azwall.core.vault.Vault
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -25,6 +29,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -66,6 +71,7 @@ private class GatewayPxe : PxeCaller {
             "open" -> """{"nodeVersion":"6","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":1}"""
             "addAccount" -> """{"address":"0xme"}"""
             "accountState" -> """{"deployed":true}"""
+            "waitForTx" -> """{"txHash":"0xhash","status":"success","blockNumber":42}"""
             else -> "null"
         }
         return Json.parseToJsonElement(reply)
@@ -77,6 +83,10 @@ class DappLinkTest {
     val tmp = TemporaryFolder()
 
     private val pxe = GatewayPxe()
+    private val scopes = mutableListOf<CoroutineScope>()
+
+    @After
+    fun cancelSessions() = scopes.forEach { it.cancel() }
 
     private object Backend : WalletBackend {
         override fun networks() = emptyList<NetworkInfo>()
@@ -102,7 +112,9 @@ class DappLinkTest {
             }
         }
         val network = NetworkInfo("n", "N", "6", "6", "h", "v6", true)
-        return WalletSession(Backend, launcher, vault, contents, tmp.root, network, backgroundScope).apply { open() }
+        // A scope on the test scheduler (advanceUntilIdle runs it), cancelled after each test.
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
+        return WalletSession(Backend, launcher, vault, contents, tmp.root, network, scope).apply { open() }
     }
 
     @Test
@@ -130,5 +142,36 @@ class DappLinkTest {
         assertEquals("""{"x":1}""", toTab1.await())
         assertEquals("https://vote.example", s.dapps.sessions.value.single().origin)
         follower.cancel()
+    }
+
+    @Test
+    fun dappTransactionsLandInTheActivity() = runTest {
+        val s = session()
+        advanceUntilIdle()
+        val tx = """"id":"t1","account":"0xme","origin":"https://vote.example","summary":"cast_vote on 0xab""""
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
+        advanceUntilIdle()
+        assertEquals(ActivityStatus.PROVING, s.state.value.activity.single().status)
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"sent","txHash":"0xhash"}""")))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals(ActivityKind.DAPP, item.kind)
+        assertEquals("cast_vote on 0xab", item.summary)
+        assertEquals("https://vote.example", item.origin)
+        assertEquals(ActivityStatus.CONFIRMED, item.status)
+        assertEquals(42L, item.blockNumber)
+    }
+
+    @Test
+    fun failedDappTransactionsKeepTheirError() = runTest {
+        val s = session()
+        advanceUntilIdle()
+        val tx = """"id":"t2","account":"0xme","origin":"https://vote.example","summary":"vote""""
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"failed","error":"out of gas"}""")))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals(ActivityStatus.FAILED, item.status)
+        assertEquals("out of gas", item.error)
     }
 }

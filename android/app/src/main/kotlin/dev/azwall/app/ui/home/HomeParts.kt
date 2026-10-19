@@ -147,7 +147,12 @@ internal fun ActivityRow(item: ActivityItem) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(activityTitle(item), style = MaterialTheme.typography.titleSmall)
-            val detail = listOfNotNull(timeAgo(item.createdAt), item.counterparty?.let { "to ${shortAddress(it)}" }, item.blockNumber?.let { "block $it" })
+            val detail = listOfNotNull(
+                timeAgo(item.createdAt),
+                item.origin?.let { "via ${it.removePrefix("https://")}" },
+                item.counterparty?.let { "to ${shortAddress(it)}" },
+                item.blockNumber?.let { "block $it" },
+            )
             Text(detail.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (item.status == ActivityStatus.FAILED) {
                 Text(friendlyError(item.error), style = MaterialTheme.typography.bodySmall, color = WalletTheme.colors.danger, maxLines = 2)

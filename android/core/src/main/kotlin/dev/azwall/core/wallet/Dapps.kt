@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -97,6 +98,21 @@ class DappLink internal constructor(private val session: WalletSession) {
         }
     }
 
+    /**
+     * Records the transactions dApps send (the gateway's `dappTx` events) in the activity, like the wallet's own:
+     * PROVING once approved, PENDING with the hash once sent (then followed to a block), or FAILED.
+     */
+    suspend fun followActivity() {
+        val started = mutableMapOf<String, ActivityItem>()
+        session.pxeEvents.filter { it.name == "dappTx" }.collect { e ->
+            val tx = runCatching { json.decodeFromJsonElement<DappTx>(e.data) }.getOrNull() ?: return@collect
+            val item = (started[tx.id] ?: tx.draft()).let(tx::applyTo)
+            if (item.status == ActivityStatus.PROVING) started[tx.id] = item else started.remove(tx.id)
+            session.recordActivity(item)
+            if (item.status == ActivityStatus.PENDING) session.scope.launch { session.transactions.confirm(item) }
+        }
+    }
+
     /** A message from the content script of the page at [origin] in tab [tabId]. */
     suspend fun fromPage(tabId: Int, origin: String, message: String) {
         val account = session.state.value.account?.address ?: return
@@ -108,6 +124,35 @@ class DappLink internal constructor(private val session: WalletSession) {
 
     suspend fun disconnect(sessionId: String) {
         session.client.callRaw("dappDisconnect", buildJsonObject { put("sessionId", sessionId) })
+    }
+}
+
+/** One step of a dApp transaction, as the gateway reports it. */
+@Serializable
+private data class DappTx(
+    val id: String,
+    val account: String,
+    val origin: String,
+    val summary: String,
+    val status: String,
+    val txHash: String? = null,
+    val error: String? = null,
+) {
+    fun draft() = ActivityItem(
+        id = id,
+        account = account,
+        kind = ActivityKind.DAPP,
+        status = ActivityStatus.PROVING,
+        createdAt = System.currentTimeMillis(),
+        origin = origin,
+        summary = summary,
+    )
+
+    /** A sent transaction without a hash cannot be followed: it is shown as done rather than pending forever. */
+    fun applyTo(item: ActivityItem): ActivityItem = when (status) {
+        "sent" -> item.copy(status = if (txHash != null) ActivityStatus.PENDING else ActivityStatus.CONFIRMED, txHash = txHash)
+        "failed" -> item.copy(status = ActivityStatus.FAILED, error = error)
+        else -> item
     }
 }
 
