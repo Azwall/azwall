@@ -29,6 +29,16 @@ export async function registerToken(wallet: AzwallWallet, token: string): Promis
   return TokenContract.at(address, wallet);
 }
 
+/**
+ * The PXE store can start over (a pool damaged by a crash is set aside): the tokens the app follows are registered
+ * again on opening. A token that cannot be registered is reported, not fatal.
+ */
+export async function registerTokens(wallet: AzwallWallet, tokens: string[]): Promise<{ failed: string[] }> {
+  const failed: string[] = [];
+  for (const token of tokens) await registerToken(wallet, token).catch(() => failed.push(token));
+  return { failed };
+}
+
 function decodeString(result: unknown): string {
   const value = (result as { value?: bigint }).value ?? result;
   return readFieldCompressedString({ value: BigInt(value as bigint) });

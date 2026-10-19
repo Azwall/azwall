@@ -56,6 +56,12 @@ data class TokenBalance(val token: String, val private: String, val public: Stri
     val publicAmount: BigInteger get() = BigInteger(public)
 }
 
+/** Where the PXE stands: its last synced block (number, time in seconds) and the chain's tip. */
+@Serializable
+data class SyncStatus(val syncedBlock: Long, val syncedAt: Long, val tip: Long) {
+    val blocksBehind: Long get() = (tip - syncedBlock).coerceAtLeast(0)
+}
+
 /** A token the account holds that the wallet does not follow yet (pxe/<bundle>/src/discover.ts). */
 @Serializable
 data class FoundToken(val address: String, val name: String, val symbol: String, val decimals: Int, val private: String, val public: String) {
@@ -105,6 +111,13 @@ class PxeClient(private val caller: PxeCaller) {
         "balances",
         buildJsonObject { put("owner", owner); putJsonArray("tokens") { tokens.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } },
     )
+
+    suspend fun syncStatus(): SyncStatus = typed("syncStatus", JsonObject(emptyMap()))
+
+    /** Registers followed tokens in the PXE again (no-op for the ones it knows); failures are skipped. */
+    suspend fun registerTokens(tokens: List<String>) {
+        caller.call("registerTokens", buildJsonObject { putJsonArray("tokens") { tokens.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } })
+    }
 
     /** Tokens registered in the PXE (by dApps too) outside [known], that [owner] holds. */
     suspend fun discoverTokens(owner: String, known: List<String>): List<FoundToken> = typed(

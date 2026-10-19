@@ -91,6 +91,7 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
                 item { Spacer(Modifier.height(32.dp)) }
             }
         }
+        StatusLine(state)
     }
 }
 

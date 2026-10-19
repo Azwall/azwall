@@ -6,6 +6,7 @@ import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.PxeClient
+import dev.azwall.core.pxe.SyncStatus
 import dev.azwall.core.pxe.PxeEvent
 import dev.azwall.core.pxe.TokenBalance
 import dev.azwall.core.pxe.TokenInfo
@@ -44,6 +45,15 @@ data class TokenView(val info: TokenInfo, val balance: TokenBalance?)
 
 enum class Phase { STARTING, READY, FAILED }
 
+/** Background work the wallet shows in its status line, like an IDE's. */
+sealed interface BackgroundTask {
+    /** Syncing the PXE with the chain (it syncs while reading balances); [from] says how far behind it started. */
+    data class Syncing(val from: SyncStatus?) : BackgroundTask
+
+    /** Looking among the contracts dApps registered for tokens the account holds. */
+    data object FindingTokens : BackgroundTask
+}
+
 data class SessionState(
     val network: NetworkInfo,
     val phase: Phase = Phase.STARTING,
@@ -54,6 +64,8 @@ data class SessionState(
     val activity: List<ActivityItem> = emptyList(),
     /** Tokens the account holds that are not followed yet, found among the contracts dApps registered. */
     val found: List<FoundToken> = emptyList(),
+    /** What runs in the background right now, for the status line (null when idle). */
+    val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
     val error: String? = null,
 ) {
@@ -99,6 +111,7 @@ class WalletSession(
             val host = launcher.launch(network).also { running.value = it }
             val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
             val accounts = contents.accounts.map { register(it) }
+            runCatching { host.client.registerTokens(store.tokens.map { it.address }) }
             _state.update {
                 it.copy(phase = Phase.READY, check = check, accounts = accounts, selected = it.selected ?: accounts.firstOrNull()?.address)
             }
@@ -124,7 +137,8 @@ class WalletSession(
     /** Re-reads deployment status, balances and history of the selected account. */
     suspend fun refresh() = refreshLock.withLock {
         val account = _state.value.account ?: return
-        _state.update { it.copy(refreshing = true) }
+        val sync = runCatching { client.syncStatus() }.getOrNull()
+        _state.update { it.copy(refreshing = true, task = BackgroundTask.Syncing(sync)) }
         try {
             val deployed = client.isDeployed(account.address)
             val tokens = store.tokens
@@ -137,12 +151,13 @@ class WalletSession(
                     error = null,
                 )
             }
-            if (deployed) discoverTokens(account.address)
         } catch (e: Exception) {
             _state.update { it.copy(error = e.message) }
         } finally {
-            _state.update { it.copy(refreshing = false) }
+            _state.update { it.copy(refreshing = false, task = null) }
         }
+        // Independent of the balances: a token that cannot be read must not hide the others found.
+        if (_state.value.account?.deployed == true) discoverTokens(account.address)
     }
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
@@ -192,8 +207,9 @@ class WalletSession(
         if (now - lastDiscovery < DISCOVERY_MS) return
         lastDiscovery = now
         val known = store.tokens.map { it.address } + store.dismissed
-        val found = runCatching { client.discoverTokens(owner, known) }.getOrNull() ?: return
-        _state.update { s -> if (s.selected == owner) s.copy(found = found) else s }
+        _state.update { it.copy(task = BackgroundTask.FindingTokens) }
+        val found = runCatching { client.discoverTokens(owner, known) }.getOrNull()
+        _state.update { s -> s.copy(task = null, found = if (found != null && s.selected == owner) found else s.found) }
     }
 
     fun removeToken(address: String) {

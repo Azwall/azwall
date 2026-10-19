@@ -9,7 +9,7 @@ import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, i
 import { DappGateway } from './dapp/gateway';
 import { discoverTokens } from './discover';
 import { openWallet, type NetworkParams } from './open';
-import { addr, balances, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
+import { addr, balances, registerTokens, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
 
 const TRANSFER_KINDS: TransferKind[] = ['private', 'public', 'shield', 'unshield'];
@@ -75,6 +75,8 @@ export function createHandlers(bridge: Bridge): Handlers {
     },
     deployToken: async p => deployToken(w(), str(p, 'admin'), str(p, 'name'), str(p, 'symbol'), int(p, 'decimals')),
     mint: async p => ({ txHash: await mint(w(), str(p, 'admin'), str(p, 'token'), str(p, 'to'), amount(p, 'amount'), bool(p, 'private')) }),
+    registerTokens: async p => registerTokens(w(), strings(p, 'tokens')),
+    syncStatus: async () => w().syncStatus(),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),
     // A message from the content script of the page at `origin` (taken from the native web view, not the page).

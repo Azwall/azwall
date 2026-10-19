@@ -2,6 +2,10 @@ package dev.azwall.app.ui
 
 import dev.azwall.core.wallet.ActivityItem
 import dev.azwall.core.wallet.ActivityKind
+import dev.azwall.core.wallet.ActivityStatus
+import dev.azwall.core.wallet.BackgroundTask
+import dev.azwall.core.wallet.Phase
+import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.Amounts
 import java.math.BigInteger
 
@@ -61,3 +65,36 @@ fun friendlyError(message: String?): String =
 /** A 32-byte hex key as four lines of four 4-character groups, easy to copy by hand. */
 fun groupKey(key: String): String =
     key.removePrefix("0x").chunked(4).chunked(4).joinToString("\n") { it.joinToString(" ") }
+
+/**
+ * The status line's text: what the wallet is doing in the background, or null when idle. A PXE that is far
+ * behind explains why balances are not there yet ("Syncing PXE · 1,240 blocks behind (36 h)").
+ */
+fun statusText(state: SessionState, now: Long = System.currentTimeMillis()): String? {
+    if (state.phase == Phase.STARTING) return "Starting the PXE…"
+    when (val task = state.task) {
+        is BackgroundTask.Syncing -> {
+            val from = task.from?.takeIf { it.blocksBehind > 0 } ?: return "Syncing PXE…"
+            val blocks = if (from.blocksBehind == 1L) "1 block" else String.format(java.util.Locale.US, "%,d blocks", from.blocksBehind)
+            return "Syncing PXE · $blocks behind (${lag(now - from.syncedAt * 1000)})"
+        }
+        BackgroundTask.FindingTokens -> return "Looking for your tokens…"
+        null -> Unit
+    }
+    val pending = state.activity.count { it.status == ActivityStatus.PENDING }
+    return when (pending) {
+        0 -> null
+        1 -> "Waiting for 1 transaction to be mined…"
+        else -> "Waiting for $pending transactions to be mined…"
+    }
+}
+
+/** A sync lag, precise enough to explain a wait: "12 min", "36 h", "5 d". */
+private fun lag(ms: Long): String {
+    val minutes = ms.coerceAtLeast(0) / 60_000
+    return when {
+        minutes < 60 -> "$minutes min"
+        minutes < 72 * 60 -> "${minutes / 60} h"
+        else -> "${minutes / (24 * 60)} d"
+    }
+}
