@@ -1,7 +1,10 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.pxe.Receipt
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TransferKind
+import dev.azwall.core.pxe.TxOutcome
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,14 +93,41 @@ class Transactions internal constructor(private val session: WalletSession) {
         return sent
     }
 
+    /**
+     * Follows a sent transaction to a block. A wait can end without the transaction failing (the app was locked,
+     * the host stopped, a timeout), so the outcome always comes from a receipt; with none, the item is left as
+     * it is and [resume] looks again on the next opening.
+     */
     internal suspend fun confirm(sent: ActivityItem) {
-        val done = try {
-            val receipt = session.client.waitForTx(sent.txHash!!)
-            sent.copy(status = ActivityStatus.CONFIRMED, blockNumber = receipt.blockNumber)
+        val hash = sent.txHash ?: return
+        val receipt = try {
+            session.client.waitForTx(hash)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            sent.copy(status = ActivityStatus.FAILED, error = e.message)
+            runCatching { session.client.txReceipt(hash) }.getOrNull()
         }
-        session.recordActivity(done)
-        session.refresh()
+        settled(sent, receipt ?: return)?.let {
+            session.recordActivity(it)
+            session.refresh()
+        }
+    }
+
+    /** Looks again at transactions sent but not settled by a receipt, e.g. when the app closed while waiting. */
+    internal fun resume() {
+        session.store.unsettled().forEach { item -> session.scope.launch { confirm(item) } }
+    }
+
+    private fun settled(item: ActivityItem, receipt: Receipt): ActivityItem? = when (receipt.outcome) {
+        TxOutcome.PENDING -> null
+        TxOutcome.SUCCESS -> item.copy(status = ActivityStatus.CONFIRMED, blockNumber = receipt.blockNumber, error = null)
+        TxOutcome.REVERTED -> item.copy(status = ActivityStatus.FAILED, blockNumber = receipt.blockNumber, error = REVERTED)
+        TxOutcome.DROPPED -> item.copy(status = ActivityStatus.FAILED, error = DROPPED)
+    }
+
+    companion object {
+        /** Failures read from a receipt: final, never looked at again. */
+        const val REVERTED = "reverted on chain"
+        const val DROPPED = "dropped by the network"
     }
 }

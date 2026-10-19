@@ -63,6 +63,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     deployAccount: async p => deployAccount(w(), secrets(p)),
     blockNumber: async () => Number(await w().node.getBlockNumber()),
     waitForTx: async p => w().waitForReceipt(str(p, 'txHash')),
+    txReceipt: async p => w().txReceipt(str(p, 'txHash')),
     tokenInfo: async p => tokenInfo(w(), str(p, 'token'), str(p, 'from')),
     balances: async p => balances(w(), str(p, 'owner'), strings(p, 'tokens')),
     transfer: async p => {

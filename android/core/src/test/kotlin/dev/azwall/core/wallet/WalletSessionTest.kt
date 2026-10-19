@@ -38,6 +38,8 @@ private class FakePxe : PxeCaller {
     var deployed = false
     var failOpen: String? = null
     val mined = CompletableDeferred<Unit>()
+    var waitError: String? = null
+    var receiptOutcome = "success"
     val sent = mutableListOf<JsonObject>()
 
     override suspend fun call(method: String, params: JsonObject): JsonElement {
@@ -51,7 +53,8 @@ private class FakePxe : PxeCaller {
             "balances" -> """[{"token":"0xt","private":"2500000","public":"0"}]"""
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "deployAccount", "transfer" -> { sent += params; """{"txHash":"0xhash${sent.size}"}""" }
-            "waitForTx" -> { mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
+            "waitForTx" -> { waitError?.let { throw PxeException(it) }; mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
+            "txReceipt" -> """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":12,"outcome":"$receiptOutcome"}"""
             else -> "null"
         }
         return Json.parseToJsonElement(reply)
@@ -147,5 +150,43 @@ class WalletSessionTest {
         assertEquals(listOf("main", "Savings"), s.state.value.accounts.map { it.alias })
         assertTrue(s.state.value.selected == added.address)
         pxe.mined.complete(Unit) // let the background confirmation finish
+    }
+
+    @Test
+    fun anInterruptedWaitAsksTheNodeInsteadOfFailing() = runTest {
+        pxe.deployed = true
+        pxe.waitError = "waitForTx: the PXE host was stopped"
+        val s = session().apply { open() }
+        s.transactions.send(TransferKind.UNSHIELD, TokenInfo("0xt", "Test", "TST", 6), "", BigInteger("1"))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals(ActivityStatus.CONFIRMED, item.status)
+        assertEquals(12L, item.blockNumber)
+    }
+
+    @Test
+    fun transactionsMarkedFailedWithoutAReceiptAreRepairedOnOpen() = runTest {
+        WalletStore(tmp.root, network.id).upsert(
+            ActivityItem("old", "addr-abab", ActivityKind.UNSHIELD, ActivityStatus.FAILED, 1, txHash = "0xold", error = "waitForTx: the PXE host was stopped"),
+        )
+        pxe.deployed = true
+        pxe.mined.complete(Unit)
+        val s = session().apply { open() }
+        advanceUntilIdle()
+        assertEquals(ActivityStatus.CONFIRMED, s.state.value.activity.single().status)
+    }
+
+    @Test
+    fun revertedTransactionsStayFailed() = runTest {
+        pxe.deployed = true
+        pxe.waitError = "reverted"
+        pxe.receiptOutcome = "reverted"
+        val s = session().apply { open() }
+        s.transactions.send(TransferKind.PRIVATE, TokenInfo("0xt", "Test", "TST", 6), "addr-x", BigInteger("1"))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals(ActivityStatus.FAILED, item.status)
+        assertEquals(Transactions.REVERTED, item.error)
+        assertTrue(WalletStore(tmp.root, network.id).unsettled().isEmpty())
     }
 }

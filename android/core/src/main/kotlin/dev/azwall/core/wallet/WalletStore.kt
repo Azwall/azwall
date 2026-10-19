@@ -59,6 +59,15 @@ class WalletStore(private val dir: File, private val networkId: String) {
         save(data.copy(activity = (others + item).sortedByDescending { it.createdAt }.take(MAX_ACTIVITY)))
     }
 
+    /**
+     * Sent transactions without a settled outcome: still PENDING, or FAILED without a receipt saying so (older
+     * versions marked an interrupted wait as a failure).
+     */
+    fun unsettled(): List<ActivityItem> = data.activity.filter {
+        it.txHash != null && (it.status == ActivityStatus.PENDING ||
+            it.status == ActivityStatus.FAILED && it.error != Transactions.REVERTED && it.error != Transactions.DROPPED)
+    }
+
     /** Items left PROVING by a crash cannot finish: their proof died with the process. */
     fun failInterrupted() {
         val stale = data.activity.filter { it.status == ActivityStatus.PROVING }

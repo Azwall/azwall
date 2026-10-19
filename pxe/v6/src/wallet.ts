@@ -28,7 +28,9 @@ export const TX_TIMEOUT_S = 600;
 /** Account material as the app's secure storage holds it (hex strings). */
 export type AccountSecrets = { alias: string; signingKey: string; salt: string };
 
-export type Receipt = { txHash: string; status: string; blockNumber: number | null };
+/** `outcome` folds the node's statuses into what the app shows: still waiting, in a block (ran or reverted), or gone. */
+export type TxOutcome = 'pending' | 'success' | 'reverted' | 'dropped';
+export type Receipt = { txHash: string; status: string; blockNumber: number | null; outcome: TxOutcome };
 
 type InMemoryAccount = { type: AccountType; secretKey: Fr; salt: Fr; signingKey: Buffer; alias: string };
 
@@ -68,10 +70,21 @@ export async function sponsoredFpc() {
   return { instance, artifact: SponsoredFPCContractArtifact };
 }
 
-export const toReceipt = (r: { txHash: TxHash; status: unknown; blockNumber?: number | bigint | null }): Receipt => ({
+type NodeReceipt = { txHash: TxHash; status: unknown; blockNumber?: number | bigint | null; executionResult?: unknown };
+
+export const outcomeOf = (r: Pick<NodeReceipt, 'status' | 'executionResult'>): TxOutcome => {
+  const status = String(r.status);
+  if (status === 'dropped') return 'dropped';
+  if (status === 'pending') return 'pending';
+  // Mined (proposed or later): the execution result says whether the app logic ran or reverted.
+  return r.executionResult === undefined || String(r.executionResult) === 'success' ? 'success' : 'reverted';
+};
+
+export const toReceipt = (r: NodeReceipt): Receipt => ({
   txHash: r.txHash.toString(),
   status: String(r.status),
   blockNumber: r.blockNumber === undefined || r.blockNumber === null ? null : Number(r.blockNumber),
+  outcome: outcomeOf(r),
 });
 
 export class AzwallWallet extends EmbeddedWallet {
@@ -120,6 +133,11 @@ export class AzwallWallet extends EmbeddedWallet {
 
   async waitForReceipt(txHash: string): Promise<Receipt> {
     return toReceipt(await waitForTx(this.aztecNode, TxHash.fromString(txHash), { timeout: TX_TIMEOUT_S }));
+  }
+
+  /** The receipt as it stands, without waiting: to reconcile transactions whose wait was interrupted. */
+  async txReceipt(txHash: string): Promise<Receipt> {
+    return toReceipt(await this.aztecNode.getTxReceipt(TxHash.fromString(txHash)));
   }
 
   async flushStores(): Promise<void> {

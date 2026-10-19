@@ -98,6 +98,7 @@ class WalletSession(
             _state.update {
                 it.copy(phase = Phase.READY, check = check, accounts = accounts, selected = it.selected ?: accounts.firstOrNull()?.address)
             }
+            transactions.resume()
             refresh()
         } catch (e: Exception) {
             _state.update { it.copy(phase = Phase.FAILED, error = e.message ?: e.toString()) }

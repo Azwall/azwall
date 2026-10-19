@@ -1,5 +1,6 @@
 package dev.azwall.core.pxe
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -34,7 +35,16 @@ data class NetworkCheck(
 )
 
 @Serializable
-data class Receipt(val txHash: String, val status: String, val blockNumber: Long? = null)
+data class Receipt(val txHash: String, val status: String, val blockNumber: Long? = null, val outcome: TxOutcome = TxOutcome.SUCCESS)
+
+/** The node's statuses folded into what the app shows (pxe/<bundle>/src/wallet.ts `outcomeOf`). */
+@Serializable
+enum class TxOutcome {
+    @SerialName("pending") PENDING,
+    @SerialName("success") SUCCESS,
+    @SerialName("reverted") REVERTED,
+    @SerialName("dropped") DROPPED,
+}
 
 @Serializable
 data class TokenInfo(val address: String, val name: String, val symbol: String, val decimals: Int)
@@ -76,6 +86,9 @@ class PxeClient(private val caller: PxeCaller) {
     suspend fun deployAccount(account: AccountSecrets): String = field("deployAccount", secrets(account), "txHash")
 
     suspend fun waitForTx(txHash: String): Receipt = typed("waitForTx", params("txHash" to txHash))
+
+    /** The receipt as it stands, without waiting. */
+    suspend fun txReceipt(txHash: String): Receipt = typed("txReceipt", params("txHash" to txHash))
 
     suspend fun blockNumber(): Long = caller.call("blockNumber", JsonObject(emptyMap())).jsonPrimitive.long
 
