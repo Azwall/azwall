@@ -2,6 +2,7 @@ package dev.azwall.core.wallet
 
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
+import dev.azwall.core.TestPhrases
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.pxe.PxeCaller
@@ -109,6 +110,9 @@ class DappLinkTest {
         override fun pxeOpenParams(networkId: String) = "{}"
         override fun prepareProver(networkId: String) {}
         override fun prove(networkId: String, request: ByteArray) = request
+        override fun newRecoveryPhrase() = TestPhrases.PHRASE
+        override fun normalizeRecoveryPhrase(phrase: String) = TestPhrases.normalize(phrase)
+        override fun accountSigningKey(phrase: String, index: Int) = TestPhrases.key(index)
     }
 
     private suspend fun TestScope.session(): WalletSession {

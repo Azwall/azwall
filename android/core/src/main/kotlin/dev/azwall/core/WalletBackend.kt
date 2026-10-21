@@ -49,6 +49,15 @@ interface WalletBackend {
 
     /** Proves an AZS2 request from the network's PXE and returns the AZP1 response. */
     fun prove(networkId: String, request: ByteArray): ByteArray
+
+    /** A new 24-word recovery phrase (docs/design/recovery-phrase.md). */
+    fun newRecoveryPhrase(): String
+
+    /** The phrase as stored (lowercase, single spaces); throws a message for the user if it is not valid. */
+    fun normalizeRecoveryPhrase(phrase: String): String
+
+    /** The signing key of account [index] of a phrase. */
+    fun accountSigningKey(phrase: String, index: Int): String
 }
 
 internal fun hostOf(url: String): String =

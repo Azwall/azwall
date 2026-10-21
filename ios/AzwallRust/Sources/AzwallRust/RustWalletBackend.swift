@@ -33,6 +33,18 @@ public struct RustWalletBackend: WalletBackend {
     public func prove(networkId: String, request: Data) throws -> Data {
         try rust { try core.prove(networkId: networkId, request: request) }
     }
+
+    public func newRecoveryPhrase() throws -> String {
+        try rust { try AzwallCoreFFI.newRecoveryPhrase() }
+    }
+
+    public func normalizeRecoveryPhrase(_ phrase: String) throws -> String {
+        try rust { try AzwallCoreFFI.normalizeRecoveryPhrase(phrase: phrase) }
+    }
+
+    public func accountSigningKey(phrase: String, index: Int) throws -> String {
+        try rust { try AzwallCoreFFI.accountSigningKey(phrase: phrase, index: UInt32(index)) }
+    }
 }
 
 private func rust<T>(_ body: () throws -> T) throws -> T {

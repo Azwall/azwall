@@ -22,6 +22,12 @@ class RustWalletBackend(private val core: WalletCore) : WalletBackend {
 
     override fun prove(networkId: String, request: ByteArray): ByteArray = rust { core.prove(networkId, request) }
 
+    override fun newRecoveryPhrase(): String = rust { dev.azwall.core.ffi.newRecoveryPhrase() }
+
+    override fun normalizeRecoveryPhrase(phrase: String): String = rust { dev.azwall.core.ffi.normalizeRecoveryPhrase(phrase) }
+
+    override fun accountSigningKey(phrase: String, index: Int): String = rust { dev.azwall.core.ffi.accountSigningKey(phrase, index.toUInt()) }
+
     companion object {
         fun create(configJson: String, nativeLibDir: String, crsDir: String, proverThreads: Int = 0): RustWalletBackend =
             rust { RustWalletBackend(WalletCore(configJson, nativeLibDir, crsDir, proverThreads.toUInt())) }

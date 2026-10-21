@@ -14,20 +14,25 @@ interface SecretBox {
 }
 
 /**
- * Everything secret the wallet holds: the accounts' signing keys (the account roots on Aztec) and the
- * key of the encrypted PXE stores. Never written anywhere but the vault file, sealed by [SecretBox].
+ * Everything secret the wallet holds: the recovery phrase (null for wallets created from a key), the accounts'
+ * signing keys (the account roots on Aztec) and the key of the encrypted PXE stores. Never written anywhere but
+ * the vault file, sealed by [SecretBox].
  */
 @Serializable
-data class VaultContents(val version: Int = 1, val accounts: List<AccountSecrets>, val dbKey: String) {
+data class VaultContents(val version: Int = 1, val accounts: List<AccountSecrets>, val dbKey: String, val phrase: String? = null) {
     init {
         require(version == 1) { "unsupported vault version $version" }
-        require(DB_KEY.matches(dbKey)) { "malformed store key" }
+        require(KEY.matches(dbKey)) { "malformed store key" }
+        require(phrase == null || PHRASE.matches(phrase)) { "malformed recovery phrase" }
         accounts.forEach { require(KEY.matches(it.signingKey) && KEY.matches(it.salt)) { "malformed account ${it.alias}" } }
     }
 
+    /** The index the next account derived from the phrase takes. */
+    val nextIndex: Int get() = (accounts.mapNotNull { it.index }.maxOrNull() ?: -1) + 1
+
     companion object {
         private val KEY = Regex("^0x[0-9a-f]{64}$")
-        private val DB_KEY = Regex("^0x[0-9a-f]{64}$")
+        private val PHRASE = Regex("^[a-z]+( [a-z]+){11,23}$")
     }
 }
 
@@ -36,10 +41,10 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
 
     fun exists(): Boolean = file.exists()
 
-    /** Creates the vault with its first account and a fresh store key. Fails if a vault exists. */
-    fun create(first: AccountSecrets): VaultContents {
+    /** Creates the vault with its first account, its recovery phrase if any, and a fresh store key. Fails if a vault exists. */
+    fun create(first: AccountSecrets, phrase: String? = null): VaultContents {
         check(!exists()) { "a vault already exists" }
-        val contents = VaultContents(accounts = listOf(first), dbKey = "0x" + hex(ByteArray(32).also(random::nextBytes)))
+        val contents = VaultContents(accounts = listOf(first), dbKey = "0x" + hex(ByteArray(32).also(random::nextBytes)), phrase = phrase)
         write(contents)
         return contents
     }

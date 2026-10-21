@@ -12,11 +12,14 @@ public struct AccountSecrets: Codable, Equatable, Sendable {
     public var alias: String
     public let signingKey: String
     public let salt: String
+    /// The account's index in the wallet's recovery phrase; nil for an account imported from its key.
+    public var index: Int?
 
-    public init(alias: String, signingKey: String, salt: String) {
+    public init(alias: String, signingKey: String, salt: String, index: Int? = nil) {
         self.alias = alias
         self.signingKey = signingKey
         self.salt = salt
+        self.index = index
     }
 }
 

@@ -10,6 +10,7 @@ import dev.azwall.core.pxe.PxeEvent
 import dev.azwall.core.pxe.SyncStatus
 import dev.azwall.core.pxe.TokenBalance
 import dev.azwall.core.pxe.TokenInfo
+import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
 import java.io.File
@@ -213,8 +214,7 @@ class WalletSession(
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
     suspend fun addAccount(alias: String, importedKey: String? = null): AccountView {
-        val key = importedKey?.let(Vault::parseSigningKey) ?: Vault.newSigningKey()
-        val secrets = AccountSecrets(alias.trim().ifEmpty { "Account ${contents.accounts.size + 1}" }, key, Vault.ZERO_SALT)
+        val secrets = Recovery.nextAccount(contents, alias, importedKey, backend)
         contents = vault.addAccount(contents, secrets)
         val view = register(secrets)
         _state.update { it.copy(accounts = it.accounts + view) }

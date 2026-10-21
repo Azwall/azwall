@@ -2,6 +2,7 @@ package dev.azwall.core.wallet
 
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
+import dev.azwall.core.TestPhrases
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.PxeCaller
 import dev.azwall.core.pxe.PxeClient
@@ -86,6 +87,9 @@ private object FakeBackend : WalletBackend {
     override fun pxeOpenParams(networkId: String) = """{"id":"$networkId"}"""
     override fun prepareProver(networkId: String) {}
     override fun prove(networkId: String, request: ByteArray) = request
+    override fun newRecoveryPhrase() = TestPhrases.PHRASE
+    override fun normalizeRecoveryPhrase(phrase: String) = TestPhrases.normalize(phrase)
+    override fun accountSigningKey(phrase: String, index: Int) = TestPhrases.key(index)
 }
 
 private object PlainBox : SecretBox {

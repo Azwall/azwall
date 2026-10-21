@@ -69,14 +69,36 @@ public final class AppModel {
         }
     }
 
-    /// Creates the vault with `signingKey` (generated or imported), then opens the wallet.
-    public func createWallet(signingKey: String, alias: String) async {
+    /// Creates the wallet from `secret`: a recovery phrase (new or restored), or a signing key. Then opens it.
+    public func createWallet(secret: String, alias: String) async {
         await action {
-            let name = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-            let account = AccountSecrets(alias: name.isEmpty ? "Account 1" : name, signingKey: try Vault.parseSigningKey(signingKey), salt: Vault.zeroSalt)
-            let vault = self.deps.vault
-            await self.start(try await Task.detached { try vault.create(first: account) }.value)
+            let deps = self.deps
+            let (account, phrase) = try await Task.detached { try Recovery.firstAccount(secret, alias: alias, backend: try deps.backend()) }.value
+            await self.start(try await Task.detached { try deps.vault.create(first: account, phrase: phrase) }.value)
         }
+    }
+
+    /// A new recovery phrase for onboarding; the Rust core loads on first use, off the main actor.
+    public func newRecoveryPhrase() async throws -> String {
+        let deps = deps
+        return try await Task.detached { try deps.backend().newRecoveryPhrase() }.value
+    }
+
+    /// Nil when `secret` is a usable phrase or key, else what is wrong with it.
+    public func checkSecret(_ secret: String) async -> String? {
+        let deps = deps
+        return await Task.detached { () -> String? in
+            do { _ = try Recovery.firstAccount(secret, alias: "", backend: try deps.backend()); return nil } catch { return error.localizedDescription }
+        }.value
+    }
+
+    /// False for a wallet created from a signing key, before recovery phrases.
+    public var hasRecoveryPhrase: Bool { contents?.phrase != nil }
+
+    /// Re-authenticates, then returns the recovery phrase (nil for a wallet created from a key).
+    public func revealPhrase() async -> String? {
+        guard await deps.authenticate(reason: "Show the recovery phrase") else { return nil }
+        return contents?.phrase
     }
 
     /// Reading the vault shows the system prompt (Face ID, Touch ID or passcode).

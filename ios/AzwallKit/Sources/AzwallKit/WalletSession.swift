@@ -223,10 +223,7 @@ public final class WalletSession {
 
     /// Creates a fresh account, or imports one from its key, and saves it in the vault.
     public func addAccount(alias: String, importedKey: String?) async throws {
-        let key = try importedKey.map(Vault.parseSigningKey) ?? Vault.newSigningKey()
-        let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = trimmed.isEmpty ? "Account \(contents.accounts.count + 1)" : trimmed
-        let secrets = AccountSecrets(alias: name, signingKey: key, salt: Vault.zeroSalt)
+        let secrets = try Recovery.nextAccount(contents, alias: alias, importedKey: importedKey, backend: backend)
         let vault = vault, current = contents
         contents = try await Task.detached { try vault.addAccount(current, secrets) }.value
         let view = try await register(secrets)

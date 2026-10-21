@@ -90,6 +90,22 @@ struct FakeBackend: WalletBackend {
     func pxeOpenParams(networkId: String) throws -> String { #"{"id":"\#(networkId)"}"# }
     func prepareProver(networkId: String) throws {}
     func prove(networkId: String, request: Data) throws -> Data { request }
+    func newRecoveryPhrase() throws -> String { TestPhrases.phrase }
+    func normalizeRecoveryPhrase(_ phrase: String) throws -> String { try TestPhrases.normalize(phrase) }
+    func accountSigningKey(phrase: String, index: Int) throws -> String { TestPhrases.key(index) }
+}
+
+/// Recovery phrases for fake backends: any 24 words, and account i's key is i + 1 (the real scheme is Rust's).
+enum TestPhrases {
+    static let phrase = (Array(repeating: "abandon", count: 23) + ["art"]).joined(separator: " ")
+
+    static func normalize(_ phrase: String) throws -> String {
+        let words = phrase.lowercased().split(whereSeparator: \.isWhitespace)
+        guard words.count == 24 else { throw VaultError("this is not a valid recovery phrase: 24 words expected") }
+        return words.joined(separator: " ")
+    }
+
+    static func key(_ index: Int) -> String { "0x" + String(repeating: "0", count: 64 - String(index + 1, radix: 16).count) + String(index + 1, radix: 16) }
 }
 
 @MainActor

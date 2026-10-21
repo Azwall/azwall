@@ -22,7 +22,13 @@ fun interface PxeCaller {
 
 /** Account material as the vault holds it (hex strings). */
 @Serializable
-data class AccountSecrets(val alias: String, val signingKey: String, val salt: String)
+data class AccountSecrets(
+    val alias: String,
+    val signingKey: String,
+    val salt: String,
+    /** The account's index in the wallet's recovery phrase; null for an account imported from its key. */
+    val index: Int? = null,
+)
 
 @Serializable
 data class NetworkCheck(

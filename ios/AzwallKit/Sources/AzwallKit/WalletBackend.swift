@@ -68,6 +68,12 @@ public protocol WalletBackend: Sendable {
     func prepareProver(networkId: String) throws
     /// Proves an AZS2 request from the network's PXE and returns the AZP1 response.
     func prove(networkId: String, request: Data) throws -> Data
+    /// A new 24-word recovery phrase (docs/design/recovery-phrase.md).
+    func newRecoveryPhrase() throws -> String
+    /// The phrase as stored (lowercase, single spaces); throws a message for the user if it is not valid.
+    func normalizeRecoveryPhrase(_ phrase: String) throws -> String
+    /// The signing key of account `index` of a phrase.
+    func accountSigningKey(phrase: String, index: Int) throws -> String
 }
 
 /// The host of an RPC URL, never its path or query.

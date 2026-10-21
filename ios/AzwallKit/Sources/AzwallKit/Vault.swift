@@ -10,20 +10,27 @@ public protocol VaultStorage: Sendable {
     func delete() throws
 }
 
-/// Everything secret the wallet holds: the accounts' signing keys and the key of the encrypted PXE stores.
+/// Everything secret the wallet holds: the recovery phrase (nil for wallets created from a key), the accounts'
+/// signing keys and the key of the encrypted PXE stores.
 public struct VaultContents: Codable, Equatable, Sendable {
     public var version: Int = 1
     public var accounts: [AccountSecrets]
     public let dbKey: String
+    public var phrase: String?
 
-    public init(accounts: [AccountSecrets], dbKey: String) {
+    public init(accounts: [AccountSecrets], dbKey: String, phrase: String? = nil) {
         self.accounts = accounts
         self.dbKey = dbKey
+        self.phrase = phrase
     }
+
+    /// The index the next account derived from the phrase takes.
+    public var nextIndex: Int { (accounts.compactMap(\.index).max() ?? -1) + 1 }
 
     func validate() throws {
         guard version == 1 else { throw VaultError("unsupported vault version \(version)") }
         guard Vault.isHex32(dbKey) else { throw VaultError("malformed store key") }
+        if let phrase, phrase.range(of: "^[a-z]+( [a-z]+){11,23}$", options: .regularExpression) == nil { throw VaultError("malformed recovery phrase") }
         for a in accounts where !(Vault.isHex32(a.signingKey) && Vault.isHex32(a.salt)) {
             throw VaultError("malformed account \(a.alias)")
         }
@@ -45,10 +52,10 @@ public struct Vault: Sendable {
 
     public func exists() -> Bool { storage.exists() }
 
-    /// Creates the vault with its first account and a fresh store key. Fails if a vault exists.
-    public func create(first: AccountSecrets) throws -> VaultContents {
+    /// Creates the vault with its first account, its recovery phrase if any, and a fresh store key. Fails if a vault exists.
+    public func create(first: AccountSecrets, phrase: String? = nil) throws -> VaultContents {
         guard !exists() else { throw VaultError("a vault already exists") }
-        let contents = VaultContents(accounts: [first], dbKey: "0x" + Self.hex(Self.randomBytes(32)))
+        let contents = VaultContents(accounts: [first], dbKey: "0x" + Self.hex(Self.randomBytes(32)), phrase: phrase)
         try write(contents)
         return contents
     }
