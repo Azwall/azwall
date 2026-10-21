@@ -13,3 +13,4 @@ Four choices shape Azwall:
 2. [Native proving](native-proving.md): the expensive part runs as native code, on every core.
 3. [The PXE stays in JavaScript](pxe.md): Aztec's own client code, upgraded by bumping a package.
 4. [dApp support](dapps.md): web dApps use the wallet through the standard Aztec wallet protocol.
+5. [Recovery phrase](recovery-phrase.md): 24 BIP-39 words, and the accounts derived from them in order.

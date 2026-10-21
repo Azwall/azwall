@@ -10,6 +10,9 @@ pub enum CoreError {
     UnknownNetwork(String),
     #[error("RPC: {0}")]
     Rpc(String),
+    /// A recovery phrase problem, worded for the user.
+    #[error("{0}")]
+    Phrase(String),
     #[error("I/O: {0}")]
     Io(#[from] std::io::Error),
 }

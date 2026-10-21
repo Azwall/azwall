@@ -4,10 +4,12 @@
 //!   Aztec version the app embeds.
 //! - [`dotenv`] and [`config`]: RPC endpoints from `.env`, resolved into the config both apps bundle.
 //! - [`rpc`]: a minimal Aztec node JSON-RPC client and the node compatibility check.
+//! - [`mnemonic`]: the recovery phrase and the account keys derived from it.
 
 pub mod config;
 pub mod dotenv;
 pub mod error;
+pub mod mnemonic;
 pub mod network;
 pub mod rpc;
 

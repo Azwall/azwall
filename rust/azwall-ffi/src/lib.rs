@@ -175,6 +175,24 @@ pub fn supported_barretenberg_releases() -> Vec<String> {
     bindings::supported_releases().into_iter().map(String::from).collect()
 }
 
+/// A new 24-word recovery phrase.
+#[uniffi::export]
+pub fn new_recovery_phrase() -> Result<String, AzwallError> {
+    Ok(azwall_core::mnemonic::generate()?)
+}
+
+/// The phrase as stored (lowercase, single spaces); an error names what is wrong with it.
+#[uniffi::export]
+pub fn normalize_recovery_phrase(phrase: String) -> Result<String, AzwallError> {
+    Ok(azwall_core::mnemonic::normalize(&phrase)?)
+}
+
+/// The signing key of account `index` of a phrase (0x + 64 hex digits).
+#[uniffi::export]
+pub fn account_signing_key(phrase: String, index: u32) -> Result<String, AzwallError> {
+    Ok(azwall_core::mnemonic::account_signing_key(&phrase, index)?)
+}
+
 #[uniffi::export]
 pub fn core_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
