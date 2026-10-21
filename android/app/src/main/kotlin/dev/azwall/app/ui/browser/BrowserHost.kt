@@ -7,8 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Toll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +50,7 @@ fun AppDrawer(state: SessionState, tab: MainTab, onSelect: (MenuItem) -> Unit) {
         Item(Icons.Outlined.AccountBalanceWallet, "Wallet", tab == MainTab.WALLET) { onSelect(MenuItem.WALLET) }
         Item(Icons.Outlined.Explore, "Explore", tab == MainTab.EXPLORE) { onSelect(MenuItem.EXPLORE) }
         // Test networks only: there is no faucet for arbitrary tokens, so the wallet makes its own.
-        if (state.network.id.startsWith("testnet")) Item(Icons.Outlined.Toll, "Create a token", false) { onSelect(MenuItem.TOKENS) }
+        if (state.network.id.startsWith("testnet")) Item(Icons.Outlined.MonetizationOn, "Create a token", false) { onSelect(MenuItem.TOKENS) }
         Item(Icons.Outlined.Settings, "Settings", false) { onSelect(MenuItem.SETTINGS) }
         Item(Icons.Outlined.Lock, "Lock wallet", false) { onSelect(MenuItem.LOCK) }
     }

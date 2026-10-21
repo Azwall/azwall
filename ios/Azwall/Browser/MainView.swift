@@ -95,7 +95,7 @@ struct SideMenu: View {
             row("wallet.bifold", "Wallet", selected: tab == .wallet, .wallet)
             row("safari", "Explore", selected: tab == .explore, .explore)
             // Test networks only: there is no faucet for arbitrary tokens, so the wallet makes its own.
-            if session.network.id.hasPrefix("testnet") { row("circle.hexagongrid", "Create a token", selected: false, .tokens) }
+            if session.network.id.hasPrefix("testnet") { row("dollarsign.circle", "Create a token", selected: false, .tokens) }
             row("gearshape", "Settings", selected: false, .settings)
             row("lock", "Lock wallet", selected: false, .lock)
             Spacer()
