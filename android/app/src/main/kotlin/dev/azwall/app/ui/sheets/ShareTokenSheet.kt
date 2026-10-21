@@ -34,7 +34,7 @@ import dev.azwall.core.wallet.TokenView
  * receives one it does not know adds it first (Add a token, scan or paste).
  */
 @Composable
-fun ShareTokenSheet(token: TokenView, network: String, networkLabel: String, onDismiss: () -> Unit) = Sheet("Share ${token.info.symbol}", onDismiss) {
+fun ShareTokenSheet(token: TokenView, network: String, networkLabel: String, onDismiss: () -> Unit) = Sheet("Share ${token.info.symbol}", onDismiss, fullHeight = true) {
     val context = LocalContext.current
     val link = remember(token.info.address, network) { PaymentRequest(token.info.address, network).toUri() }
     val qr = remember(link) { qrBitmap(link) }
