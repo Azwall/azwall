@@ -63,6 +63,9 @@ public final class PxeHost {
     private static func makeWebView(channel: PxeChannel) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
+        // The PXE's web view is never on screen, and WebKit suspends an inactive page: its timers, workers and
+        // promise chains stop between native calls (creating the PXE never finished). Keep it scheduled.
+        config.preferences.inactiveSchedulingPolicy = .none
         config.userContentController.add(MessageHandler(channel: channel), name: "azwall")
         let webView = WKWebView(frame: .zero, configuration: config)
         #if DEBUG
