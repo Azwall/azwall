@@ -2,6 +2,7 @@ package dev.azwall.core.pxe
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -58,7 +59,9 @@ class PxeHost private constructor(
             lateinit var webView: WebView
             val channel = PxeChannel({ json -> main.post { webView.evaluateJavascript("azwallHost.receive(${JsonPrimitive(json)})", null) } }, handlers, scope)
             // Subscribe before the page loads: events are not replayed.
-            scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect { logEvent(it) } }
+            // Release builds keep warnings and errors only: info lines carry addresses and transaction hashes.
+            val verbose = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect { logEvent(it, verbose) } }
             val ready = scope.async(start = CoroutineStart.UNDISPATCHED) { channel.events.first { it.name == "ready" } }
             webView = withContext(Dispatchers.Main) { createWebView(context.applicationContext, channel, bundle) }
             val host = PxeHost(bundle, webView, channel, scope)
@@ -89,7 +92,7 @@ class PxeHost private constructor(
             }
         }
 
-        private fun logEvent(event: PxeEvent) {
+        private fun logEvent(event: PxeEvent, verbose: Boolean) {
             if (event.name != "log") return
             val data = runCatching { event.data.jsonObject }.getOrNull()
             val message = data?.get("message")?.jsonPrimitive?.content ?: event.data.toString()
@@ -97,7 +100,7 @@ class PxeHost private constructor(
             when (data?.get("level")?.jsonPrimitive?.content) {
                 "error" -> Log.e(TAG, "[$scope] $message")
                 "warn" -> Log.w(TAG, "[$scope] $message")
-                else -> Log.i(TAG, "[$scope] $message")
+                else -> if (verbose) Log.i(TAG, "[$scope] $message")
             }
         }
     }

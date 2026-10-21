@@ -22,9 +22,21 @@ export interface NativePort {
 export type Handler = (params: unknown) => Promise<unknown>;
 export type Handlers = Record<string, Handler>;
 
+/**
+ * Keeps only the scheme and host of the URLs in `text`. RPC URLs often carry an API key in their path, and Aztec's
+ * errors and loggers quote the URL they failed on: none of it may reach the app's screens, storage or logs.
+ */
+export function redactUrls(text: string): string {
+  return text.replace(/\b(https?|wss?):\/\/([^\s/?#"'<>()]+)([^\s"'<>()]*)/g, (_m, scheme: string, host: string, rest: string) => {
+    // Punctuation after a URL belongs to the sentence.
+    const tail = /[.,;:!]+$/.exec(rest)?.[0] ?? '';
+    return rest.length > tail.length ? `${scheme}://${host}/…${tail}` : `${scheme}://${host}${rest}`;
+  });
+}
+
 export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return typeof err === 'string' ? err : JSON.stringify(err);
+  if (err instanceof Error) return redactUrls(err.message);
+  return redactUrls(typeof err === 'string' ? err : JSON.stringify(err));
 }
 
 export class Bridge {
@@ -73,8 +85,11 @@ export class Bridge {
     });
   }
 
+  /** Log events (Aztec's own console output among them) leave without the paths of the URLs they quote. */
   emit(name: string, data: unknown): void {
-    this.#post({ kind: 'event', name, data });
+    const message = (data as { message?: unknown } | null)?.message;
+    const safe = name === 'log' && typeof message === 'string' ? { ...(data as object), message: redactUrls(message) } : data;
+    this.#post({ kind: 'event', name, data: safe });
   }
 
   async #serve(msg: CallMessage): Promise<void> {

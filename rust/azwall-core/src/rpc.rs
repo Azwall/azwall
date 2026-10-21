@@ -37,15 +37,36 @@ impl Transport for HttpTransport {
             .post(url)
             .set("content-type", "application/json")
             .send_string(body)
-            .map_err(|e| CoreError::Rpc(redact(url, &e.to_string())))?;
-        response.into_string().map_err(|e| CoreError::Rpc(e.to_string()))
+            .map_err(|e| CoreError::Rpc(redact_urls(&e.to_string())))?;
+        response.into_string().map_err(|e| CoreError::Rpc(redact_urls(&e.to_string())))
     }
 }
 
-/// RPC URLs often carry an API key in the path; keep it out of error messages and logs.
-fn redact(url: &str, message: &str) -> String {
-    let origin_end = url.find("://").and_then(|s| url[s + 3..].find('/').map(|p| s + 3 + p)).unwrap_or(url.len());
-    message.replace(url, &format!("{}/…", &url[..origin_end]))
+/// RPC URLs often carry an API key in the path: keep only the scheme and host of every URL in an error message,
+/// whatever form the HTTP client gave it (it may normalise the URL it quotes).
+pub fn redact_urls(message: &str) -> String {
+    let mut out = String::with_capacity(message.len());
+    let mut rest = message;
+    while let Some(i) = rest.find("http") {
+        let after = &rest[i..];
+        let scheme = ["https://", "http://"].into_iter().find(|s| after.starts_with(s)).map(str::len);
+        let Some(scheme) = scheme else {
+            out.push_str(&rest[..i + 4]);
+            rest = &rest[i + 4..];
+            continue;
+        };
+        out.push_str(&rest[..i]);
+        let end = after.find(|c: char| c.is_whitespace() || "\"'<>()".contains(c)).unwrap_or(after.len());
+        let url = after[..end].trim_end_matches(['.', ',', ';', ':', '!']);
+        let host_end = url[scheme..].find(['/', '?', '#']).map_or(url.len(), |p| scheme + p);
+        out.push_str(&url[..host_end]);
+        if host_end < url.len() {
+            out.push_str("/…");
+        }
+        rest = &after[url.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,9 +209,10 @@ mod tests {
 
     #[test]
     fn redacts_keys_from_errors() {
-        let url = "https://lb.drpc.org/aztec-testnet/SECRET";
-        let message = redact(url, &format!("{url}: Connection refused"));
-        assert!(!message.contains("SECRET"));
-        assert!(message.starts_with("https://lb.drpc.org/…"));
+        let message = redact_urls("https://lb.drpc.org/aztec-testnet/SECRET: Connection refused");
+        assert_eq!(message, "https://lb.drpc.org/…: Connection refused");
+        // Any URL, as the client normalised it, and text around it untouched.
+        assert_eq!(redact_urls("POST http://n.io:8080/v1?key=K (status 500); httpd"), "POST http://n.io:8080/… (status 500); httpd");
+        assert_eq!(redact_urls("node https://rpc.example.org is down"), "node https://rpc.example.org is down");
     }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Bridge, detectNativePort, type Message } from '../src/bridge';
+import { Bridge, detectNativePort, errorMessage, type Message, redactUrls } from '../src/bridge';
 
 function setup(handlers = {}) {
   const sent: Message[] = [];
@@ -67,5 +67,17 @@ describe('detectNativePort', () => {
     ios?.send('2');
     expect(got).toEqual(['a:1', 'i:2']);
     expect(detectNativePort({})).toBeNull();
+  });
+
+  it('keeps API keys in URL paths out of errors and logs', () => {
+    expect(redactUrls('Error fetching from host https://lb.drpc.org/aztec-testnet/SECRET: 500')).toBe(
+      'Error fetching from host https://lb.drpc.org/…: 500',
+    );
+    expect(redactUrls('node at https://rpc.example.org is down')).toBe('node at https://rpc.example.org is down');
+    expect(errorMessage(new Error('request to "wss://n.io/k?key=SECRET" failed'))).toBe('request to "wss://n.io/…" failed');
+    const { bridge, sent } = setup();
+    bridge.emit('log', { level: 'warn', message: 'retry https://a.io/v1/KEY' });
+    bridge.emit('dapp', { message: 'https://a.io/kept' });
+    expect(sent.map(m => (m as { data: { message: string } }).data.message)).toEqual(['retry https://a.io/…', 'https://a.io/kept']);
   });
 });

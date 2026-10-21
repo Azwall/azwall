@@ -132,13 +132,20 @@ enum PxeLog {
 
     private static func write(_ data: JSONValue, bundle: String) {
         let text = "[\(bundle)] [\(data["scope"]?.stringValue ?? "host")] \(data["message"]?.stringValue ?? "\(data)")"
+        #if DEBUG
         switch data["level"]?.stringValue {
         case "error": logger.error("\(text, privacy: .public)")
         case "warn": logger.warning("\(text, privacy: .public)")
         default: logger.info("\(text, privacy: .public)")
         }
-        #if DEBUG
         print("AzwallPxe \(text)")
+        #else
+        // Release builds: lines carry addresses and transaction hashes, so they stay private in the system log.
+        switch data["level"]?.stringValue {
+        case "error": logger.error("\(text, privacy: .private)")
+        case "warn": logger.warning("\(text, privacy: .private)")
+        default: break
+        }
         #endif
     }
 }
