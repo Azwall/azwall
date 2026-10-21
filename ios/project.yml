@@ -35,6 +35,8 @@ targets:
     preBuildScripts:
       - name: Resolve network config
         script: |
+          # Xcode runs scripts without the login shell's PATH: add rustup's and Homebrew's.
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
           cd "$SRCROOT/.." && cargo run --quiet -p azwall-core --bin azwall-config -- --out assets/azwall-config.json
           cd "$SRCROOT/../pxe" && pnpm install --frozen-lockfile --silent && pnpm build
         outputFiles:
