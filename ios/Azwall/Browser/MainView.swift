@@ -59,7 +59,7 @@ struct MainView: View {
     private func select(_ item: SideMenu.Item) {
         withAnimation { menuOpen = false }
         switch item {
-        case .wallet: tab = .wallet
+        case .wallet: tab = .wallet; route = nil
         case .explore: tab = .explore
         case .settings: tab = .wallet; route = .settings
         case .tokens: tab = .wallet; route = .tokens

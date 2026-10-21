@@ -6,6 +6,7 @@ import SwiftUI
 struct TokenStudioView: View {
     let model: AppModel
     let session: WalletSession
+    let onMenu: () -> Void
     @State private var name = "Test Token"
     @State private var symbol = "TST"
     @State private var decimals = 6
@@ -47,6 +48,7 @@ struct TokenStudioView: View {
         .opacity(ready ? 1 : 0.5)
         .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
         .navigationTitle("Create a token")
+        .menuButton(onMenu)
         .navigationDestination(item: $minting) { address in
             if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }
         }

@@ -24,11 +24,7 @@ struct MintView: View {
 
     var body: some View {
         Form {
-            Picker("", selection: $toPrivate) {
-                Text("Private").tag(true)
-                Text("Public").tag(false)
-            }
-            .pickerStyle(.segmented)
+            PrivacySwitch(isPrivate: $toPrivate)
             HStack(spacing: 12) {
                 TokenBadge(symbol: token.info.symbol, address: token.info.address)
                 Text("\(token.info.name) (\(token.info.symbol))").font(.subheadline.weight(.semibold))

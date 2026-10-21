@@ -26,9 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.NO_TOKENS
 import dev.azwall.app.ui.components.PrimaryButton
+import dev.azwall.app.ui.components.PrivacySwitch
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.core.pxe.TransferKind
@@ -85,7 +83,9 @@ fun TransferScreen(
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
         Header(if (mode == TransferMode.SEND) "Send" else "Shield", onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ModeSelector(mode, publicSide) { publicSide = it }
+            // SEND: private spends private notes. SHIELD: "make private" spends the public side.
+            if (mode == TransferMode.SEND) PrivacySwitch(!publicSide, { publicSide = !it })
+            else PrivacySwitch(publicSide, { publicSide = it }, "Make private" to "Make public")
             TokenPicker(tokens, tokenIndex) { tokenIndex = it }
             if (mode == TransferMode.SEND) RecipientField("Recipient address", to, toError ?: scanNote, onScan = { scanning = true }) { to = it.trim(); scanNote = null }
             AmountField(amountText, token, available, amountError) { amountText = it }
@@ -164,22 +164,6 @@ internal fun Header(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
         Text(title, style = MaterialTheme.typography.titleLarge)
-    }
-}
-
-@Composable
-private fun ModeSelector(mode: TransferMode, publicSide: Boolean, onChange: (Boolean) -> Unit) {
-    val labels = if (mode == TransferMode.SEND) listOf("Private", "Public") else listOf("Make private", "Make public")
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        labels.forEachIndexed { i, label ->
-            // SEND: index 1 is public. SHIELD: index 0 ("make private") spends the public side.
-            val isPublic = if (mode == TransferMode.SEND) i == 1 else i == 0
-            SegmentedButton(
-                selected = publicSide == isPublic,
-                onClick = { onChange(isPublic) },
-                shape = SegmentedButtonDefaults.itemShape(i, labels.size),
-            ) { Text(label) }
-        }
     }
 }
 

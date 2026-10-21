@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     let model: AppModel
     let session: WalletSession
+    let onMenu: () -> Void
     @State private var name = ""
     @State private var revealed: String?
     @State private var phrase: String?
@@ -31,6 +32,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .menuButton(onMenu)
         // Leaving the app hides a revealed key: it must not wait on screen for whoever opens the app next.
         .onChange(of: scenePhase) { if scenePhase != .active { revealed = nil; phrase = nil } }
         .sheet(isPresented: .constant(phrase != nil), onDismiss: { phrase = nil }) {

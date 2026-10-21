@@ -138,9 +138,9 @@ private fun WalletRoutes(
             home()
         }
         Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
-        Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, home)
+        Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, openMenu)
         Route.TOKENS -> TokenStudioScreen(state, busy, TokenStudioActions(
-            onBack = home,
+            onMenu = openMenu,
             onCreate = { name, symbol, decimals -> vm.run("Token creation sent.") { it.transactions.deployTestToken(name, symbol, decimals) } },
             onMint = { token, amount, private, to -> mint(vm, token, amount, private, to) },
         ))
@@ -200,7 +200,7 @@ private fun WalletSheets(vm: AppViewModel, session: WalletSession, sheet: Sheet,
 }
 
 @Composable
-private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, back: () -> Unit) {
+private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, menu: () -> Unit) {
     val state by session.state.collectAsStateWithLifecycle()
     val nodes by vm.nodes.collectAsStateWithLifecycle()
     val proverReady by vm.proverReady.collectAsStateWithLifecycle()
@@ -214,7 +214,7 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     }
     val network = state.network.id
     SettingsScreen(state, info, busy, SettingsActions(
-        onBack = back,
+        onMenu = menu,
         onRename = { name -> state.account?.let { vm.renameAccount(it.address, name, auth("Rename the account")) } },
         onRevealKey = { scope.launch { revealed = runCatching { vm.revealKey(state.selected!!, auth("Show the secret key")) }.getOrNull() } },
         onCheckNode = { vm.checkNode(network) },

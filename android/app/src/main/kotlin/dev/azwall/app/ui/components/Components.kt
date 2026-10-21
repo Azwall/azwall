@@ -13,16 +13,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,14 +38,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.ui.shortAddress
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.app.ui.theme.WalletTheme
-import dev.azwall.app.ui.shortAddress
 import dev.azwall.core.wallet.ActivityStatus
 
 /** Deterministic avatar for an address: two hues and an angle derived from its bytes (like MetaMask's). */
@@ -92,6 +97,24 @@ fun CircleAction(icon: ImageVector, label: String, enabled: Boolean = true, onCl
         }
         Spacer(Modifier.height(6.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * Private or public, as one switch: a closed padlock named "Private" when on, an open one named "Public" when off.
+ * `labels` names the two states (shielding says "Make private" / "Make public").
+ */
+@Composable
+fun PrivacySwitch(private: Boolean, onChange: (Boolean) -> Unit, labels: Pair<String, String> = "Private" to "Public") {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
+            .toggleable(value = private, role = Role.Switch, onValueChange = onChange).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(if (private) Icons.Outlined.Lock else Icons.Outlined.LockOpen, contentDescription = null)
+        Text(if (private) labels.first else labels.second, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Switch(checked = private, onCheckedChange = null)
     }
 }
 

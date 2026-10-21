@@ -13,7 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
@@ -43,7 +43,8 @@ import dev.azwall.core.wallet.TokenView
 
 /** What the token studio can ask for. */
 data class TokenStudioActions(
-    val onBack: () -> Unit,
+    /** The side menu, as on the home screen (the system back gesture returns home). */
+    val onMenu: () -> Unit,
     val onCreate: (name: String, symbol: String, decimals: Int) -> Unit,
     /** `to` empty: the selected account. */
     val onMint: (token: TokenView, amount: String, private: Boolean, to: String) -> Unit,
@@ -66,7 +67,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
     state.tokens.firstOrNull { it.info.address == sharing }?.let { ShareTokenSheet(it, state.network.id, state.network.label) { sharing = null } }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            IconButton(onClick = actions.onMenu) { Icon(Icons.Outlined.Menu, "Menu") }
             Text("Create a token", style = MaterialTheme.typography.titleLarge)
         }
         // Until the PXE is open and has read the account, the screen shows what it will hold, dimmed and inactive,

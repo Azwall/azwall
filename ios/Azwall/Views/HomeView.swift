@@ -95,8 +95,8 @@ struct HomeView: View {
         case .send: TransferView(model: model, session: session, mode: .send)
         case .shield: TransferView(model: model, session: session, mode: .shield)
         case .receive: ReceiveView(session: session)
-        case .settings: SettingsView(model: model, session: session)
-        case .tokens: TokenStudioView(model: model, session: session)
+        case .settings: SettingsView(model: model, session: session, onMenu: onMenu)
+        case .tokens: TokenStudioView(model: model, session: session, onMenu: onMenu)
         }
     }
 

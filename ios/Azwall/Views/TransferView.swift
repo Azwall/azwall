@@ -62,11 +62,12 @@ struct TransferView: View {
 
     private var form: some View {
         Form {
-            Picker("", selection: $publicSide) {
-                Text(mode == .send ? "Private" : "Make private").tag(mode == .shield)
-                Text(mode == .send ? "Public" : "Make public").tag(mode == .send)
+            // Send: private spends private notes. Shield: "make private" spends the public side.
+            if mode == .send {
+                PrivacySwitch(isPrivate: Binding(get: { !publicSide }, set: { publicSide = !$0 }))
+            } else {
+                PrivacySwitch(isPrivate: $publicSide, labels: ("Make private", "Make public"))
             }
-            .pickerStyle(.segmented)
             Picker("Token", selection: $tokenIndex) {
                 ForEach(session.tokens.indices, id: \.self) { i in Text("\(session.tokens[i].info.name) (\(session.tokens[i].info.symbol))").tag(i) }
             }

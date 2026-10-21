@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,7 +40,8 @@ import dev.azwall.core.wallet.SessionState
 
 /** Everything Settings can trigger; the caller wires each to the view model. */
 data class SettingsActions(
-    val onBack: () -> Unit,
+    /** The side menu, as on the home screen (the system back gesture returns home). */
+    val onMenu: () -> Unit,
     val onRename: (String) -> Unit,
     val onRevealKey: () -> Unit,
     val onCheckNode: () -> Unit,
@@ -66,7 +67,7 @@ data class SettingsInfo(
 fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actions: SettingsActions) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            IconButton(onClick = actions.onMenu) { Icon(Icons.Outlined.Menu, "Menu") }
             Text("Settings", style = MaterialTheme.typography.titleLarge)
         }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

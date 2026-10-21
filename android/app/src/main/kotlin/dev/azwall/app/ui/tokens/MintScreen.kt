@@ -17,9 +17,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.PrimaryButton
+import dev.azwall.app.ui.components.PrivacySwitch
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.send.Header
 import dev.azwall.app.ui.send.QrScanner
@@ -53,7 +51,7 @@ fun MintScreen(token: TokenView, busy: Boolean, onBack: () -> Unit, onMint: (amo
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
         Header("Mint ${token.info.symbol}", onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            PrivacySelector(private) { private = it }
+            PrivacySwitch(private, { private = it })
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TokenBadge(token.info.symbol, token.info.address, size = 32.dp)
                 Text("${token.info.name} (${token.info.symbol})", style = MaterialTheme.typography.titleSmall)
@@ -78,13 +76,4 @@ fun MintScreen(token: TokenView, busy: Boolean, onBack: () -> Unit, onMint: (amo
         val request = PaymentRequest.parse(text)
         if (request == null) scanNote = "This QR code is not an Aztec address" else to = request.address
     })
-}
-
-@Composable
-private fun PrivacySelector(private: Boolean, onChange: (Boolean) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        listOf(true to "Private", false to "Public").forEachIndexed { i, (value, label) ->
-            SegmentedButton(selected = private == value, onClick = { onChange(value) }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
-        }
-    }
 }

@@ -108,6 +108,34 @@ struct CircleAction: View {
     }
 }
 
+/// Private or public, as one switch: a closed padlock named "Private" when on, an open one named "Public" when off.
+/// `labels` names the two states (shielding says "Make private" / "Make public").
+struct PrivacySwitch: View {
+    @Binding var isPrivate: Bool
+    var labels = ("Private", "Public")
+
+    var body: some View {
+        Toggle(isOn: $isPrivate) {
+            Label(isPrivate ? labels.0 : labels.1, systemImage: isPrivate ? "lock.fill" : "lock.open")
+                .font(.body.weight(.semibold))
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .tint(Palette.accent)
+    }
+}
+
+extension View {
+    /// The side menu's button in place of Back, on the screens the side menu opens (Create a token, Settings), as on
+    /// the wallet: those are places to go to, not steps to come back from.
+    func menuButton(_ onMenu: @escaping () -> Void) -> some View {
+        navigationBarBackButtonHidden(true).toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onMenu) { Image(systemName: "line.3.horizontal") }.accessibilityLabel("Menu")
+            }
+        }
+    }
+}
+
 /// A short address that copies the full one when tapped.
 struct CopyAddress: View {
     let address: String
