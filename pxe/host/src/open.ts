@@ -6,7 +6,7 @@ import { getVKTreeRoot } from '@aztec/noir-protocol-circuits-types/vk-tree';
 import { protocolContractsHash } from '@aztec/protocol-contracts';
 import { WASMSimulator } from '@aztec/simulator/client';
 import { EmbeddedWalletEncryptionError, openEncryptedEmbeddedStores } from '@aztec/wallets/embedded/store-encryption';
-import type { Bridge } from '@azwall/pxe-shared';
+import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
 import { log } from './log';
@@ -62,6 +62,32 @@ export function compatibilityProblems(check: Omit<NetworkCheck, 'blockNumber'>, 
   return problems;
 }
 
+type RawStore = { allAsync(sql: string): Promise<unknown[][]>; runAsync(sql: string): Promise<unknown>; close(): Promise<void> };
+
+/**
+ * Opens the stores and writes a page of each: files another key encrypted, or left half-written, can open and read
+ * as empty, then fail every write ("file is not a database"). A failing store is closed before the error goes on.
+ */
+async function openWritable<T extends { pxeStore: unknown; walletStore: unknown }>(open: () => Promise<T>): Promise<T> {
+  const stores = await open();
+  const raw = [stores.pxeStore, stores.walletStore] as RawStore[];
+  try {
+    for (const store of raw) {
+      const id = Number((await store.allAsync('PRAGMA application_id'))[0]?.[0] ?? 0);
+      await store.runAsync(`PRAGMA application_id = ${id}`);
+    }
+  } catch (err) {
+    await Promise.allSettled(raw.map(store => store.close()));
+    throw err;
+  }
+  return stores;
+}
+
+/** True for stores this wallet's key cannot use: encrypted with another key, or not a database at all. */
+export function unusableStore(err: unknown): boolean {
+  return err instanceof EmbeddedWalletEncryptionError || /SQLITE_NOTADB|file is not a database/.test(err instanceof Error ? err.message : String(err));
+}
+
 /**
  * Opens the encrypted stores. Stores that the vault's key cannot decrypt were left by another wallet (the user
  * removed theirs and created or restored one: a new key): unreadable for good, they are discarded and the PXE
@@ -71,8 +97,8 @@ export async function startOverOnOtherKey<T>(open: () => Promise<T>, discard: ()
   try {
     return await open();
   } catch (err) {
-    if (!(err instanceof EmbeddedWalletEncryptionError)) throw err;
-    log('open', `the ${err.storeName} store belongs to another wallet (another key): starting over with empty stores`, 'warn');
+    if (!unusableStore(err)) throw err;
+    log('open', `the stores cannot be used with this wallet's key (${errorMessage(err)}): starting over with empty stores`, 'warn');
     await discard();
     return open();
   }
@@ -94,7 +120,7 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   };
   const { pxeStore, walletStore } = await startOverOnOtherKey(
     // The buffer is transferred to the SQLite worker (and detached), so hand out a fresh copy.
-    () => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store')),
+    () => openWritable(() => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store'))),
     async () => {
       for (const name of [names.pxe, names.wallet]) {
         await deletePoolDirectory(storePoolDirectory(name));

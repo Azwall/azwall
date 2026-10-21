@@ -40,10 +40,13 @@ public final class PxeHost {
         return host
     }
 
+    /// Unloads the page, not only its loading: a page left alive keeps running its PXE and holding its OPFS files,
+    /// and the next host of the same bundle (same origin) would find them locked.
     public func stop() async {
         await channel.close("the PXE host was stopped")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "azwall")
         webView.stopLoading()
+        webView.loadHTMLString("", baseURL: nil)
     }
 
     private static func server(for bundle: String, resources: URL) async throws -> BundleServer {
