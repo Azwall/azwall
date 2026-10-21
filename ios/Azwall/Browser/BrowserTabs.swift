@@ -1,6 +1,7 @@
 import AzwallKit
 import Foundation
 import Observation
+import WebKit
 
 /// The app's browser: tabs kept for the whole unlocked app. Page messages go to the network's dApp gateway with
 /// their page id; replies come back to the tab whose page they are for, if it is still loaded. When a page goes
@@ -10,6 +11,9 @@ import Observation
 final class BrowserTabs {
     /// Where Settings saves the search engine (SearchEngine raw value).
     static let engineKey = "azwall.searchEngine"
+    /// Sites' cookies and storage, apart from the PXE hosts' (the default store): a site that reached the PXE's
+    /// local origin could otherwise touch its encrypted stores.
+    static let dataStore = WKWebsiteDataStore(forIdentifier: UUID(uuidString: "4F7C1D2A-9B3E-4C5D-8E6F-7A8B9C0D1E2F")!)
 
     private(set) var tabs: [BrowserTab] = []
     private(set) var current: BrowserTab

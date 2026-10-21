@@ -40,7 +40,7 @@ final class BrowserTab: NSObject, Identifiable {
         self.nextPage = nextPage
         self.onPageClosed = onPageClosed
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
+        config.websiteDataStore = BrowserTabs.dataStore
         webView = WKWebView(frame: .zero, configuration: config)
         super.init()
         #if DEBUG

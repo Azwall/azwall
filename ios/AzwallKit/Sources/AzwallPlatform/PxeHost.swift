@@ -27,7 +27,7 @@ public final class PxeHost {
         let channel = PxeChannel(send: { json in Task { @MainActor in box.deliver(json) } }, handlers: handlers)
         let events = await channel.events()
         PxeLog.follow(await channel.events(), bundle: bundle)
-        let webView = makeWebView(channel: channel)
+        let webView = makeWebView(channel: channel, origin: "http://127.0.0.1:\(server.port)")
         box.webView = webView
         webView.load(URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/pxe/\(bundle)/index.html")!))
         let host = PxeHost(bundle: bundle, channel: channel, webView: webView)
@@ -60,13 +60,13 @@ public final class PxeHost {
         return 47_600 + min(n, 99)
     }
 
-    private static func makeWebView(channel: PxeChannel) -> WKWebView {
+    private static func makeWebView(channel: PxeChannel, origin: String) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         // The PXE's web view is never on screen, and WebKit suspends an inactive page: its timers, workers and
         // promise chains stop between native calls (creating the PXE never finished). Keep it scheduled.
         config.preferences.inactiveSchedulingPolicy = .none
-        config.userContentController.add(MessageHandler(channel: channel), name: "azwall")
+        config.userContentController.add(MessageHandler(channel: channel, origin: origin), name: "azwall")
         let webView = WKWebView(frame: .zero, configuration: config)
         #if DEBUG
         if #available(iOS 16.4, *) { webView.isInspectable = true }
@@ -101,17 +101,27 @@ private final class WebViewBox {
     }
 }
 
-/// `webkit.messageHandlers.azwall.postMessage(json)` in the page.
+/// `webkit.messageHandlers.azwall.postMessage(json)` in the page. Only the PXE page itself is heard: the bridge
+/// carries the store key and signing keys, so a page that replaced it (another server on the port) gets nothing.
 @MainActor
-private final class MessageHandler: NSObject, WKScriptMessageHandler {
+final class MessageHandler: NSObject, WKScriptMessageHandler {
     private let channel: PxeChannel
+    private let origin: String
 
-    init(channel: PxeChannel) {
+    init(channel: PxeChannel, origin: String) {
         self.channel = channel
+        self.origin = origin
+    }
+
+    /// The main frame of the PXE page's origin (WebKit's, not the page's word).
+    static func accepts(mainFrame: Bool, protocol scheme: String, host: String, port: Int, origin: String) -> Bool {
+        mainFrame && "\(scheme)://\(host):\(port)" == origin
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let json = message.body as? String else { return }
+        let o = message.frameInfo.securityOrigin
+        guard Self.accepts(mainFrame: message.frameInfo.isMainFrame, protocol: o.protocol, host: o.host, port: o.port, origin: origin),
+              let json = message.body as? String else { return }
         let channel = channel
         Task { await channel.receive(json) }
     }

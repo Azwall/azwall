@@ -52,13 +52,14 @@ final class BundleServer: @unchecked Sendable {
         }
     }
 
-    /// `GET /pxe/v6/assets/x.js HTTP/1.1` → the file under the bundle root, or 404.
+    /// `GET /pxe/v6/assets/x.js HTTP/1.1` → the file under the bundle root, or 404. Only the PXE bundles (`pxe/`)
+    /// are served: any page on the device can reach this port, and the app's other resources are none of its business.
     func response(for request: String) -> Data {
         let parts = request.split(separator: " ", maxSplits: 2)
         guard parts.count >= 2, parts[0] == "GET" else { return Self.status(405, "Method Not Allowed") }
         let path = String(parts[1].split(separator: "?").first ?? "").removingPercentEncoding ?? ""
         let file = root.appendingPathComponent(path).standardizedFileURL
-        guard file.path.hasPrefix(root.path + "/"), let body = try? Data(contentsOf: file) else { return Self.status(404, "Not Found") }
+        guard file.path.hasPrefix(root.path + "/pxe/"), let body = try? Data(contentsOf: file) else { return Self.status(404, "Not Found") }
         let head = "HTTP/1.1 200 OK\r\nContent-Type: \(Self.mimeType(file.pathExtension))\r\nContent-Length: \(body.count)\r\n"
             + "Cache-Control: no-cache\r\nConnection: close\r\n\r\n"
         return Data(head.utf8) + body

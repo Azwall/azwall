@@ -14,5 +14,6 @@ let package = Package(
         .target(name: "AzwallKit"),
         .target(name: "AzwallPlatform", dependencies: ["AzwallKit"]),
         .testTarget(name: "AzwallKitTests", dependencies: ["AzwallKit"]),
+        .testTarget(name: "AzwallPlatformTests", dependencies: ["AzwallPlatform"]),
     ]
 )

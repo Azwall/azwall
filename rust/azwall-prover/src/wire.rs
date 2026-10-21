@@ -145,11 +145,23 @@ fn put_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// The largest bytecode or witness a request may unpack to: far above any Aztec circuit, far below what would
+/// exhaust a phone's memory if a malformed request expanded without end.
+const MAX_UNPACKED: u64 = 256 * 1024 * 1024;
+
 fn gunzip(data: &[u8], circuit: &str, what: &str) -> Result<Vec<u8>> {
+    gunzip_capped(data, MAX_UNPACKED, circuit, what)
+}
+
+fn gunzip_capped(data: &[u8], cap: u64, circuit: &str, what: &str) -> Result<Vec<u8>> {
     let mut out = Vec::with_capacity(data.len() * 4);
     flate2::read::GzDecoder::new(data)
+        .take(cap + 1)
         .read_to_end(&mut out)
         .map_err(|e| ProverError::Wire(format!("{circuit}: {what} is not valid gzip: {e}")))?;
+    if out.len() as u64 > cap {
+        return Err(ProverError::Wire(format!("{circuit}: {what} unpacks to more than {cap} bytes")));
+    }
     Ok(out)
 }
 
@@ -171,6 +183,14 @@ mod tests {
             witness: vec![7; 300],
             vk: vec![9; 64],
         }
+    }
+
+    #[test]
+    fn unpacking_stops_at_the_cap() {
+        let packed = gzip(&[0u8; 10_000]).unwrap();
+        assert_eq!(gunzip_capped(&packed, 10_000, "c", "witness").unwrap().len(), 10_000);
+        let err = gunzip_capped(&packed, 9_999, "c", "witness").unwrap_err().to_string();
+        assert!(err.contains("more than 9999 bytes"), "{err}");
     }
 
     #[test]

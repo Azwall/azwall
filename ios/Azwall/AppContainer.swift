@@ -8,7 +8,16 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
     private let lock = NSLock()
     private var loaded: WalletBackend?
     let vault = Vault(storage: SlottedVaultStorage(slots: KeychainVaultSlots()))
-    let storeDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wallet")
+    /// Addresses, amounts and history in clear: kept out of iCloud and computer backups (the vault itself never
+    /// leaves this device), so a backup does not undo the privacy Aztec gives.
+    let storeDirectory: URL = {
+        var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wallet")
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? url.setResourceValues(values)
+        return url
+    }()
     let approvals = DappApprovals()
     var launcher: PxeLauncher { IosPxeLauncher(backend: { try self.backend() }, approve: approvals.handler) }
 
