@@ -54,7 +54,7 @@ import java.util.concurrent.Executors
  * used to draw QR codes) to decode them: no Play Services, nothing leaves the device. Asks for the camera only now.
  */
 @Composable
-fun QrScanner(onResult: (String) -> Unit, onDismiss: () -> Unit) {
+fun QrScanner(hint: String = "Point at an Aztec address QR code", onResult: (String) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) granted = true else onDismiss() }
@@ -63,7 +63,7 @@ fun QrScanner(onResult: (String) -> Unit, onDismiss: () -> Unit) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (granted) CameraPreview(onResult)
             Box(Modifier.size(240.dp).align(Alignment.Center).border(3.dp, Color.White, RoundedCornerShape(24.dp)))
-            Text("Point at an Aztec address QR code", color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).padding(48.dp))
+            Text(hint, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).padding(48.dp))
             IconButton(onClick = onDismiss, modifier = Modifier.statusBarsPadding().padding(8.dp)) { Icon(Icons.Outlined.Close, "Close", tint = Color.White) }
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.CopyAddress
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.components.TokenBadge
+import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.core.wallet.Amounts
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
@@ -79,7 +80,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             CreateForm(busy, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
-            mine.forEach { CreatedToken(it, busy, actions.onMint) }
+            mine.forEach { CreatedToken(it, state.network.id, state.network.label, busy, actions.onMint) }
         }
     }
 }
@@ -112,7 +113,7 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
 }
 
 @Composable
-private fun CreatedToken(token: TokenView, busy: Boolean, onMint: (TokenView, String, Boolean, String) -> Unit) = Panel {
+private fun CreatedToken(token: TokenView, network: String, networkLabel: String, busy: Boolean, onMint: (TokenView, String, Boolean, String) -> Unit) = Panel {
     var amount by rememberSaveable(token.info.address) { mutableStateOf("1000") }
     var private by rememberSaveable(token.info.address) { mutableStateOf(true) }
     var to by rememberSaveable(token.info.address) { mutableStateOf("") }
@@ -127,6 +128,7 @@ private fun CreatedToken(token: TokenView, busy: Boolean, onMint: (TokenView, St
             }
         }
         CopyAddress(token.info.address)
+        ShareToken(token, network, networkLabel)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, singleLine = true, modifier = Modifier.weight(1f))
             FilterChip(selected = private, onClick = { private = !private }, label = { Text(if (private) "Private" else "Public") })
@@ -134,4 +136,13 @@ private fun CreatedToken(token: TokenView, busy: Boolean, onMint: (TokenView, St
         OutlinedTextField(to, { to = it.trim() }, label = { Text("To (empty: this account)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         TextButton(onClick = { onMint(token, amount, private, to) }, enabled = !busy && amount.isNotBlank()) { Text("Mint") }
     }
+}
+
+
+/** A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one. */
+@Composable
+private fun ShareToken(token: TokenView, network: String, networkLabel: String) {
+    var shown by rememberSaveable(token.info.address) { mutableStateOf(false) }
+    TextButton(onClick = { shown = true }) { Text("Share so others can add it") }
+    if (shown) ShareTokenSheet(token, network, networkLabel) { shown = false }
 }

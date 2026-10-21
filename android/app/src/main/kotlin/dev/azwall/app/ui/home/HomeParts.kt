@@ -128,9 +128,9 @@ private fun Notice(title: String, body: String, action: String, onAction: () -> 
 }
 
 @Composable
-internal fun TokenRow(token: TokenView, stale: Boolean = false) {
+internal fun TokenRow(token: TokenView, stale: Boolean = false, onClick: () -> Unit = {}) {
     val decimals = token.info.decimals
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Share", onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         TokenBadge(token.info.symbol, token.info.address)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

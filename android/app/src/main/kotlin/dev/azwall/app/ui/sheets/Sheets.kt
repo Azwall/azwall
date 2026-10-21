@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -30,15 +32,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.PrimaryButton
+import dev.azwall.app.ui.send.QrScanner
 import dev.azwall.app.ui.shortAddress
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.wallet.AccountView
+import dev.azwall.core.wallet.PaymentRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Sheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun Sheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
@@ -118,20 +122,25 @@ private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
     }
 }
 
-/** Follow a token by its contract address; name, symbol and decimals are read on chain. */
+/** Follow a token by its contract address, typed, pasted or scanned from a shared token's QR code; the rest is read on chain. */
 @Composable
-fun AddTokenSheet(busy: Boolean, onAdd: (String) -> Unit, onDismiss: () -> Unit) = Sheet("Add a token", onDismiss) {
-    var address by rememberSaveable { mutableStateOf("") }
-    val valid = Regex("^0x[0-9a-fA-F]{64}$").matches(address)
+fun AddTokenSheet(network: String, busy: Boolean, onAdd: (String) -> Unit, onDismiss: () -> Unit) = Sheet("Add a token", onDismiss) {
+    var text by rememberSaveable { mutableStateOf("") }
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    val request = PaymentRequest.parse(text)
+    val note = if (text.isNotEmpty() && request == null) "Not a token address" else request?.networkNote(network)
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
-            address,
-            { address = it.trim() },
+            text,
+            { text = it.trim() },
             label = { Text("Token contract address") },
             textStyle = MonoStyle,
-            isError = address.isNotEmpty() && !valid,
+            isError = note != null,
+            supportingText = note?.let { { Text(it) } },
+            trailingIcon = { IconButton(onClick = { scanning = true }) { Icon(Icons.Outlined.QrCodeScanner, "Scan a token QR code") } },
             modifier = Modifier.fillMaxWidth(),
         )
-        PrimaryButton("Add token", enabled = valid, busy = busy) { onAdd(address) }
+        PrimaryButton("Add token", enabled = request != null, busy = busy) { request?.let { onAdd(it.tokenAddress) } }
     }
+    if (scanning) QrScanner("Point at a token QR code", onResult = { text = it.trim(); scanning = false }, onDismiss = { scanning = false })
 }

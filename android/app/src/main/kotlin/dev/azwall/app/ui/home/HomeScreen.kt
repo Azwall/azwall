@@ -37,6 +37,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,10 +50,12 @@ import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.CircleAction
 import dev.azwall.app.ui.components.CopyAddress
+import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
+import dev.azwall.core.wallet.TokenView
 
 /** What the home screen can ask for; the caller routes each to a screen or sheet. */
 data class HomeActions(
@@ -75,6 +79,7 @@ data class HomeActions(
 @Composable
 fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var shared by remember { mutableStateOf<TokenView?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         TopBar(state, nodeOk, actions)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {
@@ -88,12 +93,13 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
                     }
                 }
                 item { FoundTokens(state.found, actions.onFollowFound, actions.onDismissFound) }
-                if (tab == 0) tokenItems(state, actions) else activityItems(state)
+                if (tab == 0) tokenItems(state, actions) { shared = it } else activityItems(state)
                 item { Spacer(Modifier.height(32.dp)) }
             }
         }
         StatusLine(state)
     }
+    shared?.let { ShareTokenSheet(it, state.network.id, state.network.label) { shared = null } }
 }
 
 @Composable
@@ -150,11 +156,11 @@ private fun ActionRow(state: SessionState, actions: HomeActions) {
     }
 }
 
-private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions) {
+private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions, onShare: (TokenView) -> Unit) {
     if (state.tokens.isEmpty() && state.found.isEmpty()) {
         item { EmptyHint("No tokens yet", "Add a token by its address to see its private and public balances.", "Add a token", actions.onAddToken) }
     }
-    items(state.tokens, key = { it.info.address }) { TokenRow(it, state.stale) }
+    items(state.tokens, key = { it.info.address }) { TokenRow(it, state.stale, onClick = { onShare(it) }) }
 }
 
 private fun LazyListScope.activityItems(state: SessionState) {

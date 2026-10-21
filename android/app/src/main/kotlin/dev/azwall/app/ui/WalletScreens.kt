@@ -189,7 +189,7 @@ private fun WalletSheets(vm: AppViewModel, session: WalletSession, sheet: Sheet,
             onCreate = { alias, key -> vm.addAccount(alias, key, auth("Save the new account")); close() },
             onDismiss = close,
         )
-        Sheet.ADD_TOKEN -> AddTokenSheet(busy, onAdd = { address -> vm.run("Token added.") { it.addToken(address) }; close() }, onDismiss = close)
+        Sheet.ADD_TOKEN -> AddTokenSheet(state.network.id, busy, onAdd = { address -> vm.run("Token added.") { it.addToken(address) }; close() }, onDismiss = close)
         Sheet.CONNECTIONS -> {
             val sessions by session.dapps.sessions.collectAsStateWithLifecycle()
             ConnectionsSheet(sessions, state.network.label, onDisconnect = { id -> vm.run { it.dapps.disconnect(id) } }, onDismiss = close)
