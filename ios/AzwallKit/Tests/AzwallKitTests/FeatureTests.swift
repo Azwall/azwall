@@ -271,3 +271,26 @@ struct PaymentRequestTests {
         #expect(PaymentRequest(address: token).networkNote(current: "testnet-v5") == nil)
     }
 }
+
+struct BrowsingTests {
+    @Test func addressesOpenAsTypedAndTextIsSearchedPrivately() {
+        let ddg = SearchEngine.default
+        #expect(Browsing.address(of: " vote.example.org ", engine: ddg) == "https://vote.example.org")
+        #expect(Browsing.address(of: "https://x.dev/a?b=1", engine: ddg) == "https://x.dev/a?b=1")
+        #expect(Browsing.address(of: "localhost:5180", engine: ddg) == "http://localhost:5180")
+        #expect(Browsing.address(of: "aztec voting dapp", engine: ddg) == "https://duckduckgo.com/?q=aztec+voting+dapp")
+        #expect(Browsing.address(of: "aztec", engine: .brave) == "https://search.brave.com/search?q=aztec")
+        #expect(Browsing.address(of: "  ", engine: ddg) == nil)
+    }
+
+    @Test func aSavedEngineFallsBackToTheDefault() {
+        #expect(SearchEngine.named("STARTPAGE") == .startpage)
+        #expect(SearchEngine.named(nil) == .duckduckgo)
+        #expect(SearchEngine.named("GOOGLE") == .duckduckgo)
+    }
+
+    @Test func aDappTileShowsItsHostAndTheSameColourAsOnAndroid() {
+        #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io/swap?x=1").host == "aztec.palmyr.io")
+        #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io").tint == "ac675a")
+    }
+}

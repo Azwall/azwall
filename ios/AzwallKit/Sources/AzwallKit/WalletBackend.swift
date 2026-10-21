@@ -13,10 +13,12 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
     public let proverSupported: Bool
     /// Tokens followed from the start on this network (networks.json).
     public let knownTokens: [TokenInfo]
+    /// dApps the browser's start page suggests on this network (networks.json).
+    public let dapps: [KnownDapp]
 
     public init(
         id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, pxeBundle: String, proverSupported: Bool,
-        knownTokens: [TokenInfo] = []
+        knownTokens: [TokenInfo] = [], dapps: [KnownDapp] = []
     ) {
         self.id = id
         self.label = label
@@ -26,6 +28,7 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
         self.pxeBundle = pxeBundle
         self.proverSupported = proverSupported
         self.knownTokens = knownTokens
+        self.dapps = dapps
     }
 }
 

@@ -12,7 +12,9 @@ import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import dev.azwall.core.wallet.Browsing
 import dev.azwall.core.wallet.DappLink
+import dev.azwall.core.wallet.SearchEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,10 +24,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
-import java.net.URLEncoder
 
 /** What the address bar and the navigation buttons show. */
-data class PageState(val url: String = "", val title: String = "", val progress: Int = 100, val canGoBack: Boolean = false, val canGoForward: Boolean = false)
+data class PageState(
+    val url: String = "",
+    val title: String = "",
+    val progress: Int = 100,
+    val canGoBack: Boolean = false,
+    val canGoForward: Boolean = false,
+    /** The native start page (suggested dApps) shows instead of the web view. */
+    val start: Boolean = true,
+)
 
 /**
  * The app's browser: one web view, kept alive across tabs. Every main-frame page served over https (or http on
@@ -62,14 +71,23 @@ class BrowserController(context: Context) {
         }
     }
 
-    /** Opens a URL, or searches the text with Google when it does not look like one. */
-    fun open(input: String) {
-        webView.loadUrl(toUrl(input))
+    /** Opens a URL, or searches the text with [engine] when it does not look like one; nothing typed: the start page. */
+    fun open(input: String, engine: SearchEngine) {
+        val url = Browsing.addressOf(input, engine) ?: return home()
+        _page.value = _page.value.copy(start = false)
+        webView.loadUrl(url)
     }
 
-    fun back() = webView.goBack()
+    /** The start page; the web view keeps its page and history underneath. */
+    fun home() {
+        _page.value = _page.value.copy(start = true)
+    }
 
-    fun forward() = webView.goForward()
+    /** Back in the page's history, then out to the start page. */
+    fun back() = if (webView.canGoBack()) webView.goBack() else home()
+
+    /** From the start page, forward returns to the page left open; then on in its history. */
+    fun forward() = if (_page.value.start && webView.url != null) _page.value = _page.value.copy(start = false) else webView.goForward()
 
     fun reload() = webView.reload()
 
@@ -110,7 +128,6 @@ class BrowserController(context: Context) {
     }
 
     companion object {
-        const val HOME = "https://www.google.com"
         private const val BRIDGE = "azwallBridge"
         private const val TAB = 1
 
@@ -122,18 +139,6 @@ class BrowserController(context: Context) {
         fun allowedOrigin(origin: String): Boolean {
             val uri = runCatching { URI(origin) }.getOrNull() ?: return false
             return uri.scheme == "https" || (uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1"))
-        }
-
-        /** "example.org" → https://example.org; "aztec voting dapp" → a Google search. */
-        fun toUrl(input: String): String {
-            val text = input.trim()
-            return when {
-                text.startsWith("https://") || text.startsWith("http://") -> text
-                text.isEmpty() -> HOME
-                text.startsWith("localhost") || text.startsWith("127.0.0.1") -> "http://$text"
-                ' ' !in text && '.' in text -> "https://$text"
-                else -> "https://www.google.com/search?q=" + URLEncoder.encode(text, Charsets.UTF_8)
-            }
         }
     }
 }

@@ -1,0 +1,48 @@
+package dev.azwall.core.wallet
+
+import java.net.URLEncoder
+
+/** A site the browser's start page suggests on a network (networks.json). */
+data class KnownDapp(val name: String, val url: String, val description: String = "") {
+    /** What a tile shows under the name: `aztec.palmyr.io`. */
+    val host: String get() = url.substringAfter("://").substringBefore('/')
+
+    /** Six hex digits derived from the URL (FNV-1a), for a badge colour that is the same on every device. */
+    val tint: String get() = "%06x".format(fnv1a(url) and 0xFFFFFF)
+}
+
+private fun fnv1a(text: String): Int = text.toByteArray().fold(0x811c9dc5.toInt()) { h, b -> (h xor (b.toInt() and 0xFF)) * 0x01000193 }
+
+/** Where the address bar sends what is not an address: engines that do not profile who searches. */
+enum class SearchEngine(val label: String, private val query: String) {
+    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
+    BRAVE("Brave Search", "https://search.brave.com/search?q="),
+    STARTPAGE("Startpage", "https://www.startpage.com/do/search?q="),
+    ;
+
+    fun search(text: String): String = query + URLEncoder.encode(text, Charsets.UTF_8)
+
+    companion object {
+        val DEFAULT = DUCKDUCKGO
+
+        /** The engine saved under [name], or the default one. */
+        fun named(name: String?): SearchEngine = entries.firstOrNull { it.name == name } ?: DEFAULT
+    }
+}
+
+object Browsing {
+    /**
+     * What the address bar opens: a URL as typed, a host (https; http for this device), or a search with [engine].
+     * Null for nothing typed: the start page.
+     */
+    fun addressOf(input: String, engine: SearchEngine): String? {
+        val text = input.trim()
+        return when {
+            text.isEmpty() -> null
+            text.startsWith("https://") || text.startsWith("http://") -> text
+            text.startsWith("localhost") || text.startsWith("127.0.0.1") -> "http://$text"
+            ' ' !in text && '.' in text -> "https://$text"
+            else -> engine.search(text)
+        }
+    }
+}

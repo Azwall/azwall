@@ -94,7 +94,8 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
             Box(Modifier.weight(1f)) {
                 if (tab == MainTab.EXPLORE) {
                     val sessions by session.dapps.sessions.collectAsStateWithLifecycle()
-                    BrowserScreen(browser, sessions, onMenu = openMenu, onConnections = { sheet = Sheet.CONNECTIONS })
+                    val engine by vm.searchEngine.collectAsStateWithLifecycle()
+                    BrowserScreen(browser, state.network, sessions, engine, onMenu = openMenu, onConnections = { sheet = Sheet.CONNECTIONS })
                 } else {
                     WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu)
                 }
@@ -202,11 +203,12 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     val state by session.state.collectAsStateWithLifecycle()
     val nodes by vm.nodes.collectAsStateWithLifecycle()
     val proverReady by vm.proverReady.collectAsStateWithLifecycle()
+    val engine by vm.searchEngine.collectAsStateWithLifecycle()
     var revealed by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    val info = remember(nodes, proverReady, state.network) {
-        SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id)
+    val info = remember(nodes, proverReady, state.network, engine) {
+        SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id, engine)
     }
     val network = state.network.id
     SettingsScreen(state, info, busy, SettingsActions(
@@ -217,6 +219,7 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
         onLoadProver = { vm.loadProver(network) },
         onLock = { vm.lock() },
         onWipe = { vm.wipe(auth("Remove the wallet")) },
+        onSearchEngine = vm::chooseSearchEngine,
     ))
     revealed?.let { key -> SecretKeyDialog(key, onCopy = { clipboard.setText(AnnotatedString(key)) }, onDismiss = { revealed = null }) }
 }

@@ -60,7 +60,8 @@ extension NetworkInfo {
             rpcHost: hostOf(network.rpcUrl),
             pxeBundle: network.pxeBundle,
             proverSupported: network.proverSupported,
-            knownTokens: network.knownTokens.map { TokenInfo(address: $0.address, name: $0.name, symbol: $0.symbol, decimals: Int($0.decimals)) }
+            knownTokens: network.knownTokens.map { TokenInfo(address: $0.address, name: $0.name, symbol: $0.symbol, decimals: Int($0.decimals)) },
+            dapps: network.knownDapps.map { AzwallKit.KnownDapp(name: $0.name, url: $0.url, description: $0.description) }
         )
     }
 }

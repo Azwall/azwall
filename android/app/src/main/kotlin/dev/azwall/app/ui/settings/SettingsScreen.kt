@@ -32,6 +32,7 @@ import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.NodeCheck
+import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.SessionState
 
 /** Everything Settings can trigger; the caller wires each to the view model. */
@@ -43,9 +44,17 @@ data class SettingsActions(
     val onLoadProver: () -> Unit,
     val onLock: () -> Unit,
     val onWipe: () -> Unit,
+    val onSearchEngine: (SearchEngine) -> Unit = {},
 )
 
-data class SettingsInfo(val appVersion: String, val coreVersion: String, val releases: List<String>, val node: NodeCheck?, val proverReady: Boolean)
+data class SettingsInfo(
+    val appVersion: String,
+    val coreVersion: String,
+    val releases: List<String>,
+    val node: NodeCheck?,
+    val proverReady: Boolean,
+    val searchEngine: SearchEngine = SearchEngine.DEFAULT,
+)
 
 @Composable
 fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actions: SettingsActions) {
@@ -57,6 +66,7 @@ fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actio
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             AccountSection(state, actions)
             NetworkSection(state, info, actions)
+            BrowserSection(info.searchEngine, actions.onSearchEngine)
             SecuritySection(actions)
             AboutSection(info)
         }

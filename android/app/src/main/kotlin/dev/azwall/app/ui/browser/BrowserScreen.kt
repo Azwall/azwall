@@ -4,6 +4,7 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,28 +55,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.ui.theme.WalletTheme
+import dev.azwall.core.NetworkInfo
 import dev.azwall.core.wallet.DappSession
+import dev.azwall.core.wallet.SearchEngine
 import kotlinx.coroutines.delay
 
-/** The Explore tab: any website, with dApps able to connect to the wallet. */
+/** The Explore tab: a start page of the network's dApps, then any website, with dApps able to connect to the wallet. */
 @Composable
 fun BrowserScreen(
     browser: BrowserController,
+    network: NetworkInfo,
     sessions: List<DappSession>,
+    engine: SearchEngine,
     onMenu: () -> Unit,
     onConnections: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val page by browser.page.collectAsStateWithLifecycle()
-    BackHandler(enabled = page.canGoBack) { browser.back() }
-    LaunchedEffect(browser) { if (browser.webView.url == null) browser.open(BrowserController.HOME) }
+    val open = { input: String -> browser.open(input, engine) }
+    BackHandler(enabled = !page.start) { browser.back() }
     Column(modifier.fillMaxSize().statusBarsPadding()) {
-        AddressBar(page.url, sessions.size, onMenu = onMenu, onOpen = browser::open, onConnections = onConnections)
-        if (page.progress < 100) LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
-        AndroidView(
-            factory = { browser.webView.also { (it.parent as? ViewGroup)?.removeView(it) } },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
+        AddressBar(if (page.start) "" else page.url, sessions.size, onMenu = onMenu, onOpen = open, onConnections = onConnections)
+        if (page.start) {
+            Box(Modifier.weight(1f)) { StartPage(network.label, network.dapps, sessions, engine, open) }
+        } else {
+            if (page.progress < 100) LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
+            AndroidView(
+                factory = { browser.webView.also { (it.parent as? ViewGroup)?.removeView(it) } },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        }
         NavigationRow(page, browser)
     }
 }
@@ -132,10 +141,10 @@ private fun AddressBar(url: String, connections: Int, onMenu: () -> Unit, onOpen
 @Composable
 private fun NavigationRow(page: PageState, browser: BrowserController) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = browser::back, enabled = page.canGoBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
-        IconButton(onClick = browser::forward, enabled = page.canGoForward) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Forward") }
-        IconButton(onClick = { browser.open(BrowserController.HOME) }) { Icon(Icons.Outlined.Home, "Home") }
-        IconButton(onClick = browser::reload) { Icon(Icons.Outlined.Refresh, "Reload") }
-        Text(page.title, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 8.dp))
+        IconButton(onClick = browser::back, enabled = !page.start) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+        IconButton(onClick = browser::forward, enabled = page.canGoForward || (page.start && page.url.isNotEmpty())) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Forward") }
+        IconButton(onClick = browser::home, enabled = !page.start) { Icon(Icons.Outlined.Home, "Home") }
+        IconButton(onClick = browser::reload, enabled = !page.start) { Icon(Icons.Outlined.Refresh, "Reload") }
+        Text(if (page.start) "" else page.title, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 8.dp))
     }
 }

@@ -7,6 +7,7 @@ import dev.azwall.core.vault.KeystoreSecretBox
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.PxeLauncher
+import dev.azwall.core.wallet.SearchEngine
 import java.io.File
 
 /** What the app view model needs from the platform; replaced by fakes in tests. */
@@ -19,6 +20,8 @@ interface AppDeps {
     /** The user's answers to dApp requests, shared by the browser and the PXE hosts. */
     val approvals: DappApprovals
     var lastNetwork: String?
+    /** Where the browser's address bar searches. */
+    var searchEngine: SearchEngine
 
     /** Deletes the vault and its Keystore key. */
     fun wipe()
@@ -38,6 +41,10 @@ class AppContainer(context: Context) : AppDeps {
     override var lastNetwork: String?
         get() = prefs.getString("network", null)
         set(value) = prefs.edit().putString("network", value).apply()
+
+    override var searchEngine: SearchEngine
+        get() = SearchEngine.named(prefs.getString("search_engine", null))
+        set(value) = prefs.edit().putString("search_engine", value.name).apply()
 
     override fun wipe() {
         vault.wipe()

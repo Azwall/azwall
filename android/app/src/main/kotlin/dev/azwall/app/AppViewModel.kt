@@ -8,6 +8,7 @@ import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.vault.AuthenticationRequired
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
+import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.WalletSession
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -58,10 +59,18 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     private val _proverReady = MutableStateFlow<String?>(null)
     val proverReady: StateFlow<String?> = _proverReady.asStateFlow()
 
+    private val _searchEngine = MutableStateFlow(deps.searchEngine)
+    val searchEngine: StateFlow<SearchEngine> = _searchEngine.asStateFlow()
+
     private var contents: VaultContents? = null
 
     /** dApp requests waiting for the user (the browser shows them as sheets). */
     val approvals get() = deps.approvals
+
+    fun chooseSearchEngine(engine: SearchEngine) {
+        deps.searchEngine = engine
+        _searchEngine.value = engine
+    }
 
     fun boot() {
         if (_phase.value != AppPhase.Booting) return
