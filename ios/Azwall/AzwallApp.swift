@@ -17,6 +17,7 @@ struct AzwallApp: App {
 /// Onboarding, lock screen, or the unlocked wallet; messages from user actions show as a banner.
 struct RootView: View {
     @Bindable var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -36,5 +37,22 @@ struct RootView: View {
                     .task { try? await Task.sleep(for: .seconds(4)); model.message = nil }
             }
         }
+        // The app switcher shows a snapshot taken on the way out: a cover, not the balances or a revealed key.
+        .overlay { if scenePhase != .active { PrivacyCover() } }
+        .onChange(of: scenePhase) {
+            if scenePhase == .background { model.onBackground() }
+            if scenePhase == .active { Task { await model.onForeground() } }
+        }
+    }
+}
+
+private struct PrivacyCover: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.shield").font(.system(size: 48)).foregroundStyle(Palette.accent)
+            Text("Azwall").font(.title2.bold())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.background)
     }
 }

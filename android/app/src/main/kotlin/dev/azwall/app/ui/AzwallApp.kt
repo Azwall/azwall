@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.AppPhase
 import dev.azwall.app.AppViewModel
@@ -40,6 +42,8 @@ fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
         }
     }
     LaunchedEffect(Unit) { vm.boot() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.onBackground() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.onForeground() }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, containerColor = MaterialTheme.colorScheme.background) { padding ->
         Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             when (val p = phase) {

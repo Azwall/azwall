@@ -92,15 +92,18 @@ public struct Vault: Sendable {
     /// Order of the Grumpkin scalar field (Aztec signing keys are elements of it), as 64 hex digits.
     static let grumpkinOrder = "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
 
+    /// ASCII only: `Character.isHexDigit` also accepts fullwidth digits.
+    static func isAsciiHex(_ c: Character) -> Bool { c.isASCII && c.isHexDigit }
+
     static func isHex32(_ s: String) -> Bool {
-        s.count == 66 && s.hasPrefix("0x") && s.dropFirst(2).allSatisfy { $0.isHexDigit && !$0.isUppercase }
+        s.count == 66 && s.hasPrefix("0x") && s.dropFirst(2).allSatisfy { isAsciiHex($0) && !$0.isUppercase }
     }
 
     /// Normalises a typed or pasted key; throws unless it is a non-zero Grumpkin scalar.
     public static func parseSigningKey(_ input: String) throws -> String {
         var body = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if body.hasPrefix("0x") { body.removeFirst(2) }
-        guard body.count == 64, body.allSatisfy(\.isHexDigit) else { throw VaultError("a signing key is 64 hexadecimal characters") }
+        guard body.count == 64, body.allSatisfy(isAsciiHex) else { throw VaultError("a signing key is 64 hexadecimal characters") }
         // Same length, lowercase hex: string order is numeric order.
         guard body != String(repeating: "0", count: 64), body < grumpkinOrder else { throw VaultError("this is not a valid Aztec signing key") }
         return "0x" + body

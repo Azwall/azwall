@@ -63,3 +63,29 @@ struct SlottedVaultStorageTests {
         #expect(throws: VaultError.self) { try storage.read() }
     }
 }
+
+struct AutoLockTests {
+    final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+
+    @Test func locksOnlyAfterTheTimeoutInTheBackground() {
+        let clock = Clock()
+        var lock = AutoLock(timeout: 1) { clock.now }
+        let neverLeft = lock.foregrounded()
+        lock.backgrounded()
+        clock.now += 0.999
+        let tooSoon = lock.foregrounded()
+        lock.backgrounded()
+        clock.now += 1
+        let late = lock.foregrounded(), again = lock.foregrounded()
+        #expect(!neverLeft && !tooSoon)
+        #expect(late)
+        #expect(!again, "counted once")
+    }
+
+    @Test func keysAreAsciiHexOnly() {
+        // Fullwidth digits pass Character.isHexDigit: they would be stored, then refused by the PXE at every unlock.
+        #expect(throws: VaultError.self) { try Vault.parseSigningKey(String(repeating: "１", count: 64)) }
+        let key = try? Vault.parseSigningKey(" 0x" + String(repeating: "1", count: 64) + "\n")
+        #expect(key == "0x" + String(repeating: "1", count: 64))
+    }
+}

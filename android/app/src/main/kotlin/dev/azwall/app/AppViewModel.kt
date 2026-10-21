@@ -8,6 +8,7 @@ import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.vault.AuthenticationRequired
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
+import dev.azwall.core.wallet.AutoLock
 import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.WalletSession
 import kotlinx.coroutines.CoroutineDispatcher
@@ -101,6 +102,16 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         deps.approvals.rejectAll()
         deps.lastNetwork = id
         start(contents ?: error("the wallet is locked"))
+    }
+
+    private val autoLock = AutoLock()
+
+    fun onBackground() = autoLock.backgrounded()
+
+    /** Back from the background: locks if away too long, unless a transaction is being proven or sent. */
+    fun onForeground() {
+        val session = (_phase.value as? AppPhase.Unlocked)?.session
+        if (autoLock.foregrounded() && session != null && session.transactions.proving.value == null) lock()
     }
 
     fun lock() {

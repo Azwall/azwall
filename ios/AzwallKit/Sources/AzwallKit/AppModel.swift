@@ -95,6 +95,15 @@ public final class AppModel {
         await start(contents)
     }
 
+    @ObservationIgnored private var autoLock = AutoLock()
+
+    public func onBackground() { autoLock.backgrounded() }
+
+    /// Back from the background: locks if away too long, unless a transaction is being proven or sent.
+    public func onForeground() async {
+        if autoLock.foregrounded(), let session, session.proving == nil { await lock() }
+    }
+
     public func lock() async {
         deps.approvals.rejectAll()
         await session?.close()
