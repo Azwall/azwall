@@ -78,12 +78,14 @@ struct PhraseVerifyView: View {
 }
 
 /// Restores from a recovery phrase (account 1; add accounts again to bring the next ones back) or a signing key.
+/// Checked when the user taps Restore, not while typing: a phrase is only valid once all its words are there.
 struct RestoreView: View {
     let busy: Bool
     let check: (String) async -> String?
     let onRestore: (String) -> Void
     @State private var input = ""
     @State private var error: String?
+    @State private var checking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -93,20 +95,22 @@ struct RestoreView: View {
             TextField("Recovery phrase or signing key", text: $input, axis: .vertical)
                 .lineLimit(4...8).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
                 .padding(12).background(RoundedRectangle(cornerRadius: 12).stroke(error == nil ? Color.secondary.opacity(0.4) : Palette.danger))
+                .onChange(of: input) { error = nil }
             if let error { Text(error).font(.caption).foregroundStyle(Palette.danger) }
             Spacer()
-            Button(busy ? "Restoring…" : "Restore") { onRestore(input) }.buttonStyle(PrimaryButtonStyle())
-                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || error != nil || busy)
+            Button(busy || checking ? "Restoring…" : "Restore", action: restore).buttonStyle(PrimaryButtonStyle())
+                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || error != nil || busy || checking)
         }
         .padding(24)
         .background(Palette.background)
-        // Checked once typing pauses: a phrase is only valid once all its words are there.
-        .task(id: input) {
-            error = nil
-            guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled else { return }
+    }
+
+    private func restore() {
+        Task {
+            checking = true
             error = await check(input)
+            checking = false
+            if error == nil { onRestore(input) }
         }
     }
 }

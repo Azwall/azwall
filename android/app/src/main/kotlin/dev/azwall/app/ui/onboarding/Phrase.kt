@@ -16,11 +16,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +30,7 @@ import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.SecureWindow
 import dev.azwall.app.ui.theme.MonoStyle
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** The words, numbered, in two columns: the order matters as much as the words. */
 @Composable
@@ -99,19 +99,17 @@ internal fun Verify(words: List<String>, busy: Boolean, onBack: () -> Unit, onDo
     Spacer(Modifier.height(24.dp))
 }
 
-/** Restores from a recovery phrase (account 1; add accounts again to bring the next ones back) or a signing key. */
+/**
+ * Restores from a recovery phrase (account 1; add accounts again to bring the next ones back) or a signing key.
+ * Checked when the user taps Restore, not while typing: a phrase is only valid once all its words are there.
+ */
 @Composable
 internal fun Import(busy: Boolean, check: suspend (String) -> String?, onBack: () -> Unit, onImport: (String) -> Unit) = Screen(onBack) {
     var input by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     SecureWindow()
-    // Checked once typing pauses: a phrase is only valid once all its words are there.
-    LaunchedEffect(input) {
-        error = null
-        if (input.isBlank()) return@LaunchedEffect
-        delay(400)
-        error = check(input)
-    }
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Restore a wallet", style = MaterialTheme.typography.headlineSmall)
         Text(
@@ -121,7 +119,7 @@ internal fun Import(busy: Boolean, check: suspend (String) -> String?, onBack: (
         )
         OutlinedTextField(
             value = input,
-            onValueChange = { input = it },
+            onValueChange = { input = it; error = null },
             label = { Text("Recovery phrase or signing key") },
             isError = error != null,
             supportingText = { error?.let { Text(it) } },
@@ -131,6 +129,13 @@ internal fun Import(busy: Boolean, check: suspend (String) -> String?, onBack: (
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    PrimaryButton("Restore", enabled = input.isNotBlank() && error == null, busy = busy, onClick = { onImport(input) })
+    PrimaryButton("Restore", enabled = input.isNotBlank() && error == null, busy = busy || checking) {
+        scope.launch {
+            checking = true
+            error = check(input)
+            checking = false
+            if (error == null) onImport(input)
+        }
+    }
     Spacer(Modifier.height(24.dp))
 }
