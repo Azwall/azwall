@@ -247,6 +247,9 @@ export class CachedStore {
         this.stats.flushErrors++;
         this.stats.lastError = err instanceof Error ? err.message : String(err);
         log('store', `${this.stats.name}: flush of ${count} statements FAILED (kept for retry): ${this.stats.lastError}`, 'error');
+        // The files cannot be written with this key (open.ts checks this at open, but not every page): the next
+        // start discards them and syncs again rather than failing the same way forever.
+        if (/SQLITE_NOTADB|SQLITE_CORRUPT|file is not a database/.test(this.stats.lastError)) markBroken(this.stats.name);
         // Nothing else may commit soon: try again on its own, backing off.
         const delay = retryDelay(this.#failures++);
         clearTimeout(this.#timer);
@@ -280,6 +283,35 @@ function rememberRows(name: string, rows: number): void {
     localStorage.setItem(rowsKey(name), String(rows));
   } catch {
     // diagnostics only (no localStorage in a worker or a private context)
+  }
+}
+
+function brokenKey(name: string): string {
+  return `azwall:store-broken:${name}`;
+}
+
+/** Remembers that a store's files refused a write: open.ts discards them at the next start. */
+export function markBroken(name: string): void {
+  try {
+    localStorage.setItem(brokenKey(name), '1');
+  } catch {
+    // without localStorage, the open-time check still runs
+  }
+}
+
+export function isMarkedBroken(name: string): boolean {
+  try {
+    return localStorage.getItem(brokenKey(name)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function clearBroken(name: string): void {
+  try {
+    localStorage.removeItem(brokenKey(name));
+  } catch {
+    // nothing to clear
   }
 }
 

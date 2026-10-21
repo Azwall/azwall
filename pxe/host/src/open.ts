@@ -11,7 +11,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 import { installBbMemo } from './bb_memo';
 import { log } from './log';
 import { NativeKernelProver } from './prover';
-import { CachedStore, forgetRows } from './store';
+import { CachedStore, clearBroken, forgetRows, isMarkedBroken } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
 import { nodeClient } from './version';
 
@@ -62,20 +62,31 @@ export function compatibilityProblems(check: Omit<NetworkCheck, 'blockNumber'>, 
   return problems;
 }
 
-type RawStore = { allAsync(sql: string): Promise<unknown[][]>; runAsync(sql: string): Promise<unknown>; close(): Promise<void> };
+type RawStore = {
+  allAsync(sql: string): Promise<unknown[][]>;
+  runAsync(sql: string, bind?: unknown[]): Promise<unknown>;
+  transactionAsync<T>(cb: () => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+};
+
+/** A store whose files cannot be used with this wallet's key (see unusableStore). */
+export class UnusableStoreError extends Error {}
+
+const PROBE = '__azwall_probe__';
 
 /**
- * Opens the stores and writes a page of each: files another key encrypted, or left half-written, can open and read
- * as empty, then fail every write ("file is not a database"). A failing store is closed before the error goes on.
+ * Opens the stores and checks each one can really be used: every page read back (`quick_check`), then a
+ * transaction written like any flush. Files another key encrypted, or left half-written, can open and read fine
+ * and still fail every write ("file is not a database"). A store marked broken by a failed flush (store.ts) is
+ * refused too. On failure both stores are closed before the error goes on.
  */
-async function openWritable<T extends { pxeStore: unknown; walletStore: unknown }>(open: () => Promise<T>): Promise<T> {
+async function openWritable<T extends { pxeStore: unknown; walletStore: unknown }>(open: () => Promise<T>, names: string[]): Promise<T> {
+  const broken = names.find(isMarkedBroken);
+  if (broken) throw new UnusableStoreError(`${broken} was marked broken by a failed write`);
   const stores = await open();
   const raw = [stores.pxeStore, stores.walletStore] as RawStore[];
   try {
-    for (const store of raw) {
-      const id = Number((await store.allAsync('PRAGMA application_id'))[0]?.[0] ?? 0);
-      await store.runAsync(`PRAGMA application_id = ${id}`);
-    }
+    for (const store of raw) await checkWritable(store);
   } catch (err) {
     await Promise.allSettled(raw.map(store => store.close()));
     throw err;
@@ -83,9 +94,21 @@ async function openWritable<T extends { pxeStore: unknown; walletStore: unknown 
   return stores;
 }
 
+async function checkWritable(store: RawStore): Promise<void> {
+  const check = String((await store.allAsync('PRAGMA quick_check'))[0]?.[0] ?? '');
+  if (check !== 'ok') throw new UnusableStoreError(`integrity check: ${check}`);
+  await store.transactionAsync(async () => {
+    await store.runAsync('INSERT OR REPLACE INTO data (slot, container, key, key_count, hash, value) VALUES (?, ?, ?, ?, ?, ?)', [
+      PROBE, PROBE, new Uint8Array([0]), 0, PROBE, null,
+    ]);
+    await store.runAsync('DELETE FROM data WHERE slot = ?', [PROBE]);
+  });
+}
+
 /** True for stores this wallet's key cannot use: encrypted with another key, or not a database at all. */
 export function unusableStore(err: unknown): boolean {
-  return err instanceof EmbeddedWalletEncryptionError || /SQLITE_NOTADB|file is not a database/.test(err instanceof Error ? err.message : String(err));
+  if (err instanceof EmbeddedWalletEncryptionError || err instanceof UnusableStoreError) return true;
+  return /SQLITE_NOTADB|SQLITE_CORRUPT|file is not a database|malformed/.test(err instanceof Error ? err.message : String(err));
 }
 
 /**
@@ -120,11 +143,12 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   };
   const { pxeStore, walletStore } = await startOverOnOtherKey(
     // The buffer is transferred to the SQLite worker (and detached), so hand out a fresh copy.
-    () => openWritable(() => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store'))),
+    () => openWritable(() => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store')), [names.pxe, names.wallet]),
     async () => {
       for (const name of [names.pxe, names.wallet]) {
         await deletePoolDirectory(storePoolDirectory(name));
         forgetRows(name);
+        clearBroken(name);
       }
     },
   );

@@ -1,7 +1,7 @@
 import { EmbeddedWalletEncryptionError } from '@aztec/wallets/embedded/store-encryption';
 import { describe, expect, it } from 'vitest';
 
-import { startOverOnOtherKey, unusableStore } from '../src/open';
+import { startOverOnOtherKey, UnusableStoreError, unusableStore } from '../src/open';
 
 const otherKey = () => new EmbeddedWalletEncryptionError('pxe', { cause: new Error('bad key') as never });
 
@@ -43,6 +43,7 @@ describe('startOverOnOtherKey', () => {
   it('tells unusable stores from other failures', () => {
     expect(unusableStore(otherKey())).toBe(true);
     expect(unusableStore(new Error('SQLITE_NOTADB: sqlite3 result code 26: file is not a database'))).toBe(true);
+    expect(unusableStore(new UnusableStoreError('integrity check: page 3 is never used'))).toBe(true);
     expect(unusableStore(new Error('SQLITE_FULL'))).toBe(false);
   });
 });

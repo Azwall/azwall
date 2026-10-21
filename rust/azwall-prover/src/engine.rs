@@ -44,6 +44,7 @@ impl ProverEngine {
             .name(format!("bb-{release}"))
             .stack_size(STACK_SIZE)
             .spawn(move || {
+                raise_priority();
                 let mut backend = match open() {
                     Ok(b) => b,
                     Err(e) => return drop(ready_tx.send(Err(e))),
@@ -98,6 +99,21 @@ fn prove(backend: &mut dyn ChonkBackend, request: &[u8]) -> Result<Vec<u8>> {
     };
     let meta_json = serde_json::to_string(&meta).map_err(|e| ProverError::Wire(e.to_string()))?;
     wire::encode_response(&output.fields, &output.compressed, &meta_json)
+}
+
+/// On Apple platforms, runs the prover at user-initiated QoS. The app waits for a proof from a user-initiated task,
+/// and a default-QoS thread there is a priority inversion, which iOS may answer by running it on efficiency cores.
+/// Barretenberg starts its thread pool from this thread, whose class the pool's threads inherit.
+fn raise_priority() {
+    #[cfg(target_vendor = "apple")]
+    {
+        const QOS_CLASS_USER_INITIATED: u32 = 0x19;
+        extern "C" {
+            fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: i32) -> i32;
+        }
+        // SAFETY: changes only the calling thread's scheduling class; no memory is involved.
+        unsafe { pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0) };
+    }
 }
 
 static PROCESS_THREADS: OnceLock<usize> = OnceLock::new();
