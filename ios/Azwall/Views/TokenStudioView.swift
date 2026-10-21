@@ -18,7 +18,7 @@ struct TokenStudioView: View {
             if session.phase != .ready {
                 HStack(spacing: 12) {
                     if session.phase == .starting { ProgressView() }
-                    Text(session.phase == .starting ? "Opening the wallet…" : "The wallet could not open.").foregroundStyle(.secondary)
+                    Text(session.phase == .starting ? "Loading the wallet…" : "The wallet could not load.").foregroundStyle(.secondary)
                 }
             } else if session.account?.deployed == nil {
                 // Unknown until the PXE has read it: the account is loading, not inactive.

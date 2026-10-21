@@ -18,11 +18,11 @@ const network: NetworkParams = {
 };
 
 describe('handlers while the PXE opens', () => {
-  it('say the wallet is still opening, and refuse a second open', async () => {
+  it('say the wallet is still loading, and refuse a second open', async () => {
     const h = createHandlers(new Bridge({ send: () => {} }, {}));
     void h.open({ network, dbKey: `0x${'00'.repeat(32)}` });
     await Promise.resolve();
-    await expect(h.blockNumber({})).rejects.toThrow('still opening');
+    await expect(h.blockNumber({})).rejects.toThrow('still loading');
     await expect(h.open({ network, dbKey: `0x${'00'.repeat(32)}` })).rejects.toThrow('already open');
   });
 });

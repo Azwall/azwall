@@ -74,7 +74,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             if (state.phase != Phase.READY) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (state.phase == Phase.STARTING) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    val text = if (state.phase == Phase.STARTING) "Opening the wallet…" else "The wallet could not open."
+                    val text = if (state.phase == Phase.STARTING) "Loading the wallet…" else "The wallet could not load."
                     Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 return@Column

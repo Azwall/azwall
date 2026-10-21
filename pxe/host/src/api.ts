@@ -45,7 +45,7 @@ export function createHandlers(bridge: Bridge): Handlers {
   // Opening can take minutes when damaged stores were set aside and the PXE syncs again from the chain.
   let opening = false;
   const w = () => {
-    if (opening) throw new Error('the wallet is still opening; try again in a moment');
+    if (opening) throw new Error('the wallet is still loading; try again in a moment');
     if (!wallet) throw new Error('the PXE is not open');
     return wallet;
   };
