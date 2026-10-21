@@ -254,4 +254,20 @@ class WalletSessionTest {
         assertEquals("addr-friend", minted["to"]!!.jsonPrimitive.content)
         assertEquals("addr-friend", s.state.value.activity.first().counterparty)
     }
+
+    @Test
+    fun lastBalancesShowAtOnceAndStayStaleUntilARefresh() = runTest {
+        pxe.deployed = true
+        val first = session().apply { open() }
+        first.addToken("0xt")
+        // A new start, before the PXE answers: the snapshot of the last refresh, marked stale.
+        val vault = Vault(tmp.root.resolve("vault"), PlainBox)
+        val contents = vault.unlock()
+        val restored = Snapshots.restore(SessionState(network), contents, WalletStore(tmp.root, network.id))!!
+        assertTrue(restored.stale)
+        assertEquals("addr-abab", restored.selected)
+        assertEquals(true, restored.account?.deployed)
+        assertEquals(BigInteger("2500000"), restored.tokens.single().balance?.privateAmount)
+        assertEquals(false, first.state.value.stale)
+    }
 }

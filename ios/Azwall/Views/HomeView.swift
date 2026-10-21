@@ -24,7 +24,7 @@ struct HomeView: View {
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
                     Picker("", selection: $tab) { Text("Tokens").tag(0); Text("Activity").tag(1) }.pickerStyle(.segmented).padding(.horizontal)
-                    if tab == 0 { TokenList(tokens: session.tokens, onAdd: { sheet = .addToken }) } else { ActivityList(items: session.activity) }
+                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }) } else { ActivityList(items: session.activity) }
                 }
             }
             .refreshable { await session.refresh() }

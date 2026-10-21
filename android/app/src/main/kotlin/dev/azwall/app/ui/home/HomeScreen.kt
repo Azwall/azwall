@@ -154,7 +154,7 @@ private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions) 
     if (state.tokens.isEmpty() && state.found.isEmpty()) {
         item { EmptyHint("No tokens yet", "Add a token by its address to see its private and public balances.", "Add a token", actions.onAddToken) }
     }
-    items(state.tokens, key = { it.info.address }) { TokenRow(it) }
+    items(state.tokens, key = { it.info.address }) { TokenRow(it, state.stale) }
 }
 
 private fun LazyListScope.activityItems(state: SessionState) {

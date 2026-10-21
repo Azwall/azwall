@@ -12,7 +12,10 @@ struct TokenStudioView: View {
 
     var body: some View {
         Form {
-            if session.account?.deployed != true {
+            // Unknown until the PXE has read it: the account is loading, not inactive.
+            if session.account?.deployed == nil {
+                HStack(spacing: 12) { ProgressView(); Text("Loading the account…").foregroundStyle(.secondary) }
+            } else if session.account?.deployed == false {
                 Text("Activate the account first: it becomes the token's minter.").foregroundStyle(.secondary)
             } else {
                 createSection

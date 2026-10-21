@@ -147,3 +147,22 @@ struct Card<Content: View>: View {
             .background(RoundedRectangle(cornerRadius: 24).fill(Palette.card))
     }
 }
+
+/// Balances from the last session, shown while the PXE catches up, breathe gently until a refresh confirms them
+/// (like banking apps): the numbers are readable at once, and visibly not yet current.
+private struct StalePulse: ViewModifier {
+    let active: Bool
+    @State private var dim = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active && dim ? 0.4 : 1)
+            .animation(active ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default, value: dim)
+            .onAppear { dim = active }
+            .onChange(of: active) { dim = active }
+    }
+}
+
+extension View {
+    func stalePulse(_ active: Bool) -> some View { modifier(StalePulse(active: active)) }
+}

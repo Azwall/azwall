@@ -40,6 +40,7 @@ import dev.azwall.app.ui.activityAmount
 import dev.azwall.app.ui.activityTitle
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.components.StatusChip
+import dev.azwall.app.ui.components.stalePulse
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.friendlyError
 import dev.azwall.app.ui.shortAddress
@@ -60,7 +61,8 @@ import java.math.BigInteger
 internal fun BalanceHero(state: SessionState, actions: HomeActions) {
     val account = state.account
     when {
-        state.phase == Phase.STARTING -> Starting(state.network.label)
+        // With balances from the last session, show them (stale) rather than a spinner while the PXE starts.
+        state.phase == Phase.STARTING && !state.stale -> Starting(state.network.label)
         state.phase == Phase.FAILED -> Notice("Can't reach ${state.network.label}", friendlyError(state.error), "Retry", actions.onRefresh)
         account?.deployed == false -> Notice(
             "Activate your account",
@@ -75,7 +77,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             "Add a token",
             actions.onAddToken,
         )
-        else -> TokenHero(state.hero ?: state.tokens.first(), state.tokens, actions)
+        else -> TokenHero(state.hero ?: state.tokens.first(), state.tokens, state.stale, actions)
     }
 }
 
@@ -88,12 +90,12 @@ private fun Starting(label: String) {
 }
 
 @Composable
-private fun TokenHero(token: TokenView, tokens: List<TokenView>, actions: HomeActions) {
+private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean, actions: HomeActions) {
     val balance = token.balance
     val priv = balance?.privateAmount ?: BigInteger.ZERO
     val pub = balance?.publicAmount ?: BigInteger.ZERO
     val decimals = token.info.decimals
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.stalePulse(stale), horizontalAlignment = Alignment.CenterHorizontally) {
         HeroAmount(if (balance == null) "…" else "${Amounts.display(priv + pub, decimals, 4)} ${token.info.symbol}", tokens, actions.onChoosePrimary)
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Split(Icons.Outlined.Lock, "Private", Amounts.display(priv, decimals, 4), WalletTheme.colors.private)
@@ -126,7 +128,7 @@ private fun Notice(title: String, body: String, action: String, onAction: () -> 
 }
 
 @Composable
-internal fun TokenRow(token: TokenView) {
+internal fun TokenRow(token: TokenView, stale: Boolean = false) {
     val decimals = token.info.decimals
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         TokenBadge(token.info.symbol, token.info.address)
@@ -136,7 +138,7 @@ internal fun TokenRow(token: TokenView) {
             Text(token.info.symbol, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         val balance = token.balance
-        Column(horizontalAlignment = Alignment.End) {
+        Column(Modifier.stalePulse(stale), horizontalAlignment = Alignment.End) {
             if (balance == null) {
                 Text("…")
             } else {

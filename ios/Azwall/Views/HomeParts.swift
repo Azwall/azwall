@@ -10,7 +10,8 @@ struct BalanceHero: View {
     let onRetry: () -> Void
 
     var body: some View {
-        if session.phase == .starting {
+        // With balances from the last session, show them (stale) rather than a spinner while the PXE starts.
+        if session.phase == .starting && !session.stale {
             HStack(spacing: 12) { ProgressView(); Text("Connecting to \(session.network.label)…").foregroundStyle(.secondary) }
         } else if session.phase == .failed {
             Notice(title: "Can't reach \(session.network.label)", text: friendlyError(session.error), action: "Retry", onAction: onRetry)
@@ -19,7 +20,7 @@ struct BalanceHero: View {
                    text: "Your address can already receive funds. Activating publishes your account contract; fees are sponsored on testnet.",
                    action: "Activate", onAction: onActivate)
         } else if let token = session.hero {
-            hero(token)
+            hero(token).stalePulse(session.stale)
         } else {
             Notice(title: "Your account is ready",
                    text: "Add a token to see its private and public balances. On testnet, Create a token in the menu makes one for you.",
@@ -85,6 +86,7 @@ struct Notice: View {
 
 struct TokenList: View {
     let tokens: [TokenView]
+    var stale = false
     let onAdd: () -> Void
 
     var body: some View {
@@ -92,13 +94,14 @@ struct TokenList: View {
             if tokens.isEmpty {
                 EmptyHint(title: "No tokens yet", text: "Add a token by its address to see its private and public balances.", action: "Add a token", onAction: onAdd)
             }
-            ForEach(tokens) { TokenRow(token: $0) }
+            ForEach(tokens) { TokenRow(token: $0, stale: stale) }
         }
     }
 }
 
 struct TokenRow: View {
     let token: TokenView
+    var stale = false
 
     var body: some View {
         let d = token.info.decimals
@@ -115,6 +118,7 @@ struct TokenRow: View {
                     Text("\(Amounts.display(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.display(balance.public, decimals: d, maxFraction: 2)) public")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                .stalePulse(stale)
             } else {
                 Text("…")
             }

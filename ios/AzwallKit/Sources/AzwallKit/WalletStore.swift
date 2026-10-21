@@ -51,6 +51,8 @@ private struct StoredNetwork: Codable {
     var seeded: [String]?
     /// Tokens each account created on this network (account → token addresses): it is their minter.
     var created: [String: [String]]?
+    /// What the home screen last showed per account, shown at the next start until the PXE catches up.
+    var snapshots: [AccountSnapshot]?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
@@ -93,6 +95,12 @@ public final class WalletStore: @unchecked Sendable {
             d.tokens += fresh.filter { !followed.contains($0.address.lowercased()) }
             d.seeded = (d.seeded ?? []) + fresh.map(\.address)
         }
+    }
+
+    public func snapshot(keyHash: String) -> AccountSnapshot? { lock.withLock { data.snapshots?.first { $0.keyHash == keyHash } } }
+
+    public func saveSnapshot(_ snapshot: AccountSnapshot) {
+        update { d in d.snapshots = (d.snapshots ?? []).filter { $0.keyHash != snapshot.keyHash } + [snapshot] }
     }
 
     public func created(account: String) -> [String] { lock.withLock { data.created?[account] ?? [] } }

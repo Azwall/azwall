@@ -68,6 +68,8 @@ data class SessionState(
     val primary: String? = null,
     /** Tokens the selected account created (it mints them), as addresses. */
     val created: List<String> = emptyList(),
+    /** True while the shown balances come from the last session (AccountSnapshot), until a refresh confirms them. */
+    val stale: Boolean = false,
     /** What runs in the background right now, for the status line (null when idle). */
     val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
@@ -118,15 +120,19 @@ class WalletSession(
     suspend fun open() {
         store.failInterrupted()
         store.seed(network.knownTokens)
+        Snapshots.restore(_state.value, contents, store)?.let { restored -> _state.value = restored }
         scope.launch { dapps.followActivity() }
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
         try {
             val host = launcher.launch(network).also { running.value = it }
             val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
-            val accounts = contents.accounts.map { register(it) }
+            // Registering keeps what the snapshot knew of each account until the refresh reads it again.
+            val known = _state.value.accounts
+            val accounts = contents.accounts.map { s -> register(s).let { v -> v.copy(deployed = known.firstOrNull { it.address == v.address }?.deployed) } }
             runCatching { host.client.registerTokens(store.tokens.map { it.address }) }
-            _state.update {
-                it.copy(phase = Phase.READY, check = check, accounts = accounts, selected = it.selected ?: accounts.firstOrNull()?.address)
+            _state.update { s ->
+                val selected = s.selected?.takeIf { sel -> accounts.any { it.address == sel } } ?: accounts.firstOrNull()?.address
+                s.copy(phase = Phase.READY, check = check, accounts = accounts, selected = selected)
             }
             transactions.resume()
             refresh()
@@ -165,9 +171,11 @@ class WalletSession(
                     activity = store.activity(account.address),
                     primary = store.primary(account.address),
                     created = store.created(account.address),
+                    stale = false,
                     error = null,
                 )
             }
+            Snapshots.save(_state.value, store)
         } catch (e: Exception) {
             _state.update { it.copy(error = e.message) }
         } finally {

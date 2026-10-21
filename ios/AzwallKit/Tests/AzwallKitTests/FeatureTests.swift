@@ -162,6 +162,26 @@ struct TokenStudioTests {
 }
 
 @MainActor
+struct SnapshotTests {
+    @Test func lastBalancesShowAtOnceAndStayStaleUntilARefresh() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let first = try SessionTests().session(pxe, dir: dir)
+        await first.open()
+        try await first.addToken("0xt")
+        #expect(first.stale == false)
+        // A new start, before the PXE answers: the snapshot of the last refresh, marked stale.
+        let second = try SessionTests().session(pxe, dir: dir)
+        second.restoreSnapshot()
+        #expect(second.stale)
+        #expect(second.selected == "addr-abab")
+        #expect(second.account?.deployed == true)
+        #expect(second.tokens.first?.balance?.private == "2500000")
+    }
+}
+
+@MainActor
 struct ApprovalTests {
     @Test func approveWaitsForTheUserDecision() async throws {
         let approvals = DappApprovals()

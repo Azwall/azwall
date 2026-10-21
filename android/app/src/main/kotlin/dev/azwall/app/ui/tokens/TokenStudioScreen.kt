@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,9 +61,20 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             Text("Create a token", style = MaterialTheme.typography.titleLarge)
         }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (state.account?.deployed != true) {
-                Text("Activate the account first: it becomes the token's minter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                return@Column
+            // Unknown until the PXE has read it: the account is loading, not inactive.
+            when (state.account?.deployed) {
+                null -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text("Loading the account…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    return@Column
+                }
+                false -> {
+                    Text("Activate the account first: it becomes the token's minter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    return@Column
+                }
+                true -> Unit
             }
             CreateForm(busy, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }

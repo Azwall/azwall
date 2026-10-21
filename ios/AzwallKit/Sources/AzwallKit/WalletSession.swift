@@ -41,8 +41,8 @@ public final class WalletSession {
     public let network: NetworkInfo
     public private(set) var phase: SessionPhase = .starting
     public private(set) var check: NetworkCheck?
-    public private(set) var accounts: [AccountView] = []
-    public private(set) var selected: String?
+    public internal(set) var accounts: [AccountView] = []
+    public internal(set) var selected: String?
     public internal(set) var tokens: [TokenView] = []
     public internal(set) var activity: [ActivityItem] = []
     /// Tokens the account holds that are not followed yet, found among the contracts dApps registered.
@@ -51,6 +51,8 @@ public final class WalletSession {
     public private(set) var primary: String?
     /// Tokens the selected account created (it mints them), as addresses.
     public private(set) var created: [String] = []
+    /// True while the shown balances come from the last session (AccountSnapshot), until a refresh confirms them.
+    public internal(set) var stale = false
     /// What runs in the background right now, for the status line (nil when idle).
     public internal(set) var task: BackgroundTask?
     /// The browser's link to the PXE host's dApp gateway.
@@ -107,6 +109,7 @@ public final class WalletSession {
     public func open() async {
         store.failInterrupted()
         store.seed(network.knownTokens)
+        restoreSnapshot()
         let backend = backend, id = network.id
         Task.detached { try? backend.prepareProver(networkId: id) }
         do {
@@ -115,10 +118,16 @@ public final class WalletSession {
             await listen(running)
             let params = try await Task.detached { try backend.pxeOpenParams(networkId: id) }.value
             check = try await running.client.open(networkParamsJSON: params, dbKey: contents.dbKey)
+            // Registering keeps what the snapshot knew of each account until the refresh reads it again.
+            let known = accounts
             var views: [AccountView] = []
-            for secrets in contents.accounts { views.append(try await register(secrets)) }
+            for secrets in contents.accounts {
+                var view = try await register(secrets)
+                view.deployed = known.first { $0.address == view.address }?.deployed
+                views.append(view)
+            }
             accounts = views
-            selected = selected ?? views.first?.address
+            selected = selected.flatMap { sel in views.contains { $0.address == sel } ? sel : nil } ?? views.first?.address
             // The PXE store can start over (a pool damaged by a crash is set aside): register followed tokens again.
             try? await running.client.registerTokens(store.tokens.map(\.address))
             resume(running.client)
@@ -162,7 +171,9 @@ public final class WalletSession {
             activity = store.activity(account: account.address)
             primary = store.primary(account: account.address)
             created = store.created(account: account.address)
+            stale = false
             error = nil
+            saveSnapshot()
         } catch {
             self.error = error.localizedDescription
         }
@@ -213,6 +224,9 @@ public final class WalletSession {
         store.removeToken(address)
         tokens.removeAll { $0.info.address.lowercased() == address.lowercased() }
     }
+
+    /// The vault's accounts, for the snapshot (Snapshot.swift).
+    var vaultAccounts: [AccountSecrets] { contents.accounts }
 
     func secrets(of address: String) throws -> AccountSecrets {
         guard let account = accounts.first(where: { $0.address == address }),
