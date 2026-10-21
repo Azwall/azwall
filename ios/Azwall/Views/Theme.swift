@@ -149,17 +149,20 @@ struct Card<Content: View>: View {
 }
 
 /// Balances from the last session, shown while the PXE catches up, breathe gently until a refresh confirms them
-/// (like banking apps): the numbers are readable at once, and visibly not yet current.
+/// (like banking apps): the numbers are readable at once, and visibly not yet current. Only the opacity changes,
+/// computed from the clock: no SwiftUI animation, which would also animate the layout and move the numbers.
 private struct StalePulse: ViewModifier {
     let active: Bool
-    @State private var dim = false
 
     func body(content: Content) -> some View {
-        content
-            .opacity(active && dim ? 0.4 : 1)
-            .animation(active ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default, value: dim)
-            .onAppear { dim = active }
-            .onChange(of: active) { dim = active }
+        if active {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate * .pi / 0.9
+                content.opacity(0.7 + 0.3 * cos(phase))
+            }
+        } else {
+            content
+        }
     }
 }
 
