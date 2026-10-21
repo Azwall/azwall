@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -82,16 +83,11 @@ fun StatusChip(status: ActivityStatus) {
 /** Round action under the balance (Send, Receive, Shield…). */
 @Composable
 fun CircleAction(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(76.dp)) {
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            shape = CircleShape,
-            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(52.dp),
-        ) {
+    // Unavailable: the same button at half opacity. Grey ones looked like another kind of button, still usable.
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(76.dp).alpha(if (enabled) 1f else 0.5f)) {
+        Surface(onClick = onClick, enabled = enabled, shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = label, tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onPrimary)
             }
         }
         Spacer(Modifier.height(6.dp))

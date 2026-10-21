@@ -96,11 +96,13 @@ struct CircleAction: View {
             VStack(spacing: 6) {
                 Image(systemName: icon).font(.title3.weight(.semibold))
                     .frame(width: 52, height: 52)
-                    .foregroundStyle(enabled ? Color.white : Color.secondary)
-                    .background(Circle().fill(enabled ? Palette.accent : Palette.chip))
+                    .foregroundStyle(Color.white)
+                    .background(Circle().fill(Palette.accent))
                 Text(label).font(.caption.weight(.medium)).foregroundStyle(.primary)
             }
             .frame(width: 76)
+            // Unavailable: the same button at half opacity. Grey ones looked like another kind of button, still usable.
+            .opacity(enabled ? 1 : 0.5)
         }
         .disabled(!enabled)
     }

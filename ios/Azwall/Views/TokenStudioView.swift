@@ -12,18 +12,14 @@ struct TokenStudioView: View {
     @State private var minting: String?
     @State private var sharing: TokenView?
 
+    private var ready: Bool { session.phase == .ready && session.account?.deployed != nil }
+
     var body: some View {
         Form {
-            // The account shown comes from the last session until the PXE is open: nothing can be sent before.
-            if session.phase != .ready {
-                HStack(spacing: 12) {
-                    if session.phase == .starting { ProgressView() }
-                    Text(session.phase == .starting ? "Loading the wallet…" : "The wallet could not load.").foregroundStyle(.secondary)
-                }
-            } else if session.account?.deployed == nil {
-                // Unknown until the PXE has read it: the account is loading, not inactive.
-                HStack(spacing: 12) { ProgressView(); Text("Loading the account…").foregroundStyle(.secondary) }
-            } else if session.account?.deployed == false {
+            if session.phase == .failed {
+                Text("The wallet could not load.").foregroundStyle(Palette.danger)
+            }
+            if session.account?.deployed == false {
                 Text("Activate the account first: it becomes the token's minter.").foregroundStyle(.secondary)
             } else {
                 createSection
@@ -45,6 +41,11 @@ struct TokenStudioView: View {
                 }
             }
         }
+        // Until the PXE is open and has read the account, the screen shows what it will hold, dimmed and inactive,
+        // with what is loading in the status line, as on the home screen.
+        .disabled(!ready)
+        .opacity(ready ? 1 : 0.5)
+        .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
         .navigationTitle("Create a token")
         .navigationDestination(item: $minting) { address in
             if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }

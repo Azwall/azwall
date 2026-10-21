@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,7 +17,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +30,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.Panel
+import dev.azwall.app.ui.home.StatusLine
 import dev.azwall.app.ui.home.TokenRow
 import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.core.wallet.Phase
@@ -69,36 +69,22 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Create a token", style = MaterialTheme.typography.titleLarge)
         }
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // The account shown comes from the last session until the PXE is open: nothing can be sent before.
-            if (state.phase != Phase.READY) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (state.phase == Phase.STARTING) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    val text = if (state.phase == Phase.STARTING) "Loading the wallet…" else "The wallet could not load."
-                    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+        // Until the PXE is open and has read the account, the screen shows what it will hold, dimmed and inactive,
+        // with what is loading in the status line, as on the home screen.
+        val ready = state.phase == Phase.READY && state.account?.deployed != null
+        val content = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp).alpha(if (ready) 1f else 0.5f)
+        Column(content, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (state.phase == Phase.FAILED) Text("The wallet could not load.", color = MaterialTheme.colorScheme.error)
+            if (state.account?.deployed == false) {
+                Text("Activate the account first: it becomes the token's minter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 return@Column
             }
-            // Unknown until the PXE has read it: the account is loading, not inactive.
-            when (state.account?.deployed) {
-                null -> {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("Loading the account…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    return@Column
-                }
-                false -> {
-                    Text("Activate the account first: it becomes the token's minter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    return@Column
-                }
-                true -> Unit
-            }
-            CreateForm(busy, actions.onCreate)
+            CreateForm(busy || !ready, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
-            mine.forEach { t -> CreatedToken(t, onShare = { sharing = t.info.address }, onMint = { minting = t.info.address }) }
+            mine.forEach { t -> CreatedToken(t, ready, onShare = { sharing = t.info.address }, onMint = { minting = t.info.address }) }
         }
+        StatusLine(state)
     }
 }
 
@@ -131,8 +117,8 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
 
 /** A token this account created, as on the home screen, with its two actions: share its QR code, and mint it. */
 @Composable
-private fun CreatedToken(token: TokenView, onShare: () -> Unit, onMint: () -> Unit) = Row(verticalAlignment = Alignment.CenterVertically) {
+private fun CreatedToken(token: TokenView, ready: Boolean, onShare: () -> Unit, onMint: () -> Unit) = Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.weight(1f)) { TokenRow(token, showsBalance = false, onClick = onShare) }
     IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, "Share ${token.info.symbol}") }
-    IconButton(onClick = onMint) { Icon(Icons.Outlined.AddCircleOutline, "Mint ${token.info.symbol}") }
+    IconButton(onClick = onMint, enabled = ready) { Icon(Icons.Outlined.AddCircleOutline, "Mint ${token.info.symbol}") }
 }
