@@ -155,9 +155,14 @@ class WalletSession(
         scope.launch { refresh() }
     }
 
-    /** Re-reads deployment status, balances and history of the selected account. */
+    /**
+     * Re-reads deployment status, balances and history of the selected account. The user may pick another account
+     * while it runs: then its results are dropped rather than shown (and saved) as the new account's, and the refresh
+     * that [select] queued reads the new one.
+     */
     suspend fun refresh() = refreshLock.withLock {
         val account = _state.value.account ?: return
+        val current = { _state.value.selected == account.address }
         val sync = runCatching { client.syncStatus() }.getOrNull()
         _state.update { it.copy(refreshing = true, task = BackgroundTask.Syncing(sync)) }
         try {
@@ -165,8 +170,10 @@ class WalletSession(
             val tokens = store.tokens
             val balances = if (deployed && tokens.isNotEmpty()) client.balances(account.address, tokens.map { it.address }) else emptyList()
             _state.update { s ->
+                val accounts = s.accounts.map { if (it.address == account.address) it.copy(deployed = deployed) else it }
+                if (s.selected != account.address) return@update s.copy(accounts = accounts)
                 s.copy(
-                    accounts = s.accounts.map { if (it.address == account.address) it.copy(deployed = deployed) else it },
+                    accounts = accounts,
                     tokens = tokens.map { info -> TokenView(info, balances.firstOrNull { it.token.equals(info.address, true) }) },
                     activity = store.activity(account.address),
                     primary = store.primary(account.address),
@@ -175,14 +182,14 @@ class WalletSession(
                     error = null,
                 )
             }
-            Snapshots.save(_state.value, store)
+            if (current()) Snapshots.save(_state.value, store)
         } catch (e: Exception) {
-            _state.update { it.copy(error = e.message) }
+            if (current()) _state.update { it.copy(error = e.message) }
         } finally {
             _state.update { it.copy(refreshing = false, task = null) }
         }
         // Independent of the balances: a token that cannot be read must not hide the others found.
-        if (_state.value.account?.deployed == true) discoverTokens(account.address)
+        if (current() && _state.value.account?.deployed == true) discoverTokens(account.address)
     }
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
@@ -191,8 +198,9 @@ class WalletSession(
         val secrets = AccountSecrets(alias.trim().ifEmpty { "Account ${contents.accounts.size + 1}" }, key, Vault.ZERO_SALT)
         contents = vault.addAccount(contents, secrets)
         val view = register(secrets)
-        _state.update { it.copy(accounts = it.accounts + view, selected = view.address) }
-        scope.launch { refresh() }
+        _state.update { it.copy(accounts = it.accounts + view) }
+        // Like any switch: the previous account's balances and suggestions must not show under the new one.
+        select(view.address)
         return view
     }
 

@@ -13,6 +13,9 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var receiptOutcome = "success"
     var discovered = #"[{"address":"0xpal","name":"Palmyr USD","symbol":"PUSD","decimals":6,"private":"0","public":"5000000"}]"#
     let (events, emit) = AsyncStream<PxeEvent>.makeStream()
+    /// Holds the first account's balances until `release` yields: a refresh still running when the user switches.
+    var holdBalances = false
+    let (released, release) = AsyncStream<Void>.makeStream()
 
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
         func p(_ k: String) -> String { params[k]?.stringValue ?? "" }
@@ -23,7 +26,10 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
             return try JSONValue.parse(#"{"nodeVersion":"6.0.0-rc.3","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"#)
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState": return .object(["deployed": .bool(deployed)])
-        case "balances": return try JSONValue.parse(#"[{"token":"0xt","private":"2500000","public":"0"}]"#)
+        case "balances":
+            let first = p("owner") == "addr-abab"
+            if first && holdBalances { for await _ in released { break } }
+            return try JSONValue.parse(#"[{"token":"0xt","private":"\#(first ? "2500000" : "7000000")","public":"0"}]"#)
         case "tokenInfo": return .object(["address": .string(p("token")), "name": .string("Test"), "symbol": .string("TST"), "decimals": .number(6)])
         case "mint": return .object(["txHash": .string("0xmint")])
         case "deployAccount", "transfer":
@@ -100,6 +106,24 @@ struct SessionTests {
         try await s.addToken("0xt")
         #expect(s.tokens.first?.info.symbol == "TST")
         #expect(s.tokens.first?.total == "2500000")
+    }
+
+    @Test func aRefreshOfThePreviousAccountDoesNotShowUnderTheNewOne() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try session(pxe)
+        await s.open()
+        try await s.addToken("0xt")
+        try await s.addAccount(alias: "second", importedKey: "0x" + String(repeating: "12", count: 32))
+        await s.select("addr-abab")
+        pxe.holdBalances = true
+        let running = Task { await s.refresh() }
+        try await Task.sleep(for: .milliseconds(50)) // the first account's refresh waits for its balances
+        await s.select("addr-1212") // queued behind it, not dropped
+        pxe.release.yield()
+        await running.value
+        #expect(s.selected == "addr-1212")
+        #expect(s.tokens.first?.total == "7000000")
     }
 
     @Test func transfersAreTrackedAndShieldingTargetsTheSender() async throws {

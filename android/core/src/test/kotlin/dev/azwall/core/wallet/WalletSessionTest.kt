@@ -16,6 +16,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -45,6 +46,8 @@ private class FakePxe : PxeCaller {
     val discoveryKnown = mutableListOf<List<String>>()
     val sent = mutableListOf<JsonObject>()
     val minted = mutableListOf<JsonObject>()
+    /** Holds the first account's balances until completed: a refresh still running when the user switches. */
+    var hold: CompletableDeferred<Unit>? = null
 
     override suspend fun call(method: String, params: JsonObject): JsonElement {
         fun p(k: String) = params[k]!!.jsonPrimitive.content
@@ -54,7 +57,11 @@ private class FakePxe : PxeCaller {
             "addAccount" -> """{"address":"addr-${p("signingKey").takeLast(4)}"}"""
             "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
             "accountState" -> """{"deployed":$deployed}"""
-            "balances" -> """[{"token":"0xt","private":"2500000","public":"0"}]"""
+            "balances" -> {
+                val first = p("owner") == "addr-abab"
+                if (first) hold?.await()
+                """[{"token":"0xt","private":"${if (first) "2500000" else "7000000"}","public":"0"}]"""
+            }
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
             "deployAccount", "transfer" -> { sent += params; """{"txHash":"0xhash${sent.size}"}""" }
@@ -130,6 +137,25 @@ class WalletSessionTest {
         val token = s.state.value.tokens.single()
         assertEquals("TST", token.info.symbol)
         assertEquals(BigInteger("2500000"), token.balance?.privateAmount)
+    }
+
+    @Test
+    fun aRefreshOfThePreviousAccountDoesNotShowUnderTheNewOne() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        s.addToken("0xt")
+        val second = s.addAccount("second", "0x" + "12".repeat(32))
+        assertNull("a new account starts without the previous one's balances", s.state.value.tokens.single().balance)
+        s.select("addr-abab")
+        advanceUntilIdle()
+        pxe.hold = CompletableDeferred()
+        launch { s.refresh() } // waits for the first account's balances
+        advanceUntilIdle()
+        s.select(second.address)
+        pxe.hold!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(second.address, s.state.value.selected)
+        assertEquals(BigInteger("7000000"), s.state.value.tokens.single().balance?.privateAmount)
     }
 
     @Test

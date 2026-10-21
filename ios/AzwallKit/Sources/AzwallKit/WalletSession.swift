@@ -58,6 +58,8 @@ public final class WalletSession {
     /// The browser's link to the PXE host's dApp gateway.
     public let dapps = DappLink()
     public private(set) var refreshing = false
+    /// Set when a refresh is asked while one runs: the running one goes round again.
+    @ObservationIgnored private var refreshAgain = false
     public private(set) var error: String?
     public private(set) var proving: ActivityItem?
     public private(set) var provingSince: Date?
@@ -157,30 +159,44 @@ public final class WalletSession {
         await refresh()
     }
 
-    /// Re-reads deployment status, balances and history of the selected account.
+    /// Re-reads deployment status, balances and history of the selected account. A refresh asked while one runs
+    /// (an account switch, a confirmed transaction) runs right after it rather than being dropped.
     public func refresh() async {
-        guard let account, !refreshing, let client = try? self.client else { return }
+        guard !refreshing else { refreshAgain = true; return }
         refreshing = true
+        repeat {
+            refreshAgain = false
+            await refreshSelected()
+        } while refreshAgain
+        refreshing = false
+    }
+
+    /// One pass for the account selected when it starts. If the user picks another one meanwhile, the results are
+    /// dropped rather than shown (and saved) as the new account's: select() asked for the pass that reads it.
+    private func refreshSelected() async {
+        guard let account, let client = try? self.client else { return }
+        let current = { self.selected == account.address }
         task = .syncing(from: try? await client.syncStatus())
         do {
             let deployed = try await client.isDeployed(account.address)
             let followed = store.tokens
             let balances = deployed && !followed.isEmpty ? try await client.balances(owner: account.address, tokens: followed.map(\.address)) : []
             if let i = accounts.firstIndex(where: { $0.address == account.address }) { accounts[i].deployed = deployed }
-            tokens = followed.map { info in TokenView(info: info, balance: balances.first { $0.token.lowercased() == info.address.lowercased() }) }
-            activity = store.activity(account: account.address)
-            primary = store.primary(account: account.address)
-            created = store.created(account: account.address)
-            stale = false
-            error = nil
-            saveSnapshot()
+            if current() {
+                tokens = followed.map { info in TokenView(info: info, balance: balances.first { $0.token.lowercased() == info.address.lowercased() }) }
+                activity = store.activity(account: account.address)
+                primary = store.primary(account: account.address)
+                created = store.created(account: account.address)
+                stale = false
+                error = nil
+                saveSnapshot()
+            }
         } catch {
-            self.error = error.localizedDescription
+            if current() { self.error = error.localizedDescription }
         }
-        refreshing = false
         task = nil
         // Independent of the balances: a token that cannot be read must not hide the others found.
-        if self.account?.deployed == true { await discover(owner: account.address) }
+        if current() && self.account?.deployed == true { await discover(owner: account.address) }
     }
 
     /// Routes the host's events for as long as it runs: dApp messages, sessions and transactions.
