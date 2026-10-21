@@ -9,6 +9,8 @@ public enum ApprovalKind: String, Sendable {
 public struct ApprovalRequest: Identifiable, Equatable, Sendable {
     public let id: Int
     public let kind: ApprovalKind
+    /// The page that asked (the browser's page id): its requests are dropped when it navigates away or closes.
+    public let tab: Int
     public let origin: String
     public let title: String
     public let details: [String]
@@ -38,13 +40,13 @@ public final class DappApprovals {
     func approve(_ params: JSONValue) async throws -> JSONValue {
         guard let kind = params["kind"]?.stringValue.flatMap(ApprovalKind.init(rawValue:)) else { throw PxeError("unknown approval kind") }
         let details = params["details"]?.arrayValue?.compactMap(\.stringValue) ?? []
-        let approved = await ask(kind, origin: params["origin"]?.stringValue ?? "", title: params["title"]?.stringValue ?? "",
-                                 details: details, emojis: params["emojis"]?.stringValue)
+        let approved = await ask(kind, tab: params["tab"]?.intValue ?? 0, origin: params["origin"]?.stringValue ?? "",
+                                 title: params["title"]?.stringValue ?? "", details: details, emojis: params["emojis"]?.stringValue)
         return .object(["approved": .bool(approved)])
     }
 
-    public func ask(_ kind: ApprovalKind, origin: String, title: String, details: [String], emojis: String?) async -> Bool {
-        let request = ApprovalRequest(id: nextId, kind: kind, origin: origin, title: title, details: details, emojis: emojis)
+    public func ask(_ kind: ApprovalKind, tab: Int, origin: String, title: String, details: [String], emojis: String?) async -> Bool {
+        let request = ApprovalRequest(id: nextId, kind: kind, tab: tab, origin: origin, title: title, details: details, emojis: emojis)
         nextId += 1
         pending.append(request)
         return await withCheckedContinuation { waiting[request.id] = $0 }
@@ -53,6 +55,11 @@ public final class DappApprovals {
     public func decide(_ id: Int, approved: Bool) {
         pending.removeAll { $0.id == id }
         waiting.removeValue(forKey: id)?.resume(returning: approved)
+    }
+
+    /// Rejects what page `tab` asked: it navigated away or closed, an answer must not reach the next page.
+    public func rejectTab(_ tab: Int) {
+        for request in pending where request.tab == tab { decide(request.id, approved: false) }
     }
 
     /// Rejects everything pending, e.g. when the network changes and the host that asked is gone.
@@ -93,31 +100,45 @@ struct DappTx: Codable {
     }
 }
 
-/// The browser's link to the PXE host's dApp gateway: page messages go in with their origin (from the web view,
-/// never from the page) and the selected account; the gateway's replies come out per tab.
+/// A gateway message for the content script of page `page`, as JSON.
+public struct PageMessage: Sendable {
+    public let page: Int
+    public let json: String
+}
+
+/// The browser's link to the PXE host's dApp gateway: page messages go in with their page id and origin (from the
+/// web view, never from the page) and the selected account; the gateway's replies come out with their page id.
 @MainActor
 @Observable
 public final class DappLink {
     public private(set) var sessions: [DappSession] = []
-    @ObservationIgnored private var tabs: [Int: AsyncStream<String>.Continuation] = [:]
+    @ObservationIgnored private var pages: AsyncStream<PageMessage>.Continuation?
     @ObservationIgnored private var started: [String: ActivityItem] = [:]
     @ObservationIgnored weak var session: WalletSession?
 
-    /// Messages for the content script of tab `tabId`, as JSON strings.
-    public func toPage(_ tabId: Int) -> AsyncStream<String> {
-        let (stream, continuation) = AsyncStream<String>.makeStream(bufferingPolicy: .bufferingNewest(64))
-        tabs[tabId]?.finish()
-        tabs[tabId] = continuation
+    /// Wallet messages are small; a page sending megabytes only tries to wear the PXE down.
+    public static let maxMessage = 1_000_000
+
+    /// Messages for the pages' content scripts; a new call replaces the previous stream.
+    public func toPages() -> AsyncStream<PageMessage> {
+        let (stream, continuation) = AsyncStream<PageMessage>.makeStream(bufferingPolicy: .bufferingNewest(64))
+        pages?.finish()
+        pages = continuation
         return stream
     }
 
-    /// A message from the content script of the page at `origin` in tab `tabId`.
+    /// A message from the content script of page `tabId` at `origin`; oversized ones are dropped.
     public func fromPage(_ tabId: Int, origin: String, message: String) async {
-        guard let session, let account = session.account?.address, let client = try? session.client else { return }
+        guard message.utf8.count <= Self.maxMessage, let session, let account = session.account?.address, let client = try? session.client else { return }
         let params: JSONValue = .object([
             "tabId": .number(Double(tabId)), "origin": .string(origin), "message": .string(message), "account": .string(account),
         ])
         _ = try? await client.callRaw("dappMessage", params)
+    }
+
+    /// Page `tabId` navigated away or its tab closed: its sessions and pending connections end.
+    public func closePage(_ tabId: Int) async {
+        _ = try? await session?.client.callRaw("dappClosePage", .object(["tabId": .number(Double(tabId))]))
     }
 
     public func disconnect(_ sessionId: String) async {
@@ -129,7 +150,7 @@ public final class DappLink {
         switch event.name {
         case "dapp":
             guard let tab = event.data["tabId"]?.intValue, let message = event.data["message"] else { return true }
-            tabs[tab]?.yield(message.jsonString())
+            pages?.yield(PageMessage(page: tab, json: message.jsonString()))
         case "dappSessions":
             sessions = (try? event.data.decode([DappSession].self)) ?? []
         case "dappTx":

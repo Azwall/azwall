@@ -39,12 +39,13 @@ class DappApprovalsTest {
     fun approveWaitsForTheUserDecision() = runTest {
         val approvals = DappApprovals()
         val params = Json.parseToJsonElement(
-            """{"kind":"capabilities","origin":"https://vote.example","title":"Vote asks for access","details":["accounts"],"emojis":"🦊🌵"}""",
+            """{"kind":"capabilities","tab":7,"origin":"https://vote.example","title":"Vote asks for access","details":["accounts"],"emojis":"🦊🌵"}""",
         ).jsonObject
         val reply = async { approvals.approve(params) }
         advanceUntilIdle()
         val request = approvals.pending.value.single()
         assertEquals(ApprovalKind.CAPABILITIES, request.kind)
+        assertEquals(7, request.tab)
         assertEquals("🦊🌵", request.emojis)
         approvals.decide(request.id, true)
         assertTrue(reply.await().jsonObject["approved"]!!.jsonPrimitive.boolean)
@@ -54,10 +55,23 @@ class DappApprovalsTest {
     @Test
     fun rejectAllAnswersNo() = runTest {
         val approvals = DappApprovals()
-        val answer = async { approvals.ask(ApprovalKind.TRANSACTION, "https://a", "Send?", emptyList(), null) }
+        val answer = async { approvals.ask(ApprovalKind.TRANSACTION, 1, "https://a", "Send?", emptyList(), null) }
         advanceUntilIdle()
         approvals.rejectAll()
         assertFalse(answer.await())
+    }
+
+    @Test
+    fun aClosedPageLosesOnlyItsOwnRequests() = runTest {
+        val approvals = DappApprovals()
+        val left = async { approvals.ask(ApprovalKind.CONNECT, 1, "https://legit.app", "Connect?", emptyList(), null) }
+        val other = async { approvals.ask(ApprovalKind.CONNECT, 2, "https://other.app", "Connect?", emptyList(), null) }
+        advanceUntilIdle()
+        approvals.rejectTab(1)
+        assertFalse(left.await())
+        assertEquals(2, approvals.pending.value.single().tab)
+        approvals.decide(approvals.pending.value.single().id, true)
+        assertTrue(other.await())
     }
 }
 
@@ -128,9 +142,19 @@ class DappLinkTest {
     }
 
     @Test
+    fun oversizedMessagesAndClosedPagesAreHandled() = runTest {
+        val s = session()
+        val before = pxe.calls.size
+        s.dapps.fromPage(1, "https://x.example", "x".repeat(DappLink.MAX_MESSAGE + 1))
+        assertEquals(before, pxe.calls.size)
+        s.dapps.closePage(4)
+        assertEquals("dappClosePage" to "4", pxe.calls.last().let { (m, p) -> m to p["tabId"]!!.jsonPrimitive.content })
+    }
+
+    @Test
     fun repliesAreRoutedPerTabAndSessionsFollowed() = runTest {
         val s = session()
-        val toTab1 = async { s.dapps.toPage(1).first() }
+        val toTab1 = async { s.dapps.toPages().first { it.first == 1 }.second }
         val follower = launch { s.dapps.followSessions() }
         advanceUntilIdle()
         pxe.events.emit(PxeEvent("dapp", Json.parseToJsonElement("""{"tabId":2,"message":{"x":2}}""")))

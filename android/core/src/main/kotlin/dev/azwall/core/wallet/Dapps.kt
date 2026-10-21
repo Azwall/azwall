@@ -28,6 +28,8 @@ enum class ApprovalKind { CONNECT, VERIFY, CAPABILITIES, TRANSACTION, AUTHWIT }
 data class ApprovalRequest(
     val id: Long,
     val kind: ApprovalKind,
+    /** The page that asked (the browser's page id): its requests are dropped when it navigates away or closes. */
+    val tab: Int,
     val origin: String,
     val title: String,
     val details: List<String>,
@@ -46,12 +48,13 @@ class DappApprovals {
     suspend fun approve(params: JsonObject): JsonElement {
         val kind = runCatching { ApprovalKind.valueOf(params.text("kind").uppercase()) }.getOrElse { throw PxeException("unknown approval kind") }
         val details = params["details"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
-        val approved = ask(kind, params.text("origin"), params.text("title"), details, params["emojis"]?.jsonPrimitive?.content)
+        val tab = params["tab"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val approved = ask(kind, tab, params.text("origin"), params.text("title"), details, params["emojis"]?.jsonPrimitive?.content)
         return buildJsonObject { put("approved", approved) }
     }
 
-    suspend fun ask(kind: ApprovalKind, origin: String, title: String, details: List<String>, emojis: String?): Boolean {
-        val request = ApprovalRequest(nextId.getAndIncrement(), kind, origin, title, details, emojis)
+    suspend fun ask(kind: ApprovalKind, tab: Int, origin: String, title: String, details: List<String>, emojis: String?): Boolean {
+        val request = ApprovalRequest(nextId.getAndIncrement(), kind, tab, origin, title, details, emojis)
         val answer = CompletableDeferred<Boolean>()
         synchronized(waiting) { waiting[request.id] = answer }
         _pending.update { it + request }
@@ -65,6 +68,12 @@ class DappApprovals {
 
     fun decide(id: Long, approved: Boolean) {
         synchronized(waiting) { waiting[id] }?.complete(approved)
+    }
+
+    /** Rejects what page [tab] asked: it navigated away or closed, an answer must not reach the next page. */
+    fun rejectTab(tab: Int) {
+        val ids = _pending.value.filter { it.tab == tab }.map { it.id }
+        synchronized(waiting) { ids.mapNotNull { waiting[it] } }.forEach { it.complete(false) }
     }
 
     /** Rejects everything pending, e.g. when the network changes and the host that asked is gone. */
@@ -86,10 +95,14 @@ class DappLink internal constructor(private val session: WalletSession) {
     private val _sessions = MutableStateFlow<List<DappSession>>(emptyList())
     val sessions: StateFlow<List<DappSession>> = _sessions.asStateFlow()
 
-    /** Messages for the content script of tab [tabId], as JSON strings. */
-    fun toPage(tabId: Int): Flow<String> = session.pxeEvents
+    /** Messages for the pages' content scripts: the page id each is for, and the message as JSON. */
+    fun toPages(): Flow<Pair<Int, String>> = session.pxeEvents
         .filter { it.name == "dapp" }
-        .mapNotNull { e -> e.data.jsonObject.takeIf { it["tabId"]?.jsonPrimitive?.content == tabId.toString() }?.get("message")?.toString() }
+        .mapNotNull { e ->
+            val o = e.data.jsonObject
+            val tab = o["tabId"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@mapNotNull null
+            o["message"]?.let { tab to it.toString() }
+        }
 
     /** Keeps [sessions] in sync with the gateway; collect it while the browser is alive. */
     suspend fun followSessions() {
@@ -113,8 +126,9 @@ class DappLink internal constructor(private val session: WalletSession) {
         }
     }
 
-    /** A message from the content script of the page at [origin] in tab [tabId]. */
+    /** A message from the content script of page [tabId] at [origin]; oversized ones are dropped. */
     suspend fun fromPage(tabId: Int, origin: String, message: String) {
+        if (message.length > MAX_MESSAGE) return
         val account = session.state.value.account?.address ?: return
         session.client.callRaw(
             "dappMessage",
@@ -122,8 +136,18 @@ class DappLink internal constructor(private val session: WalletSession) {
         )
     }
 
+    /** Page [tabId] navigated away or its tab closed: its sessions and pending connections end. */
+    suspend fun closePage(tabId: Int) {
+        session.client.callRaw("dappClosePage", buildJsonObject { put("tabId", tabId) })
+    }
+
     suspend fun disconnect(sessionId: String) {
         session.client.callRaw("dappDisconnect", buildJsonObject { put("sessionId", sessionId) })
+    }
+
+    companion object {
+        /** Wallet messages are small; a page sending megabytes only tries to wear the PXE down. */
+        const val MAX_MESSAGE = 1_000_000
     }
 }
 

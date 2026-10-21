@@ -100,20 +100,28 @@ struct FeatureTests {
         let pxe = FakePxe()
         let s = try base.session(pxe)
         await s.open()
-        var tab1 = s.dapps.toPage(1).makeAsyncIterator()
+        var pages = s.dapps.toPages().makeAsyncIterator()
         pxe.emit.yield(PxeEvent(name: "dapp", data: try JSONValue.parse(#"{"tabId":2,"message":{"x":2}}"#)))
         pxe.emit.yield(PxeEvent(name: "dapp", data: try JSONValue.parse(#"{"tabId":1,"message":{"x":1}}"#)))
         pxe.emit.yield(PxeEvent(name: "dappSessions", data: try JSONValue.parse(
             #"[{"sessionId":"s1","origin":"https://vote.example","appId":"vote","emojis":"🦊","granted":true}]"#,
         )))
-        let first = await tab1.next()
-        #expect(try JSONValue.parse(first ?? "") == JSONValue.parse(#"{"x":1}"#))
+        let first = await pages.next(), second = await pages.next()
+        #expect(first?.page == 2)
+        #expect(second?.page == 1)
+        #expect(try JSONValue.parse(second?.json ?? "") == JSONValue.parse(#"{"x":1}"#))
         await eventually { !s.dapps.sessions.isEmpty }
         #expect(s.dapps.sessions.first?.origin == "https://vote.example")
         await s.dapps.fromPage(1, origin: "https://vote.example", message: #"{"type":"aztec-wallet-discovery"}"#)
         let call = try #require(pxe.calls.last)
         #expect(call.0 == "dappMessage")
         #expect(call.1["account"]?.stringValue == "addr-abab")
+        let before = pxe.calls.count
+        await s.dapps.fromPage(1, origin: "https://x.example", message: String(repeating: "x", count: DappLink.maxMessage + 1))
+        #expect(pxe.calls.count == before)
+        await s.dapps.closePage(4)
+        #expect(pxe.calls.last?.0 == "dappClosePage")
+        #expect(pxe.calls.last?.1["tabId"]?.intValue == 4)
     }
 }
 
@@ -185,12 +193,13 @@ struct SnapshotTests {
 struct ApprovalTests {
     @Test func approveWaitsForTheUserDecision() async throws {
         let approvals = DappApprovals()
-        let params = try JSONValue.parse(#"{"kind":"capabilities","origin":"https://vote.example","title":"Vote asks","details":["accounts"],"emojis":"🦊🌵"}"#)
+        let params = try JSONValue.parse(#"{"kind":"capabilities","tab":7,"origin":"https://vote.example","title":"Vote asks","details":["accounts"],"emojis":"🦊🌵"}"#)
         let reply = Task { try await approvals.approve(params) }
         await eventually { !approvals.pending.isEmpty }
         let request = try #require(approvals.pending.first)
         #expect(request.kind == .capabilities)
         #expect(request.emojis == "🦊🌵")
+        #expect(request.tab == 7)
         approvals.decide(request.id, approved: true)
         #expect(try await reply.value["approved"] == .bool(true))
         #expect(approvals.pending.isEmpty)
@@ -198,10 +207,22 @@ struct ApprovalTests {
 
     @Test func rejectAllAnswersNo() async {
         let approvals = DappApprovals()
-        let answer = Task { await approvals.ask(.transaction, origin: "https://a", title: "Send?", details: [], emojis: nil) }
+        let answer = Task { await approvals.ask(.transaction, tab: 1, origin: "https://a", title: "Send?", details: [], emojis: nil) }
         await eventually { !approvals.pending.isEmpty }
         approvals.rejectAll()
         #expect(await answer.value == false)
+    }
+
+    @Test func aClosedPageLosesOnlyItsOwnRequests() async {
+        let approvals = DappApprovals()
+        let left = Task { await approvals.ask(.connect, tab: 1, origin: "https://legit.app", title: "Connect?", details: [], emojis: nil) }
+        let other = Task { await approvals.ask(.connect, tab: 2, origin: "https://other.app", title: "Connect?", details: [], emojis: nil) }
+        await eventually { approvals.pending.count == 2 }
+        approvals.rejectTab(1)
+        #expect(await left.value == false)
+        #expect(approvals.pending.map(\.tab) == [2])
+        approvals.decide(approvals.pending[0].id, approved: true)
+        #expect(await other.value == true)
     }
 }
 
