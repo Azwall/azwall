@@ -45,6 +45,9 @@ pub struct NetworkSpec {
     /// Tokens every wallet follows on this network from the start (it may stop following them).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tokens: Vec<KnownToken>,
+    /// dApps the browser's start page suggests on this network: a dApp works with one Aztec version only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dapps: Vec<KnownDapp>,
 }
 
 /// A token a network's registry entry lists: what the wallet needs to show it before asking the chain.
@@ -54,6 +57,15 @@ pub struct KnownToken {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+}
+
+/// A site the browser's start page lists, with a line on what it is for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownDapp {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub description: String,
 }
 
 impl NetworkSpec {
@@ -150,6 +162,11 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
             return bad(&format!("token '{}' needs a 0x + 64 hex address, a name, a symbol and at most 36 decimals", t.symbol));
         }
     }
+    for d in &n.dapps {
+        if d.name.trim().is_empty() || !d.url.starts_with("https://") || !is_http_url(&d.url) {
+            return bad(&format!("dApp '{}' needs a name and an https URL", d.name));
+        }
+    }
     Ok(())
 }
 
@@ -192,6 +209,18 @@ mod tests {
         assert!(r.networks[1].tokens.is_empty());
         let bad = sample_json().replacen(r#""pxe": "v6""#, r#""tokens": [{ "address": "0x12", "name": "X", "symbol": "X", "decimals": 6 }], "pxe": "v6""#, 1);
         assert!(Registry::from_json(&bad).is_err());
+    }
+
+    #[test]
+    fn lists_dapps_per_network() {
+        let dapps = r#""dapps": [{ "name": "Palmyr", "url": "https://aztec.palmyr.io", "description": "DeFi" }], "pxe": "v6""#;
+        let r = Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, dapps, 1)).unwrap();
+        assert_eq!(r.networks[0].dapps[0].url, "https://aztec.palmyr.io");
+        assert!(r.networks[1].dapps.is_empty());
+        for url in ["http://aztec.palmyr.io", "javascript:alert(1)", "https://"] {
+            let bad = sample_json().replacen(r#""pxe": "v6""#, &dapps.replace("https://aztec.palmyr.io", url), 1);
+            assert!(Registry::from_json(&bad).is_err(), "accepted {url}");
+        }
     }
 
     #[test]

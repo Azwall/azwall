@@ -52,6 +52,15 @@ pub struct Network {
     pub prover_supported: bool,
     /// Tokens followed from the start on this network (networks.json).
     pub known_tokens: Vec<KnownToken>,
+    /// dApps the browser's start page suggests on this network (networks.json).
+    pub known_dapps: Vec<KnownDapp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct KnownDapp {
+    pub name: String,
+    pub url: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -77,6 +86,12 @@ impl From<&ResolvedNetwork> for Network {
                 .tokens
                 .iter()
                 .map(|t| KnownToken { address: t.address.clone(), name: t.name.clone(), symbol: t.symbol.clone(), decimals: t.decimals })
+                .collect(),
+            known_dapps: n
+                .spec
+                .dapps
+                .iter()
+                .map(|d| KnownDapp { name: d.name.clone(), url: d.url.clone(), description: d.description.clone() })
                 .collect(),
         }
     }

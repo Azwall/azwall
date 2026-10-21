@@ -15,7 +15,24 @@
         "rollupVersion": 3409706519,
         "vkTreeRoot": "0x13eeb174d4119b221a22721853261759f57a65a57e864ad78b840b23cde69e02",
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
-      }
+      },
+      "dapps": [
+        {
+          "name": "Palmyr",
+          "url": "https://aztec.palmyr.io",
+          "description": "Private DeFi: swap and earn"
+        },
+        {
+          "name": "Aztec",
+          "url": "https://aztec.network",
+          "description": "The privacy-first L2: news and ecosystem"
+        },
+        {
+          "name": "Aztec docs",
+          "url": "https://docs.aztec.network",
+          "description": "Guides for users and developers"
+        }
+      ]
     },
     {
       "id": "testnet-v5",
@@ -29,7 +46,24 @@
         "rollupVersion": 1821665230,
         "vkTreeRoot": "0x2b3b6ea4412b9c8f6457a37f91a2870306f8641e07e16a49b68bda6f8bc02892",
         "protocolContractsHash": "0x2c075866eafc88a1f6f9addc7e337c6e64e45d1cb7fd7c0d612ebcec72aab2ca"
-      }
+      },
+      "dapps": [
+        {
+          "name": "Aztecscan",
+          "url": "https://testnet.aztecscan.xyz",
+          "description": "Blocks, transactions and contracts"
+        },
+        {
+          "name": "Aztec",
+          "url": "https://aztec.network",
+          "description": "The privacy-first L2: news and ecosystem"
+        },
+        {
+          "name": "Aztec docs",
+          "url": "https://docs.aztec.network",
+          "description": "Guides for users and developers"
+        }
+      ]
     }
   ]
 }

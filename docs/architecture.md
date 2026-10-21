@@ -36,6 +36,7 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
 | `expected` | L1 chain id, rollup version (checked against the node), VK tree root, protocol contracts hash |
 | `defaultRpc` | Public endpoint, overridden by `AZWALL_RPC_<ID>` in `.env` |
 | `tokens` | Optional: tokens every wallet follows from the start (`address`, `name`, `symbol`, `decimals`); a removed one stays removed |
+| `dapps` | Optional: sites the browser start page suggests on this network (`name`, https `url`, `description`) |
 
 ### Native prover
 
