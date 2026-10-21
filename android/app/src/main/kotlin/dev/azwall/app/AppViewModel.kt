@@ -91,7 +91,12 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         start(created)
     }
 
+    /**
+     * Always asks first: the Keystore key alone would open without a prompt for a while after any authentication,
+     * the phone's own unlock included, so the wallet would open just because the phone was unlocked.
+     */
     fun unlock(auth: Auth) = action {
+        if (!auth()) throw AuthCancelled()
         start(withAuth(auth) { withContext(io) { deps.vault.unlock() } })
     }
 
