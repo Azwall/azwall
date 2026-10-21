@@ -2,39 +2,79 @@ import AzwallKit
 import SwiftUI
 import WebKit
 
-/// The Explore tab: a start page of the network's dApps, then any website, with dApps able to connect to the wallet.
+/// The Explore tab: tabs on a start page of the network's dApps, then any website, with dApps able to connect.
 struct BrowserView: View {
-    let browser: BrowserController
+    let browser: BrowserTabs
     let network: NetworkInfo
     let sessions: [DappSession]
     let onMenu: () -> Void
     let onConnections: () -> Void
-    @AppStorage(BrowserController.engineKey) private var engine = SearchEngine.default.rawValue
+    @AppStorage(BrowserTabs.engineKey) private var engine = SearchEngine.default.rawValue
+    @State private var switching = false
 
     var body: some View {
+        let tab = browser.current
         VStack(spacing: 0) {
-            AddressBar(url: browser.start ? "" : browser.url, connections: sessions.count, onMenu: onMenu, onOpen: browser.open, onConnections: onConnections)
-            if browser.start {
-                StartPage(network: network, sessions: sessions, engine: SearchEngine.named(engine), onOpen: browser.open).frame(maxHeight: .infinity)
+            AddressBar(url: tab.start ? "" : tab.url, connections: sessions.count, onMenu: onMenu, onOpen: tab.open, onConnections: onConnections)
+            if tab.start {
+                StartPage(network: network, sessions: sessions, engine: SearchEngine.named(engine), onOpen: tab.open).frame(maxHeight: .infinity)
             } else {
-                if browser.progress < 1 { ProgressView(value: browser.progress).progressViewStyle(.linear).frame(height: 2) }
-                WebViewHost(webView: browser.webView)
+                if tab.progress < 1 { ProgressView(value: tab.progress).progressViewStyle(.linear).frame(height: 2) }
+                WebViewHost(webView: tab.webView).id(tab.id)
             }
-            navigationRow
+            navigationRow(tab)
         }
+        .sheet(isPresented: $switching) { TabsSheet(browser: browser) { switching = false }.presentationDetents([.medium, .large]) }
     }
 
-    private var navigationRow: some View {
+    private func navigationRow(_ tab: BrowserTab) -> some View {
         HStack(spacing: 20) {
-            Button(action: browser.back) { Image(systemName: "chevron.backward") }.disabled(browser.start)
-            Button(action: browser.forward) { Image(systemName: "chevron.forward") }
-                .disabled(!(browser.canGoForward || (browser.start && !browser.url.isEmpty)))
-            Button(action: browser.home) { Image(systemName: "house") }.disabled(browser.start)
-            Button(action: browser.reload) { Image(systemName: "arrow.clockwise") }.disabled(browser.start)
-            Text(browser.start ? "" : browser.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Button(action: tab.back) { Image(systemName: "chevron.backward") }.disabled(tab.start)
+            Button(action: tab.forward) { Image(systemName: "chevron.forward") }
+                .disabled(!(tab.canGoForward || (tab.start && !tab.url.isEmpty)))
+            Button(action: tab.home) { Image(systemName: "house") }.disabled(tab.start)
+            Button(action: tab.reload) { Image(systemName: "arrow.clockwise") }.disabled(tab.start)
+            Text(tab.start ? "" : tab.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
+            // Like a mobile browser: the number of open tabs in a square, which opens the tab list.
+            Button { switching = true } label: {
+                Text("\(browser.tabs.count)").font(.caption2.bold()).frame(width: 22, height: 22)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(lineWidth: 1.5))
+            }
+            .accessibilityLabel("Tabs")
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
+    }
+}
+
+/// The open tabs: switch to one, close one, or open a new one on the start page.
+private struct TabsSheet: View {
+    let browser: BrowserTabs
+    let close: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(browser.tabs) { tab in
+                    HStack {
+                        Button { browser.select(tab); close() } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tab.start ? "Start page" : (tab.title.isEmpty ? tab.url : tab.title)).lineLimit(1)
+                                if !tab.start { Text(hostOf(tab.url)).font(.caption).foregroundStyle(.secondary) }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.borderless)
+                        Button { browser.close(tab) } label: { Image(systemName: "xmark") }.buttonStyle(.borderless).accessibilityLabel("Close tab")
+                    }
+                    .foregroundStyle(.primary)
+                    .listRowBackground(tab === browser.current ? Palette.chip : nil)
+                }
+                Button("+ New tab") { browser.open(); close() }
+            }
+            .navigationTitle("Tabs")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
@@ -101,7 +141,7 @@ struct ConnectionsSheet: View {
                     ForEach(sessions) { s in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(s.origin.replacingOccurrences(of: "https://", with: "")).font(.subheadline.weight(.semibold))
+                                Text(siteOf(s.origin)).font(.subheadline.weight(.semibold))
                                 Text("\(s.emojis) · \(s.granted ? "access granted" : "connecting")").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

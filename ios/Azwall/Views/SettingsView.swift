@@ -8,7 +8,7 @@ struct SettingsView: View {
     @State private var name = ""
     @State private var revealed: String?
     @State private var confirmWipe = false
-    @AppStorage(BrowserController.engineKey) private var engine = SearchEngine.default.rawValue
+    @AppStorage(BrowserTabs.engineKey) private var engine = SearchEngine.default.rawValue
 
     var body: some View {
         Form {

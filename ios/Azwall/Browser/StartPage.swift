@@ -62,7 +62,7 @@ private struct ConnectedSite: View {
     let session: DappSession
 
     var body: some View {
-        let site = session.origin.replacingOccurrences(of: "https://", with: "")
+        let site = siteOf(session.origin)
         HStack(spacing: 12) {
             DappIcon(dapp: KnownDapp(name: site, url: session.origin), size: 32)
             VStack(alignment: .leading) {

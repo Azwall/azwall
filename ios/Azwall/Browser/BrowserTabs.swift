@@ -1,131 +1,95 @@
 import AzwallKit
 import Foundation
 import Observation
-import WebKit
 
-/// The Explore tab's web view, kept for the whole unlocked app (it survives tab switches). Pages get the wallet-sdk
-/// content script at document start and an `azwallBridge` object, both in the `azwall` content world: the page's
-/// own scripts cannot see or replace them, and they still reach the page through window messages. The page's
-/// origin comes from WebKit (frameInfo), never from the page.
+/// The app's browser: tabs kept for the whole unlocked app. Page messages go to the network's dApp gateway with
+/// their page id; replies come back to the tab whose page they are for, if it is still loaded. When a page goes
+/// away (navigation, closed tab), its pending requests are rejected and its sessions closed.
 @MainActor
 @Observable
-final class BrowserController: NSObject {
+final class BrowserTabs {
     /// Where Settings saves the search engine (SearchEngine raw value).
     static let engineKey = "azwall.searchEngine"
-    /// One tab for now; the gateway routes its replies by tab.
-    private static let tab = 1
-    private static let bridge = "azwallBridge"
-    private static let world = WKContentWorld.world(name: "azwall")
-    /// `azwallBridge` as the content script expects it (pxe/<bundle>/src/dapp/content_script.ts).
-    private static let shim = """
-    window.azwallBridge = { onmessage: null, postMessage(data) { window.webkit.messageHandlers.azwallBridge.postMessage(String(data)); } };
-    """
 
-    private(set) var url = ""
-    private(set) var title = ""
-    private(set) var progress = 1.0
-    private(set) var canGoBack = false
-    private(set) var canGoForward = false
-    /// The native start page (suggested dApps) shows instead of the web view.
-    private(set) var start = true
-
-    @ObservationIgnored let webView: WKWebView
-    @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    private(set) var tabs: [BrowserTab] = []
+    private(set) var current: BrowserTab
+    @ObservationIgnored private var nextTab = 1
+    @ObservationIgnored private var nextPageId = 1
+    @ObservationIgnored private var script: String?
     @ObservationIgnored private var link: DappLink?
     @ObservationIgnored private var relay: Task<Void, Never>?
+    @ObservationIgnored private let approvals: DappApprovals
 
-    override init() {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
-        webView = WKWebView(frame: .zero, configuration: config)
-        super.init()
-        #if DEBUG
-        webView.isInspectable = true
-        #endif
-        webView.allowsBackForwardNavigationGestures = true
-        observe()
+    init(approvals: DappApprovals) {
+        self.approvals = approvals
+        let placeholder = BrowserTab(id: 0, nextPage: { 0 }, onPageClosed: { _ in })
+        current = placeholder
+        current = makeTab()
+        tabs = [current]
     }
 
-    /// Connects the browser to a network's dApp gateway (its content script, its PXE host). Called again when the
+    /// Connects every tab to a network's dApp gateway (its content script, its PXE host); called again when the
     /// network changes: the previous link is dropped.
     func attach(_ link: DappLink, contentScript: String) {
-        let scripts = webView.configuration.userContentController
-        scripts.removeAllUserScripts()
-        scripts.removeScriptMessageHandler(forName: Self.bridge, contentWorld: Self.world)
-        scripts.addUserScript(WKUserScript(source: Self.shim, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: Self.world))
-        scripts.addUserScript(WKUserScript(source: contentScript, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: Self.world))
-        scripts.add(WeakHandler(self), contentWorld: Self.world, name: Self.bridge)
         self.link = link
+        script = contentScript
+        for tab in tabs { tab.install(contentScript: contentScript) }
         relay?.cancel()
         relay = Task { [weak self] in
-            for await json in link.toPage(Self.tab) { self?.deliver(json) }
+            for await message in link.toPages() { self?.tab(of: message.page)?.deliver(page: message.page, json: message.json) }
         }
     }
 
-    /// Opens a URL, or searches the text with the saved engine; nothing typed: the start page.
-    func open(_ input: String) {
-        let engine = SearchEngine.named(UserDefaults.standard.string(forKey: Self.engineKey))
-        guard let address = Browsing.address(of: input, engine: engine), let target = URL(string: address) else { return home() }
-        start = false
-        webView.load(URLRequest(url: target))
+    /// Opens a new tab on the start page and shows it.
+    func open() {
+        let tab = makeTab()
+        tabs.append(tab)
+        current = tab
     }
 
-    /// The start page; the web view keeps its page and history underneath.
-    func home() { start = true }
-
-    /// Back in the page's history, then out to the start page.
-    func back() { if webView.canGoBack { webView.goBack() } else { home() } }
-
-    /// From the start page, forward returns to the page left open; then on in its history.
-    func forward() { if start && webView.url != nil { start = false } else { webView.goForward() } }
-
-    func reload() { webView.reload() }
-
-    fileprivate func received(_ message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, let body = message.body as? String else { return }
-        let origin = Self.origin(message.frameInfo.securityOrigin)
-        guard Self.allowedOrigin(origin), let link else { return }
-        Task { await link.fromPage(Self.tab, origin: origin, message: body) }
+    func select(_ tab: BrowserTab) {
+        if tabs.contains(where: { $0 === tab }) { current = tab }
     }
 
-    private func deliver(_ json: String) {
-        let literal = (try? String(decoding: JSONEncoder().encode(json), as: UTF8.self)) ?? "\"\""
-        let script = "window.azwallBridge && window.azwallBridge.onmessage && window.azwallBridge.onmessage({ data: \(literal) })"
-        webView.evaluateJavaScript(script, in: nil, in: Self.world) { _ in }
+    /// Shows the tab whose loaded page is `page`, e.g. the one a dApp request comes from.
+    func selectPage(_ page: Int) {
+        if let tab = tab(of: page) { current = tab }
     }
 
-    private func observe() {
-        observations = [
-            webView.observe(\.url) { [weak self] web, _ in MainActor.assumeIsolated { self?.url = web.url?.absoluteString ?? "" } },
-            webView.observe(\.title) { [weak self] web, _ in MainActor.assumeIsolated { self?.title = web.title ?? "" } },
-            webView.observe(\.estimatedProgress) { [weak self] web, _ in MainActor.assumeIsolated { self?.progress = web.estimatedProgress } },
-            webView.observe(\.canGoBack) { [weak self] web, _ in MainActor.assumeIsolated { self?.canGoBack = web.canGoBack } },
-            webView.observe(\.canGoForward) { [weak self] web, _ in MainActor.assumeIsolated { self?.canGoForward = web.canGoForward } },
-        ]
+    /// Closes a tab (its page's sessions end); the last one is replaced by a fresh tab.
+    func close(_ tab: BrowserTab) {
+        tabs.removeAll { $0 === tab }
+        if tabs.isEmpty { tabs = [makeTab()] }
+        if current === tab, let last = tabs.last { current = last }
+        tab.close()
     }
 
-    private static func origin(_ o: WKSecurityOrigin) -> String {
-        let standard = (o.protocol == "https" && o.port == 443) || (o.protocol == "http" && o.port == 80) || o.port == 0
-        return standard ? "\(o.protocol)://\(o.host)" : "\(o.protocol)://\(o.host):\(o.port)"
+    private func tab(of page: Int) -> BrowserTab? { tabs.first { $0.pageId == page } }
+
+    private func makeTab() -> BrowserTab {
+        let tab = BrowserTab(id: nextTab, nextPage: { [weak self] in self?.newPageId() ?? 0 }, onPageClosed: { [weak self] in self?.pageClosed($0) })
+        nextTab += 1
+        tab.onMessage = { [weak self] page, origin, body in
+            guard let link = self?.link else { return }
+            Task { await link.fromPage(page, origin: origin, message: body) }
+        }
+        if let script { tab.install(contentScript: script) }
+        return tab
+    }
+
+    private func newPageId() -> Int {
+        defer { nextPageId += 1 }
+        return nextPageId
+    }
+
+    private func pageClosed(_ page: Int) {
+        approvals.rejectTab(page)
+        if let link { Task { await link.closePage(page) } }
     }
 
     /// dApps must be served over https; plain http only from this device (dApp development).
     static func allowedOrigin(_ origin: String) -> Bool {
         guard let url = URL(string: origin), let host = url.host() else { return false }
         return url.scheme == "https" || (url.scheme == "http" && (host == "localhost" || host == "127.0.0.1"))
-    }
-}
-
-/// WKUserContentController retains its handlers: this one holds the browser weakly.
-@MainActor
-private final class WeakHandler: NSObject, WKScriptMessageHandler {
-    weak var target: BrowserController?
-
-    init(_ target: BrowserController) {
-        self.target = target
-    }
-
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        target?.received(message)
     }
 }

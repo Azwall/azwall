@@ -1,6 +1,17 @@
 import AzwallKit
 import Foundation
 
+/// `https://aztec.palmyr.io` → `aztec.palmyr.io`.
+func siteOf(_ origin: String) -> String {
+    origin.hasPrefix("https://") ? String(origin.dropFirst("https://".count)) : origin
+}
+
+/// `https://aztec.network/blog?x` → `aztec.network`.
+func hostOf(_ url: String) -> String {
+    let rest = url.range(of: "://").map { String(url[$0.upperBound...]) } ?? url
+    return String(rest.prefix { $0 != "/" })
+}
+
 /// `0x1b17…3d37`.
 func shortAddress(_ address: String, keep: Int = 4) -> String {
     guard address.count > 2 + keep * 2 + 1 else { return address }

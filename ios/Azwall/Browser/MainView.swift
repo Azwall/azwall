@@ -12,7 +12,13 @@ struct MainView: View {
     @State private var menuOpen = false
     @State private var route: HomeView.Route?
     @State private var showConnections = false
-    @State private var browser = BrowserController()
+    @State private var browser: BrowserTabs
+
+    init(model: AppModel, session: WalletSession) {
+        self.model = model
+        self.session = session
+        _browser = State(initialValue: BrowserTabs(approvals: model.approvals))
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -37,8 +43,12 @@ struct MainView: View {
             }
             .presentationDetents([.medium])
         }
-        // A request comes from a page: bring the browser forward so its page is visible above the panel.
-        .onChange(of: model.approvals.pending.first?.id) { if $1 != nil { tab = .explore } }
+        // A request comes from a page: bring the browser and that page's tab forward, visible above the panel.
+        .onChange(of: model.approvals.pending.first?.id) {
+            guard let request = model.approvals.pending.first else { return }
+            browser.selectPage(request.tab)
+            tab = .explore
+        }
         .task(id: session.network.id) { attachBrowser() }
     }
 

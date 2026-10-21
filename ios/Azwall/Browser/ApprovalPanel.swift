@@ -27,9 +27,10 @@ struct ApprovalPanel: View {
     private var header: some View {
         Button { expanded.toggle() } label: {
             HStack {
+                // The site as the browser knows it comes first: what a page says about itself is only a detail below.
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(request.origin.replacingOccurrences(of: "https://", with: "")).font(.caption).foregroundStyle(.secondary)
-                    Text(request.title).font(.headline).lineLimit(expanded ? 3 : 1)
+                    Text(siteOf(request.origin)).font(.headline).lineLimit(2)
+                    Text(request.title).font(.subheadline).lineLimit(expanded ? 3 : 1)
                 }
                 Spacer()
                 Image(systemName: expanded ? "chevron.down" : "chevron.up").accessibilityLabel(expanded ? "Collapse" : "Expand")

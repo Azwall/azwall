@@ -163,7 +163,7 @@ struct ActivityRow: View {
     private var detail: String {
         let parts: [String?] = [
             item.createdAt.formatted(.relative(presentation: .named)),
-            item.origin.map { "via \($0.replacingOccurrences(of: "https://", with: ""))" },
+            item.origin.map { "via \(siteOf($0))" },
             item.counterparty.map { item.kind == .receive ? "from \(shortAddress($0))" : "to \(shortAddress($0))" },
             item.blockNumber.map { "block \($0)" },
         ]
