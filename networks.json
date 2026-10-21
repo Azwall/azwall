@@ -18,9 +18,9 @@
       },
       "dapps": [
         {
-          "name": "Palmyr",
-          "url": "https://aztec.palmyr.io",
-          "description": "Private DeFi: swap and earn"
+          "name": "DuckDuckGo",
+          "url": "https://duckduckgo.com",
+          "description": "Search the web without being tracked"
         },
         {
           "name": "Aztec",
@@ -28,9 +28,9 @@
           "description": "The privacy-first L2: news and ecosystem"
         },
         {
-          "name": "Aztec docs",
-          "url": "https://docs.aztec.network",
-          "description": "Guides for users and developers"
+          "name": "Palmyr",
+          "url": "https://aztec.palmyr.io",
+          "description": "Private DeFi: swap and earn"
         }
       ]
     },
@@ -49,9 +49,9 @@
       },
       "dapps": [
         {
-          "name": "Aztecscan",
-          "url": "https://testnet.aztecscan.xyz",
-          "description": "Blocks, transactions and contracts"
+          "name": "DuckDuckGo",
+          "url": "https://duckduckgo.com",
+          "description": "Search the web without being tracked"
         },
         {
           "name": "Aztec",
@@ -59,9 +59,9 @@
           "description": "The privacy-first L2: news and ecosystem"
         },
         {
-          "name": "Aztec docs",
-          "url": "https://docs.aztec.network",
-          "description": "Guides for users and developers"
+          "name": "Aztecscan",
+          "url": "https://testnet.aztecscan.xyz",
+          "description": "Blocks, transactions and contracts"
         }
       ]
     }
