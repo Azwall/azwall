@@ -5,18 +5,19 @@ nav_order: 4
 
 # Development
 
-The [README](https://github.com/Azwall/azwall#readme) has every command. In short:
+The [README](https://github.com/Azwall/azwall#readme) has every command, prerequisites and the
+Barretenberg build explained. In short:
 
 ```bash
-cp .env.example .env            # RPC endpoint per network
-scripts/fetch-crs.sh            # proving setup files, bundled by both apps
-scripts/build-bb-android.sh all arm64-v8a   # one Barretenberg library per release
-scripts/build-android.sh arm64-v8a          # Rust core + bindings for Android
-cd android && ./gradlew assembleDebug
+cp .env.example .env                        # RPC endpoint per network
+scripts/fetch-crs.sh                        # proving setup files, bundled by both apps
+scripts/build-bb-android.sh all arm64-v8a   # one Barretenberg library per release (≈ 10 min each)
+scripts/build-android.sh arm64-v8a          # Rust core + bindings + Barretenberg into jniLibs
+cd android && ./gradlew installDebug        # also builds the PXE hosts
 ```
 
-On macOS, `scripts/build-ios.sh` (Rust core), `scripts/build-bb-ios.sh all` (one Barretenberg framework per
-release, embedded in the app; needs cmake and ninja) then `xcodegen generate` in `ios/` produce the Xcode project.
+On macOS: `scripts/build-bb-ios.sh all` (one Barretenberg framework per release), `scripts/build-ios.sh`
+(Rust core), then `xcodegen generate` in `ios/`, pick your signing team in Xcode, and run.
 
 ## Tests
 

@@ -30,14 +30,18 @@ scripts/             Native builds, bindings, CRS, tests, size limits
 
 ## Prerequisites
 
-- Rust ≥ 1.89 with `rustup target add aarch64-linux-android x86_64-linux-android`
-- [cargo-ndk](https://github.com/bbqsrc/cargo-ndk), JDK 17+, Android SDK (platform 37) and NDK 27
-- For iOS: macOS, Xcode with Swift ≥ 6.4, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-- Node ≥ 22 and pnpm (PXE hosts)
-- To build Barretenberg: CMake ≥ 3.24, Ninja, Python 3
+| | Android (Linux or macOS) | iOS (macOS only) |
+|---|---|---|
+| Rust | ≥ 1.89 (`rustup`) | same |
+| Rust targets | `aarch64-linux-android x86_64-linux-android` | added by `scripts/build-ios.sh` |
+| Platform tools | JDK 17+, Android SDK (platform 37), NDK 27, [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) | Xcode with Swift ≥ 6.4, [XcodeGen](https://github.com/yonaskolb/XcodeGen) |
+| PXE hosts | Node ≥ 22, pnpm | same |
+| Barretenberg | CMake ≥ 3.24, Ninja, Python 3, git | same (`brew install cmake ninja xcodegen`) |
 
 ```bash
-export NDK_HOME=$HOME/Android/Sdk/ndk/27.3.13750724
+rustup target add aarch64-linux-android x86_64-linux-android
+cargo install cargo-ndk
+export NDK_HOME=$HOME/Android/Sdk/ndk/27.3.13750724   # your NDK; macOS: ~/Library/Android/sdk/ndk/…
 ```
 
 ## Configuration
@@ -52,39 +56,76 @@ bundle. Values end up in the app binary: only use keys restricted by quota or or
 
 ## Build
 
-Fetch the CRS (≈ 20 MiB, bundled by both apps):
+Three things are built outside Gradle and Xcode, once, then again only when they change:
+
+| Step | What | When to rerun |
+|---|---|---|
+| `scripts/fetch-crs.sh` | Proving setup files (≈ 20 MiB), bundled by both apps | Never (shared by every release) |
+| Barretenberg | The native prover library, one per release in `networks.json` | A network gets a new `barretenberg` release |
+| Rust core | `rust/azwall-ffi` and its Kotlin/Swift bindings | Any change under `rust/` |
+
+The PXE hosts (`pxe/`) and `assets/azwall-config.json` are built by Gradle and by Xcode's pre-build
+step on every build; nothing to run by hand.
+
+### Barretenberg
+
+Aztec proofs are made by [Barretenberg](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg),
+Aztec's C++ prover, built from source for the phone. Each network pins the release it needs
+(`barretenberg` in `networks.json`), and the app loads several releases side by side (testnet v5 and
+v6 use different ones): each release becomes one self-contained library exporting only two
+symbols, which the Rust prover opens at run time (`rust/azwall-prover/src/library.rs`).
+
+The scripts clone the release's sources (sparse checkout of `aztec-packages` at tag
+`v<release>`, into `vendor/`), build them with CMake and Ninja, and wrap them:
 
 ```bash
-scripts/fetch-crs.sh
+scripts/build-bb-android.sh all arm64-v8a           # phones; add x86_64 for the emulator
+scripts/build-bb-ios.sh all                         # macOS: device + Apple Silicon simulator
+scripts/build-bb-android.sh 6.0.0-rc.6 arm64-v8a    # or a single release
 ```
 
-Build every Barretenberg release listed in `networks.json` (≈ 10 min per release and ABI):
+| | Output | Packaged by |
+|---|---|---|
+| Android | `vendor/bb-shared/<abi>/libbb_v<release>.so` | `scripts/build-android.sh`, into `jniLibs` |
+| iOS | `vendor/bb-ios/AzBB_<release>.xcframework` (`.` and `-` become `_`) | Xcode, embedded (not linked) |
 
-```bash
-scripts/build-bb-android.sh all arm64-v8a
-```
+Count about 10 minutes per release and per ABI (or per iOS SDK) on an 8-core machine, and a few
+GB of disk for the sources and build trees in `vendor/`. Without a library the app still runs, but
+sending a transaction fails with a message naming the missing release.
 
 ### Android
 
 ```bash
-scripts/build-android.sh arm64-v8a x86_64
+scripts/fetch-crs.sh
+scripts/build-bb-android.sh all arm64-v8a
+scripts/build-android.sh arm64-v8a      # Rust core, Kotlin bindings, and the Barretenberg libraries into jniLibs
+cd android && ./gradlew installDebug    # builds the PXE hosts too, installs on the connected phone
 ```
 
-```bash
-cd android && ./gradlew assembleDebug
-```
+Run `scripts/build-android.sh` again after any Rust change: an app whose bindings and native
+library come from different builds fails at start.
 
 ### iOS (macOS)
 
 ```bash
-scripts/build-ios.sh
-```
-
-```bash
+scripts/fetch-crs.sh
+scripts/build-bb-ios.sh all
+scripts/build-ios.sh                    # Rust core into build/ios/AzwallFFI.xcframework, Swift bindings
 cd ios && xcodegen generate && open Azwall.xcodeproj
 ```
 
-Barretenberg is not yet built for iOS: the app runs, but the prover reports the missing library.
+In Xcode, pick your team under Signing & Capabilities (`xcodegen generate` resets it), then run on a
+device or an Apple Silicon simulator. Xcode's pre-build step builds the PXE hosts and the network
+config (it needs `cargo` and `pnpm` in `~/.cargo/bin`, `/opt/homebrew/bin` or `/usr/local/bin`).
+Run `scripts/build-ios.sh` again after any Rust change.
+
+### App icon
+
+`branding/azwall-icon.png` is the source of every icon and logo; after changing it:
+
+```bash
+scripts/make-icons.sh   # needs ImageMagick 7
+```
 
 ## Tests
 
