@@ -84,6 +84,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     // A message from the content script of the page at `origin` (taken from the native web view, not the page).
     dappMessage: async p => dapps?.receive(int(p, 'tabId'), str(p, 'origin'), JSON.parse(str(p, 'message')), str(p, 'account')),
     dappDisconnect: async p => dapps?.disconnect(str(p, 'sessionId')),
+    dappClosePage: async p => dapps?.closePage(int(p, 'tabId')),
   };
   return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
 }

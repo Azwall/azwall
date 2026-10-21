@@ -14,6 +14,7 @@ import { AccountFeePaymentMethodOptions } from '@aztec-labs/entrypoints/account'
 import type { LogFn } from '@aztec-labs/foundation/log';
 import type { AztecAsyncKVStore } from '@aztec-labs/kv-store';
 import { SponsoredFPCContractArtifact } from '@aztec-labs/noir-contracts.js/SponsoredFPC';
+import type { ContractArtifact } from '@aztec-labs/stdlib/abi';
 import { TxHash } from '@aztec-labs/stdlib/tx';
 import type { CompleteFeeOptionsConfig, FeeOptions } from '@aztec-labs/wallet-sdk/base-wallet';
 import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec-labs/wallets/embedded';
@@ -148,6 +149,12 @@ export class AzwallWallet extends EmbeddedWallet {
     const header = await this.pxe.getSyncedBlockHeader().catch(() => undefined);
     const g = header?.globalVariables;
     return { syncedBlock: g ? Number(g.blockNumber) : 0, syncedAt: g ? Number(g.timestamp) : 0, tip };
+  }
+
+  /** The artifact of the contract at `address` (the class it was deployed with), if this PXE has it. */
+  async artifactAt(address: string): Promise<ContractArtifact | undefined> {
+    const instance = await this.pxe.getContractInstance(AztecAddress.fromStringUnsafe(address));
+    return instance && this.pxe.getContractArtifact(instance.originalContractClassId);
   }
 
   /** Contracts registered in this PXE (by the wallet or by dApps) whose artifact is a token's. */
