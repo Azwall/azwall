@@ -2,6 +2,7 @@
 # Builds the app icons of both apps from branding/azwall-icon.png (1024x1024, opaque, background #0D0B16).
 #   Android: adaptive icon (background colour + foreground layer) and legacy launcher PNGs, per density.
 #   iOS: the single 1024 px AppIcon of ios/Azwall/Assets.xcassets.
+#   Both: the logo alone on a transparent background, for the welcome and lock screens.
 # Needs ImageMagick 7 (magick). Rerun after changing the source image.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -23,4 +24,13 @@ done
 ICON="$ROOT/ios/Azwall/Assets.xcassets/AppIcon.appiconset"
 mkdir -p "$ICON"
 magick "$SRC" -resize 1024x1024 -alpha off -strip "PNG24:$ICON/icon-1024.png"
+# The logo: the icon's background removed from its corners inwards (the pyramid's dark outlines are kept), trimmed.
+LOGO=$(mktemp --suffix=.png)
+# iOS: a @3x image, 200 points wide on the launch screen.
+magick "$SRC" -alpha set -fuzz 4% -fill none -draw "alpha 0,0 floodfill" -draw "alpha 1023,0 floodfill" \
+  -draw "alpha 0,1023 floodfill" -draw "alpha 1023,1023 floodfill" -trim +repage "$LOGO"
+mkdir -p "$RES/drawable-nodpi" "$ROOT/ios/Azwall/Assets.xcassets/Logo.imageset"
+magick "$LOGO" -resize 512x -strip "PNG32:$RES/drawable-nodpi/azwall_logo.png"
+magick "$LOGO" -resize 600x -strip "PNG32:$ROOT/ios/Azwall/Assets.xcassets/Logo.imageset/logo.png"
+rm -f "$LOGO"
 echo "icons written"

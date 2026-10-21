@@ -37,7 +37,7 @@ struct OnboardingView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 20) {
             Spacer()
-            Image(systemName: "shield").font(.system(size: 52)).foregroundStyle(Palette.privateFunds)
+            Image("Logo").resizable().scaledToFit().frame(height: 72)
             Text("Azwall").font(.largeTitle.bold())
             Text("A private wallet for Aztec.").font(.title3).foregroundStyle(.secondary)
             Feature(icon: "lock", title: "Private by default", text: "Balances and transfers stay encrypted. Only you can see them.")
@@ -75,7 +75,7 @@ struct LockView: View {
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "shield").font(.system(size: 64)).foregroundStyle(Palette.privateFunds)
+            Image("Logo").resizable().scaledToFit().frame(height: 120)
             Text("Azwall").font(.largeTitle.bold())
             Text("Your wallet is locked").foregroundStyle(.secondary)
             Spacer()

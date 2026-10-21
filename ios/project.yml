@@ -58,7 +58,11 @@ targets:
       path: Azwall/Info.plist
       properties:
         CFBundleDisplayName: Azwall
-        UILaunchScreen: {}
+        # The logo on the app's background colour (Palette.background) while the app starts.
+        UILaunchScreen:
+          UIImageName: Logo
+          UIColorName: LaunchBackground
+          UIImageRespectsSafeAreaInsets: true
         NSFaceIDUsageDescription: Azwall uses Face ID to unlock your wallet and confirm sensitive actions.
         NSCameraUsageDescription: Azwall uses the camera to scan the QR code of an address you send to.
         # The PXE host page is served from the app itself on 127.0.0.1 (a secure context for Web Crypto).

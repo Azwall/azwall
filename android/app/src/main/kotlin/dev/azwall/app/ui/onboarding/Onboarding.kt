@@ -1,5 +1,6 @@
 package dev.azwall.app.ui.onboarding
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,11 +34,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.R
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.SecondaryButton
-import dev.azwall.app.ui.theme.WalletTheme
 import kotlinx.coroutines.launch
 
 private enum class Step { WELCOME, BACKUP, VERIFY, IMPORT }
@@ -85,7 +85,7 @@ internal fun Screen(onBack: (() -> Unit)? = null, content: @Composable ColumnSco
 @Composable
 private fun Welcome(onCreate: () -> Unit, onImport: () -> Unit) = Screen {
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Icon(Icons.Outlined.Shield, null, tint = WalletTheme.colors.private, modifier = Modifier.size(56.dp))
+        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(72.dp))
         Text("Azwall", style = MaterialTheme.typography.displaySmall)
         Text("A private wallet for Aztec.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Feature(Icons.Outlined.Lock, "Private by default", "Balances and transfers stay encrypted. Only you can see them.")
@@ -113,7 +113,7 @@ private fun Feature(icon: ImageVector, title: String, body: String) {
 @Composable
 fun LockScreen(busy: Boolean, onUnlock: () -> Unit) = Screen {
     Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Outlined.Shield, null, tint = WalletTheme.colors.private, modifier = Modifier.size(72.dp))
+        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(120.dp))
         Spacer(Modifier.height(16.dp))
         Text("Azwall", style = MaterialTheme.typography.displaySmall)
         Text("Your wallet is locked", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
