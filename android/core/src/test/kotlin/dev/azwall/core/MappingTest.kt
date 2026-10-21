@@ -1,5 +1,6 @@
 package dev.azwall.core
 
+import dev.azwall.core.ffi.KnownToken
 import dev.azwall.core.ffi.Network
 import dev.azwall.core.ffi.NodeStatus
 import org.junit.Assert.assertEquals
@@ -17,10 +18,12 @@ class MappingTest {
             rpcUrl = "https://lb.drpc.org/aztec-testnet/SECRET",
             pxeBundle = "v6",
             proverSupported = true,
+            knownTokens = listOf(KnownToken("0xweth", "Wrapped Ether", "WETH", 18u)),
         )
         val info = network.toInfo()
         assertEquals("lb.drpc.org", info.rpcHost)
         assertEquals("6.0.0-rc.6", info.barretenbergVersion)
+        assertEquals(18, info.knownTokens.single().decimals)
     }
 
     @Test

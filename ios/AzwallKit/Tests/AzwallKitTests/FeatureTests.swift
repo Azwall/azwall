@@ -118,6 +118,33 @@ struct FeatureTests {
 }
 
 @MainActor
+struct HeroTests {
+    @Test func theHeroIsTheChosenTokenElseTheFirstHoldingSomething() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try SessionTests().session(pxe)
+        await s.open()
+        try await s.addToken("0xt")
+        #expect(s.hero?.info.address == "0xt")
+        s.choosePrimary("0xT")
+        #expect(s.hero?.info.address == "0xt")
+        #expect(s.store.primary(account: "addr-abab") == "0xT")
+    }
+}
+
+struct KnownTokenTests {
+    @Test func knownTokensAreFollowedOnceAndStayRemoved() {
+        let store = WalletStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), networkId: "n")
+        let weth = TokenInfo(address: "0xWETH", name: "Wrapped Ether", symbol: "WETH", decimals: 18)
+        store.seed([weth])
+        #expect(store.tokens == [weth])
+        store.removeToken("0xweth")
+        store.seed([weth])
+        #expect(store.tokens.isEmpty)
+    }
+}
+
+@MainActor
 struct ApprovalTests {
     @Test func approveWaitsForTheUserDecision() async throws {
         let approvals = DappApprovals()

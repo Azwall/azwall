@@ -1,7 +1,7 @@
 import AzwallKit
 import SwiftUI
 
-/// The big number: the first token's total, split into private and public like a shielded wallet does.
+/// The big number: the hero token's total (WalletSession.hero), split into private and public like a shielded wallet does.
 struct BalanceHero: View {
     let session: WalletSession
     let onActivate: () -> Void
@@ -18,7 +18,7 @@ struct BalanceHero: View {
             Notice(icon: "paperplane", title: "Activate your account",
                    text: "Your address can already receive funds. Activating publishes your account contract; fees are sponsored on testnet.",
                    action: "Activate", onAction: onActivate)
-        } else if let token = session.tokens.first {
+        } else if let token = session.hero {
             hero(token)
         } else {
             Notice(title: "Your account is ready",
@@ -31,18 +31,34 @@ struct BalanceHero: View {
         let d = token.info.decimals
         let priv = token.balance?.private ?? "0", pub = token.balance?.public ?? "0"
         return VStack(spacing: 8) {
-            Text(token.total.map { "\(Amounts.format($0, decimals: d, maxFraction: 4)) \(token.info.symbol)" } ?? "…")
-                .font(.system(size: 40, weight: .semibold)).minimumScaleFactor(0.5).lineLimit(1)
+            heroAmount(token.total.map { "\(Amounts.display($0, decimals: d, maxFraction: 4)) \(token.info.symbol)" } ?? "…")
             HStack(spacing: 16) {
-                Label("Private \(Amounts.format(priv, decimals: d, maxFraction: 4))", systemImage: "lock").foregroundStyle(Palette.privateFunds)
-                Label("Public \(Amounts.format(pub, decimals: d, maxFraction: 4))", systemImage: "globe").foregroundStyle(Palette.publicFunds)
+                Label("Private \(Amounts.display(priv, decimals: d, maxFraction: 4))", systemImage: "lock").foregroundStyle(Palette.privateFunds)
+                Label("Public \(Amounts.display(pub, decimals: d, maxFraction: 4))", systemImage: "globe").foregroundStyle(Palette.publicFunds)
             }
             .font(.subheadline)
             if Amounts.isPositive(pub) {
-                Button("Make \(Amounts.format(pub, decimals: d, maxFraction: 4)) \(token.info.symbol) private", action: onShield).font(.subheadline.weight(.semibold))
+                Button("Make \(Amounts.display(pub, decimals: d, maxFraction: 4)) \(token.info.symbol) private", action: onShield).font(.subheadline.weight(.semibold))
             }
         }
         .padding(.horizontal)
+    }
+
+    /// With several tokens, tapping the amount picks which one the top of the screen shows.
+    @ViewBuilder
+    private func heroAmount(_ text: String) -> some View {
+        let label = Text(text).font(.system(size: 40, weight: .semibold)).minimumScaleFactor(0.5).lineLimit(1)
+        if session.tokens.count > 1 {
+            Menu {
+                ForEach(session.tokens) { t in Button("\(t.info.name) (\(t.info.symbol))") { session.choosePrimary(t.info.address) } }
+            } label: {
+                HStack(spacing: 6) { label; Image(systemName: "chevron.down").font(.title3) }
+            }
+            .foregroundStyle(.primary)
+            .accessibilityHint("Choose the token shown here")
+        } else {
+            label
+        }
     }
 }
 
@@ -95,8 +111,8 @@ struct TokenRow: View {
             Spacer()
             if let balance = token.balance, let total = token.total {
                 VStack(alignment: .trailing) {
-                    Text(Amounts.format(total, decimals: d, maxFraction: 4)).font(.subheadline.weight(.semibold))
-                    Text("\(Amounts.format(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.format(balance.public, decimals: d, maxFraction: 2)) public")
+                    Text(Amounts.display(total, decimals: d, maxFraction: 4)).font(.subheadline.weight(.semibold))
+                    Text("\(Amounts.display(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.display(balance.public, decimals: d, maxFraction: 2)) public")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {

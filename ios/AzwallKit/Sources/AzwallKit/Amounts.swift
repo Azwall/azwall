@@ -19,6 +19,15 @@ public enum Amounts {
         return fraction.isEmpty ? grouped : "\(grouped).\(fraction)"
     }
 
+    /// `format` for balances on screen: an amount above zero that would show as `0` (dust) shows as `< 0.01`, so a
+    /// balance never looks empty when it is not.
+    public static func display(_ units: String, decimals: Int, maxFraction: Int = 6) -> String {
+        let text = format(units, decimals: decimals, maxFraction: maxFraction)
+        guard isPositive(units), text == "0" else { return text }
+        let shown = min(decimals, maxFraction)
+        return shown == 0 ? "< 1" : "< 0.\(String(repeating: "0", count: shown - 1))1"
+    }
+
     /// `"1.5", 6` → `"1500000"`. Accepts `.` or `,`; rejects more decimals than the token has, and zero.
     public static func parse(_ input: String, decimals: Int) throws -> String {
         let text = input.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")

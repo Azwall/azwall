@@ -64,12 +64,22 @@ data class SessionState(
     val activity: List<ActivityItem> = emptyList(),
     /** Tokens the account holds that are not followed yet, found among the contracts dApps registered. */
     val found: List<FoundToken> = emptyList(),
+    /** The token the user chose to show at the top (an address), if any. */
+    val primary: String? = null,
     /** What runs in the background right now, for the status line (null when idle). */
     val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
     val error: String? = null,
 ) {
     val account: AccountView? get() = accounts.firstOrNull { it.address == selected }
+
+    /**
+     * The token shown at the top: the one the user chose while it is followed, else the first holding something,
+     * else the first. Aztec has no native token and the wallet no prices, so there is no total to show instead.
+     */
+    val hero: TokenView? get() = tokens.firstOrNull { it.info.address.equals(primary, ignoreCase = true) }
+        ?: tokens.firstOrNull { b -> b.balance?.let { it.privateAmount.signum() > 0 || it.publicAmount.signum() > 0 } == true }
+        ?: tokens.firstOrNull()
 }
 
 /**
@@ -105,6 +115,7 @@ class WalletSession(
     /** Starts the PXE, opens the network and registers every account. Failures land in [state]. */
     suspend fun open() {
         store.failInterrupted()
+        store.seed(network.knownTokens)
         scope.launch { dapps.followActivity() }
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
         try {
@@ -130,7 +141,9 @@ class WalletSession(
     fun select(address: String) {
         if (_state.value.accounts.none { it.address == address }) return
         lastDiscovery = 0L
-        _state.update { it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList()) }
+        _state.update {
+            it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList(), primary = store.primary(address))
+        }
         scope.launch { refresh() }
     }
 
@@ -148,6 +161,7 @@ class WalletSession(
                     accounts = s.accounts.map { if (it.address == account.address) it.copy(deployed = deployed) else it },
                     tokens = tokens.map { info -> TokenView(info, balances.firstOrNull { it.token.equals(info.address, true) }) },
                     activity = store.activity(account.address),
+                    primary = store.primary(account.address),
                     error = null,
                 )
             }
@@ -184,6 +198,13 @@ class WalletSession(
         store.addToken(info)
         refresh()
         return info
+    }
+
+    /** Shows [address] at the top of the home screen for the selected account. */
+    fun choosePrimary(address: String) {
+        val account = _state.value.selected ?: return
+        store.setPrimary(account, address)
+        _state.update { it.copy(primary = address) }
     }
 
     /** Follows a found token; its balance is already known. */

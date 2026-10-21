@@ -54,7 +54,7 @@ private fun FoundRow(token: FoundToken, onFollow: (FoundToken) -> Unit, onDismis
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("${token.name} (${token.symbol})", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${Amounts.format(b.privateAmount, token.decimals, 2)} private · ${Amounts.format(b.publicAmount, token.decimals, 2)} public",
+                "${Amounts.display(b.privateAmount, token.decimals, 2)} private · ${Amounts.display(b.publicAmount, token.decimals, 2)} public",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

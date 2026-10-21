@@ -7,6 +7,7 @@ import dev.azwall.core.pxe.PxeCaller
 import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
 import dev.azwall.core.pxe.PxeException
+import dev.azwall.core.pxe.TokenBalance
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.vault.SecretBox
@@ -217,5 +218,24 @@ class WalletSessionTest {
         advanceUntilIdle()
         assertTrue(s.state.value.found.isEmpty())
         assertTrue("0xpal" in pxe.discoveryKnown.last())
+    }
+
+    @Test
+    fun theHeroIsTheChosenTokenElseTheFirstHoldingSomething() = runTest {
+        val empty = TokenView(TokenInfo("0xa", "A", "A", 6), TokenBalance("0xa", "0", "0"))
+        val held = TokenView(TokenInfo("0xb", "B", "B", 18), TokenBalance("0xb", "0", "7400000000000000"))
+        val state = SessionState(network, tokens = listOf(empty, held))
+        assertEquals("0xb", state.hero?.info?.address)
+        assertEquals("0xa", state.copy(primary = "0xA").hero?.info?.address)
+        assertEquals("0xb", state.copy(primary = "0xgone").hero?.info?.address)
+    }
+
+    @Test
+    fun theChosenHeroIsKeptPerAccount() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        s.choosePrimary("0xt")
+        assertEquals("0xt", s.state.value.primary)
+        assertEquals("0xt", WalletStore(tmp.root, network.id).primary("addr-abab"))
     }
 }

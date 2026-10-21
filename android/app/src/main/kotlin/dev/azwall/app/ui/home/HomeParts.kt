@@ -1,6 +1,8 @@
 package dev.azwall.app.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,18 +11,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -33,6 +43,7 @@ import dev.azwall.app.ui.components.StatusChip
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.friendlyError
 import dev.azwall.app.ui.shortAddress
+import dev.azwall.app.ui.siteOf
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.app.ui.timeAgo
 import dev.azwall.core.wallet.ActivityItem
@@ -44,7 +55,7 @@ import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
 import java.math.BigInteger
 
-/** The big number: the first token's total, split into private and public like a shielded wallet does. */
+/** The big number: the hero token's total (SessionState.hero), split into private and public like a shielded wallet does. */
 @Composable
 internal fun BalanceHero(state: SessionState, actions: HomeActions) {
     val account = state.account
@@ -64,7 +75,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             "Add a token",
             actions.onAddToken,
         )
-        else -> TokenHero(state.tokens.first(), actions)
+        else -> TokenHero(state.hero ?: state.tokens.first(), state.tokens, actions)
     }
 }
 
@@ -77,22 +88,19 @@ private fun Starting(label: String) {
 }
 
 @Composable
-private fun TokenHero(token: TokenView, actions: HomeActions) {
+private fun TokenHero(token: TokenView, tokens: List<TokenView>, actions: HomeActions) {
     val balance = token.balance
     val priv = balance?.privateAmount ?: BigInteger.ZERO
     val pub = balance?.publicAmount ?: BigInteger.ZERO
     val decimals = token.info.decimals
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            if (balance == null) "…" else "${Amounts.format(priv + pub, decimals, 4)} ${token.info.symbol}",
-            style = MaterialTheme.typography.displaySmall,
-        )
+        HeroAmount(if (balance == null) "…" else "${Amounts.display(priv + pub, decimals, 4)} ${token.info.symbol}", tokens, actions.onChoosePrimary)
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Split(Icons.Outlined.Lock, "Private", Amounts.format(priv, decimals, 4), WalletTheme.colors.private)
-            Split(Icons.Outlined.Public, "Public", Amounts.format(pub, decimals, 4), WalletTheme.colors.public)
+            Split(Icons.Outlined.Lock, "Private", Amounts.display(priv, decimals, 4), WalletTheme.colors.private)
+            Split(Icons.Outlined.Public, "Public", Amounts.display(pub, decimals, 4), WalletTheme.colors.public)
         }
         if (pub.signum() > 0) {
-            TextButton(onClick = actions.onShield) { Text("Make ${Amounts.format(pub, decimals, 4)} ${token.info.symbol} private") }
+            TextButton(onClick = actions.onShield) { Text("Make ${Amounts.display(pub, decimals, 4)} ${token.info.symbol} private") }
         }
     }
 }
@@ -132,9 +140,9 @@ internal fun TokenRow(token: TokenView) {
             if (balance == null) {
                 Text("…")
             } else {
-                Text(Amounts.format(balance.privateAmount + balance.publicAmount, decimals, 4), style = MaterialTheme.typography.titleSmall)
+                Text(Amounts.display(balance.privateAmount + balance.publicAmount, decimals, 4), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${Amounts.format(balance.privateAmount, decimals, 2)} private · ${Amounts.format(balance.publicAmount, decimals, 2)} public",
+                    "${Amounts.display(balance.privateAmount, decimals, 2)} private · ${Amounts.display(balance.publicAmount, decimals, 2)} public",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -150,8 +158,8 @@ internal fun ActivityRow(item: ActivityItem) {
             Text(activityTitle(item), style = MaterialTheme.typography.titleSmall)
             val detail = listOfNotNull(
                 timeAgo(item.createdAt),
-                item.origin?.let { "via ${it.removePrefix("https://")}" },
-                item.counterparty?.let { if (item.kind == ActivityKind.RECEIVE) "from ${shortAddress(it)}" else "to ${shortAddress(it)}" },
+                item.origin?.let { "via " + siteOf(it) },
+                item.counterparty?.let { (if (item.kind == ActivityKind.RECEIVE) "from " else "to ") + shortAddress(it) },
                 item.blockNumber?.let { "block $it" },
             )
             Text(detail.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -172,5 +180,25 @@ internal fun EmptyHint(title: String, body: String, action: String? = null, onAc
         Text(title, style = MaterialTheme.typography.titleSmall)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         action?.let { TextButton(onClick = onAction) { Text(it) } }
+    }
+}
+
+/** The hero amount; with several tokens, tapping it picks which one the top of the screen shows. */
+@Composable
+private fun HeroAmount(text: String, tokens: List<TokenView>, onChoose: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.clip(MaterialTheme.shapes.medium).clickable(enabled = tokens.size > 1) { open = true }.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text, style = MaterialTheme.typography.displaySmall)
+            if (tokens.size > 1) Icon(Icons.Outlined.KeyboardArrowDown, "Choose the token shown here")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            tokens.forEach { t ->
+                DropdownMenuItem(text = { Text("${t.info.name} (${t.info.symbol})") }, onClick = { onChoose(t.info.address); open = false })
+            }
+        }
     }
 }

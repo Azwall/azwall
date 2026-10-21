@@ -47,6 +47,8 @@ public final class WalletSession {
     public internal(set) var activity: [ActivityItem] = []
     /// Tokens the account holds that are not followed yet, found among the contracts dApps registered.
     public internal(set) var found: [FoundToken] = []
+    /// The token the user chose to show at the top (an address), if any.
+    public private(set) var primary: String?
     /// What runs in the background right now, for the status line (nil when idle).
     public internal(set) var task: BackgroundTask?
     /// The browser's link to the PXE host's dApp gateway.
@@ -57,6 +59,21 @@ public final class WalletSession {
     public private(set) var provingSince: Date?
 
     public var account: AccountView? { accounts.first { $0.address == selected } }
+
+    /// The token shown at the top: the one the user chose while it is followed, else the first holding something,
+    /// else the first. Aztec has no native token and the wallet no prices, so there is no total to show instead.
+    public var hero: TokenView? {
+        tokens.first { $0.info.address.lowercased() == primary?.lowercased() }
+            ?? tokens.first { $0.total.map(Amounts.isPositive) == true }
+            ?? tokens.first
+    }
+
+    /// Shows `address` at the top of the home screen for the selected account.
+    public func choosePrimary(_ address: String) {
+        guard let selected else { return }
+        store.setPrimary(account: selected, token: address)
+        primary = address
+    }
 
     private let backend: WalletBackend
     private let launcher: PxeLauncher
@@ -87,6 +104,7 @@ public final class WalletSession {
     /// Starts the PXE, opens the network and registers every account. Failures land in `error`.
     public func open() async {
         store.failInterrupted()
+        store.seed(network.knownTokens)
         let backend = backend, id = network.id
         Task.detached { try? backend.prepareProver(networkId: id) }
         do {
@@ -124,6 +142,7 @@ public final class WalletSession {
         tokens = tokens.map { TokenView(info: $0.info, balance: nil) }
         found = []
         lastDiscovery = nil
+        primary = store.primary(account: address)
         await refresh()
     }
 
@@ -139,6 +158,7 @@ public final class WalletSession {
             if let i = accounts.firstIndex(where: { $0.address == account.address }) { accounts[i].deployed = deployed }
             tokens = followed.map { info in TokenView(info: info, balance: balances.first { $0.token.lowercased() == info.address.lowercased() }) }
             activity = store.activity(account: account.address)
+            primary = store.primary(account: account.address)
             error = nil
         } catch {
             self.error = error.localizedDescription

@@ -59,7 +59,8 @@ extension NetworkInfo {
             barretenbergVersion: network.barretenbergVersion,
             rpcHost: hostOf(network.rpcUrl),
             pxeBundle: network.pxeBundle,
-            proverSupported: network.proverSupported
+            proverSupported: network.proverSupported,
+            knownTokens: network.knownTokens.map { TokenInfo(address: $0.address, name: $0.name, symbol: $0.symbol, decimals: Int($0.decimals)) }
         )
     }
 }

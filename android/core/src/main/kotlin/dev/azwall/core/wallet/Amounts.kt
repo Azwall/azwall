@@ -17,6 +17,17 @@ object Amounts {
         return if (fraction.isEmpty()) grouped else "$grouped.$fraction"
     }
 
+    /**
+     * [format] for balances on screen: an amount above zero that would show as `0` (dust) shows as `< 0.01`, so a
+     * balance never looks empty when it is not.
+     */
+    fun display(value: BigInteger, decimals: Int, maxFraction: Int = 6): String {
+        val text = format(value, decimals, maxFraction)
+        if (value.signum() <= 0 || text != "0") return text
+        val shown = minOf(decimals, maxFraction)
+        return if (shown == 0) "< 1" else "< 0.${"0".repeat(shown - 1)}1"
+    }
+
     /** `"1.5", 6` → `1500000`. Accepts `.` or `,` as the decimal separator; rejects more decimals than the token has. */
     fun parse(input: String, decimals: Int): BigInteger {
         val text = input.trim().replace(',', '.')

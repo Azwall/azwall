@@ -11,9 +11,12 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
     /// PXE host bundle: `pxe/<pxeBundle>/index.html` in the app's resources.
     public let pxeBundle: String
     public let proverSupported: Bool
+    /// Tokens followed from the start on this network (networks.json).
+    public let knownTokens: [TokenInfo]
 
     public init(
-        id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, pxeBundle: String, proverSupported: Bool
+        id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, pxeBundle: String, proverSupported: Bool,
+        knownTokens: [TokenInfo] = []
     ) {
         self.id = id
         self.label = label
@@ -22,6 +25,7 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
         self.rpcHost = rpcHost
         self.pxeBundle = pxeBundle
         self.proverSupported = proverSupported
+        self.knownTokens = knownTokens
     }
 }
 

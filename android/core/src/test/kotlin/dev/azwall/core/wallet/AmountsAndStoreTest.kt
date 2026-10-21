@@ -2,6 +2,7 @@ package dev.azwall.core.wallet
 
 import dev.azwall.core.pxe.TokenInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
@@ -16,6 +17,15 @@ class AmountsTest {
         assertEquals("0.000001", Amounts.format(BigInteger.ONE, 6))
         assertEquals("1.2345", Amounts.format(BigInteger("1234567"), 6, maxFraction = 4))
         assertEquals("123,456,789,012,345,678", Amounts.format(BigInteger("123456789012345678"), 0))
+    }
+
+    @Test
+    fun dustNeverShowsAsZero() {
+        // 0.0074 WETH split as 0.0070 private and 0.0004 public: the public part is dust at two decimals.
+        assertEquals("< 0.01", Amounts.display(BigInteger("400000000000000"), 18, 2))
+        assertEquals("0.0004", Amounts.display(BigInteger("400000000000000"), 18, 4))
+        assertEquals("0", Amounts.display(BigInteger.ZERO, 18, 2))
+        assertEquals("1.5", Amounts.display(BigInteger("1500000"), 6, 2))
     }
 
     @Test
@@ -79,5 +89,16 @@ class WalletStoreTest {
     fun aCorruptFileStartsEmpty() {
         tmp.root.resolve("wallet-n.json").writeText("{not json")
         assertEquals(emptyList<TokenInfo>(), WalletStore(tmp.root, "n").tokens)
+    }
+
+    @Test
+    fun knownTokensAreFollowedOnceAndStayRemoved() {
+        val store = WalletStore(tmp.root, "n")
+        val weth = TokenInfo("0xWETH", "Wrapped Ether", "WETH", 18)
+        store.seed(listOf(weth))
+        assertEquals(listOf(weth), store.tokens)
+        store.removeToken("0xweth")
+        store.seed(listOf(weth))
+        assertTrue(store.tokens.isEmpty())
     }
 }

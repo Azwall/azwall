@@ -42,6 +42,18 @@ pub struct NetworkSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_rpc: Option<String>,
     pub expected: Expected,
+    /// Tokens every wallet follows on this network from the start (it may stop following them).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tokens: Vec<KnownToken>,
+}
+
+/// A token a network's registry entry lists: what the wallet needs to show it before asking the chain.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownToken {
+    pub address: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
 }
 
 impl NetworkSpec {
@@ -132,6 +144,12 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
             return bad("defaultRpc must be an http(s) URL");
         }
     }
+    for t in &n.tokens {
+        let address_ok = t.address.len() == 66 && t.address.starts_with("0x") && t.address[2..].chars().all(|c| c.is_ascii_hexdigit());
+        if !address_ok || t.symbol.trim().is_empty() || t.name.trim().is_empty() || t.decimals > 36 {
+            return bad(&format!("token '{}' needs a 0x + 64 hex address, a name, a symbol and at most 36 decimals", t.symbol));
+        }
+    }
     Ok(())
 }
 
@@ -164,6 +182,16 @@ mod tests {
         assert_eq!(r.networks.len(), 2);
         assert_eq!(r.get("net-b").unwrap().expected.rollup_version, 20);
         assert_eq!(r.barretenberg_releases().into_iter().collect::<Vec<_>>(), ["5.1.0", "6.0.0-rc.6"]);
+    }
+
+    #[test]
+    fn lists_known_tokens_per_network() {
+        let token = format!(r#""tokens": [{{ "address": "0x{}", "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18 }}], "pxe": "v6""#, "ab".repeat(32));
+        let r = Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, &token, 1)).unwrap();
+        assert_eq!(r.networks[0].tokens[0].symbol, "WETH");
+        assert!(r.networks[1].tokens.is_empty());
+        let bad = sample_json().replacen(r#""pxe": "v6""#, r#""tokens": [{ "address": "0x12", "name": "X", "symbol": "X", "decimals": 6 }], "pxe": "v6""#, 1);
+        assert!(Registry::from_json(&bad).is_err());
     }
 
     #[test]

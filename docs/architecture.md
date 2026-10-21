@@ -35,6 +35,7 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
 | `barretenberg` | The native prover release (Chonk format must match the circuits) |
 | `expected` | L1 chain id, rollup version (checked against the node), VK tree root, protocol contracts hash |
 | `defaultRpc` | Public endpoint, overridden by `AZWALL_RPC_<ID>` in `.env` |
+| `tokens` | Optional: tokens every wallet follows from the start (`address`, `name`, `symbol`, `decimals`); a removed one stays removed |
 
 ### Native prover
 

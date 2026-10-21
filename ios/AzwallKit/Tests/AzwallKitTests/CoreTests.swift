@@ -23,6 +23,14 @@ struct AmountsTests {
         #expect(Amounts.format("123456789012345678", decimals: 0) == "123,456,789,012,345,678")
     }
 
+    @Test func dustNeverShowsAsZero() {
+        // 0.0074 WETH split as 0.0070 private and 0.0004 public: the public part is dust at two decimals.
+        #expect(Amounts.display("400000000000000", decimals: 18, maxFraction: 2) == "< 0.01")
+        #expect(Amounts.display("400000000000000", decimals: 18, maxFraction: 4) == "0.0004")
+        #expect(Amounts.display("0", decimals: 18, maxFraction: 2) == "0")
+        #expect(Amounts.display("1500000", decimals: 6, maxFraction: 2) == "1.5")
+    }
+
     @Test func parsesHumanInput() throws {
         #expect(try Amounts.parse("1.5", decimals: 6) == "1500000")
         #expect(try Amounts.parse(" 1,5 ", decimals: 6) == "1500000")

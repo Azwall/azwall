@@ -13,6 +13,9 @@ import java.math.BigInteger
 fun shortAddress(address: String, keep: Int = 4): String =
     if (address.length <= 2 + keep * 2 + 1) address else "${address.take(2 + keep)}…${address.takeLast(keep)}"
 
+/** A dApp origin as people read it: `https://vote.example` → `vote.example`. */
+fun siteOf(origin: String): String = origin.removePrefix("https://")
+
 /** "now", "5 min", "3 h", "2 d". */
 fun timeAgo(epochMillis: Long, now: Long = System.currentTimeMillis()): String {
     val minutes = (now - epochMillis).coerceAtLeast(0) / 60_000

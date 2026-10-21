@@ -36,6 +36,10 @@ private data class StoredNetwork(
     val activity: List<ActivityItem> = emptyList(),
     /** Found tokens the user chose not to follow: not suggested again. */
     val dismissed: List<String> = emptyList(),
+    /** The token each account shows at the top of the home screen (account → token address). */
+    val primary: Map<String, String> = emptyMap(),
+    /** Known tokens already followed once: removing one keeps it removed. */
+    val seeded: List<String> = emptyList(),
 )
 
 /**
@@ -57,6 +61,18 @@ class WalletStore(private val dir: File, private val networkId: String) {
     }
 
     val dismissed: List<String> get() = data.dismissed
+
+    /** Follows the network's known tokens not followed before (once each: a removed one stays removed). */
+    fun seed(known: List<TokenInfo>) {
+        val fresh = known.filter { k -> data.seeded.none { it.equals(k.address, ignoreCase = true) } }
+        if (fresh.isEmpty()) return
+        val tokens = data.tokens + fresh.filter { f -> data.tokens.none { it.address.equals(f.address, ignoreCase = true) } }
+        save(data.copy(tokens = tokens, seeded = data.seeded + fresh.map { it.address }))
+    }
+
+    fun primary(account: String): String? = data.primary[account]
+
+    fun setPrimary(account: String, token: String) = save(data.copy(primary = data.primary + (account to token)))
 
     fun dismiss(address: String) {
         if (address !in data.dismissed) save(data.copy(dismissed = data.dismissed + address))

@@ -24,7 +24,7 @@ struct FoundTokensView: View {
             TokenBadge(symbol: token.symbol, address: token.address)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(token.name) (\(token.symbol))").font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text("\(Amounts.format(token.private, decimals: token.decimals, maxFraction: 2)) private · \(Amounts.format(token.public, decimals: token.decimals, maxFraction: 2)) public")
+                Text("\(Amounts.display(token.private, decimals: token.decimals, maxFraction: 2)) private · \(Amounts.display(token.public, decimals: token.decimals, maxFraction: 2)) public")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

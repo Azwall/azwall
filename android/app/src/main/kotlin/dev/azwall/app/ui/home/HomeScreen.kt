@@ -64,6 +64,7 @@ data class HomeActions(
     val onShield: () -> Unit,
     val onAddToken: () -> Unit,
     val onFollowFound: (FoundToken) -> Unit,
+    val onChoosePrimary: (String) -> Unit,
     val onDismissFound: (FoundToken) -> Unit,
     val onActivate: () -> Unit,
     val onRefresh: () -> Unit,

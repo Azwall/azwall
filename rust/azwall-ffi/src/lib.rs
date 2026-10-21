@@ -50,6 +50,16 @@ pub struct Network {
     pub pxe_bundle: String,
     /// False when this build has no Barretenberg binding for the network's release.
     pub prover_supported: bool,
+    /// Tokens followed from the start on this network (networks.json).
+    pub known_tokens: Vec<KnownToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct KnownToken {
+    pub address: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
 }
 
 impl From<&ResolvedNetwork> for Network {
@@ -62,6 +72,12 @@ impl From<&ResolvedNetwork> for Network {
             rpc_url: n.rpc_url.clone(),
             pxe_bundle: n.spec.pxe.clone(),
             prover_supported: bindings::binding_for(&n.spec.barretenberg).is_some(),
+            known_tokens: n
+                .spec
+                .tokens
+                .iter()
+                .map(|t| KnownToken { address: t.address.clone(), name: t.name.clone(), symbol: t.symbol.clone(), decimals: t.decimals })
+                .collect(),
         }
     }
 }

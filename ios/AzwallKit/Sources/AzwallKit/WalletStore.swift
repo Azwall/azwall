@@ -45,6 +45,10 @@ private struct StoredNetwork: Codable {
     var activity: [ActivityItem] = []
     /// Found tokens the user chose not to follow: not suggested again. Optional: older files lack it.
     var dismissed: [String]?
+    /// The token each account shows at the top of the home screen (account → token address). Optional, like above.
+    var primary: [String: String]?
+    /// Known tokens already followed once: removing one keeps it removed. Optional, like above.
+    var seeded: [String]?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
@@ -76,6 +80,24 @@ public final class WalletStore: @unchecked Sendable {
     }
 
     public var dismissed: [String] { lock.withLock { data.dismissed ?? [] } }
+
+    /// Follows the network's known tokens not followed before (once each: a removed one stays removed).
+    public func seed(_ known: [TokenInfo]) {
+        update { d in
+            let seeded = Set((d.seeded ?? []).map { $0.lowercased() })
+            let fresh = known.filter { !seeded.contains($0.address.lowercased()) }
+            guard !fresh.isEmpty else { return }
+            let followed = Set(d.tokens.map { $0.address.lowercased() })
+            d.tokens += fresh.filter { !followed.contains($0.address.lowercased()) }
+            d.seeded = (d.seeded ?? []) + fresh.map(\.address)
+        }
+    }
+
+    public func primary(account: String) -> String? { lock.withLock { data.primary?[account] } }
+
+    public func setPrimary(account: String, token: String) {
+        update { d in d.primary = (d.primary ?? [:]).merging([account: token]) { $1 } }
+    }
 
     public func dismiss(_ address: String) {
         update { d in
