@@ -145,6 +145,23 @@ struct KnownTokenTests {
 }
 
 @MainActor
+struct TokenStudioTests {
+    @Test func createdTokensAreRememberedAndMintedToAnyone() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try SessionTests().session(pxe)
+        await s.open()
+        s.store.markCreated(account: "addr-abab", token: "0xt")
+        await s.refresh()
+        #expect(s.created == ["0xt"])
+        try await s.mint(token: TokenInfo(address: "0xt", name: "Test", symbol: "TST", decimals: 6), amount: "5", toPrivate: true, to: " addr-friend ")
+        let call = try #require(pxe.calls.last { $0.0 == "mint" })
+        #expect(call.1["to"]?.stringValue == "addr-friend")
+        #expect(s.activity.first?.counterparty == "addr-friend")
+    }
+}
+
+@MainActor
 struct ApprovalTests {
     @Test func approveWaitsForTheUserDecision() async throws {
         let approvals = DappApprovals()

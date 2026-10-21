@@ -40,6 +40,8 @@ private data class StoredNetwork(
     val primary: Map<String, String> = emptyMap(),
     /** Known tokens already followed once: removing one keeps it removed. */
     val seeded: List<String> = emptyList(),
+    /** Tokens each account created on this network (account → token addresses): it is their minter. */
+    val created: Map<String, List<String>> = emptyMap(),
 )
 
 /**
@@ -68,6 +70,13 @@ class WalletStore(private val dir: File, private val networkId: String) {
         if (fresh.isEmpty()) return
         val tokens = data.tokens + fresh.filter { f -> data.tokens.none { it.address.equals(f.address, ignoreCase = true) } }
         save(data.copy(tokens = tokens, seeded = data.seeded + fresh.map { it.address }))
+    }
+
+    fun created(account: String): List<String> = data.created[account].orEmpty()
+
+    fun markCreated(account: String, token: String) {
+        if (token in created(account)) return
+        save(data.copy(created = data.created + (account to created(account) + token)))
     }
 
     fun primary(account: String): String? = data.primary[account]

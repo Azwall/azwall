@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Toll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +35,7 @@ import kotlinx.coroutines.withContext
 
 enum class MainTab { WALLET, EXPLORE }
 
-enum class MenuItem { WALLET, EXPLORE, SETTINGS, LOCK }
+enum class MenuItem { WALLET, EXPLORE, TOKENS, SETTINGS, LOCK }
 
 /** The side menu behind the top-left button, as in MetaMask mobile: who and where you are, then where to go. */
 @Composable
@@ -48,6 +49,8 @@ fun AppDrawer(state: SessionState, tab: MainTab, onSelect: (MenuItem) -> Unit) {
         HorizontalDivider()
         Item(Icons.Outlined.AccountBalanceWallet, "Wallet", tab == MainTab.WALLET) { onSelect(MenuItem.WALLET) }
         Item(Icons.Outlined.Explore, "Explore", tab == MainTab.EXPLORE) { onSelect(MenuItem.EXPLORE) }
+        // Test networks only: there is no faucet for arbitrary tokens, so the wallet makes its own.
+        if (state.network.id.startsWith("testnet")) Item(Icons.Outlined.Toll, "Create a token", false) { onSelect(MenuItem.TOKENS) }
         Item(Icons.Outlined.Settings, "Settings", false) { onSelect(MenuItem.SETTINGS) }
         Item(Icons.Outlined.Lock, "Lock wallet", false) { onSelect(MenuItem.LOCK) }
     }

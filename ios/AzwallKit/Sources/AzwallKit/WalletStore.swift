@@ -49,6 +49,8 @@ private struct StoredNetwork: Codable {
     var primary: [String: String]?
     /// Known tokens already followed once: removing one keeps it removed. Optional, like above.
     var seeded: [String]?
+    /// Tokens each account created on this network (account → token addresses): it is their minter.
+    var created: [String: [String]]?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
@@ -90,6 +92,16 @@ public final class WalletStore: @unchecked Sendable {
             let followed = Set(d.tokens.map { $0.address.lowercased() })
             d.tokens += fresh.filter { !followed.contains($0.address.lowercased()) }
             d.seeded = (d.seeded ?? []) + fresh.map(\.address)
+        }
+    }
+
+    public func created(account: String) -> [String] { lock.withLock { data.created?[account] ?? [] } }
+
+    public func markCreated(account: String, token: String) {
+        update { d in
+            var all = d.created ?? [:]
+            if !(all[account] ?? []).contains(token) { all[account, default: []].append(token) }
+            d.created = all
         }
     }
 

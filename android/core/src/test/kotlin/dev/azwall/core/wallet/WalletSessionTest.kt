@@ -44,6 +44,7 @@ private class FakePxe : PxeCaller {
     var receiptOutcome = "success"
     val discoveryKnown = mutableListOf<List<String>>()
     val sent = mutableListOf<JsonObject>()
+    val minted = mutableListOf<JsonObject>()
 
     override suspend fun call(method: String, params: JsonObject): JsonElement {
         fun p(k: String) = params[k]!!.jsonPrimitive.content
@@ -55,6 +56,7 @@ private class FakePxe : PxeCaller {
             "accountState" -> """{"deployed":$deployed}"""
             "balances" -> """[{"token":"0xt","private":"2500000","public":"0"}]"""
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
+            "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
             "deployAccount", "transfer" -> { sent += params; """{"txHash":"0xhash${sent.size}"}""" }
             "waitForTx" -> { waitError?.let { throw PxeException(it) }; mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
             "discoverTokens" -> {
@@ -237,5 +239,19 @@ class WalletSessionTest {
         s.choosePrimary("0xt")
         assertEquals("0xt", s.state.value.primary)
         assertEquals("0xt", WalletStore(tmp.root, network.id).primary("addr-abab"))
+    }
+
+    @Test
+    fun createdTokensAreRememberedAndMintedToAnyone() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        val token = TokenInfo("0xt", "Test", "TST", 6)
+        s.store.markCreated("addr-abab", "0xt")
+        s.refresh()
+        assertEquals(listOf("0xt"), s.state.value.created)
+        s.transactions.mint(token, BigInteger("5"), toPrivate = true, to = " addr-friend ")
+        val minted = pxe.minted.single()
+        assertEquals("addr-friend", minted["to"]!!.jsonPrimitive.content)
+        assertEquals("addr-friend", s.state.value.activity.first().counterparty)
     }
 }

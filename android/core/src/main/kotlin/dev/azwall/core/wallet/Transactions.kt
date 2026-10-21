@@ -51,14 +51,17 @@ class Transactions internal constructor(private val session: WalletSession) {
         return track(item) {
             val deployed = session.client.deployToken(admin, name, symbol, decimals)
             session.store.addToken(TokenInfo(deployed.token, name, symbol, decimals))
+            session.store.markCreated(admin, deployed.token)
             deployed.txHash
         }
     }
 
-    /** Test networks: mints to the selected account (which must be the token's minter). */
-    suspend fun mint(token: TokenInfo, amount: BigInteger, toPrivate: Boolean): ActivityItem {
+    /** Test networks: mints to [to] (the selected account when null), which must be allowed by the token's minter. */
+    suspend fun mint(token: TokenInfo, amount: BigInteger, toPrivate: Boolean, to: String? = null): ActivityItem {
         val me = selected()
-        return track(draft(ActivityKind.MINT, me, token, amount)) { session.client.mint(me, token.address, me, amount, toPrivate) }
+        val recipient = to?.trim()?.takeIf { it.isNotEmpty() } ?: me
+        val item = draft(ActivityKind.MINT, me, token, amount).copy(counterparty = recipient.takeIf { it != me })
+        return track(item) { session.client.mint(me, token.address, recipient, amount, toPrivate) }
     }
 
     private fun selected(): String = session.state.value.account?.address ?: error("no account selected")

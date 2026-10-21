@@ -66,6 +66,8 @@ data class SessionState(
     val found: List<FoundToken> = emptyList(),
     /** The token the user chose to show at the top (an address), if any. */
     val primary: String? = null,
+    /** Tokens the selected account created (it mints them), as addresses. */
+    val created: List<String> = emptyList(),
     /** What runs in the background right now, for the status line (null when idle). */
     val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
@@ -162,6 +164,7 @@ class WalletSession(
                     tokens = tokens.map { info -> TokenView(info, balances.firstOrNull { it.token.equals(info.address, true) }) },
                     activity = store.activity(account.address),
                     primary = store.primary(account.address),
+                    created = store.created(account.address),
                     error = null,
                 )
             }

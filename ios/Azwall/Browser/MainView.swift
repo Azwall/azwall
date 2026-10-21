@@ -52,6 +52,7 @@ struct MainView: View {
         case .wallet: tab = .wallet
         case .explore: tab = .explore
         case .settings: tab = .wallet; route = .settings
+        case .tokens: tab = .wallet; route = .tokens
         case .lock: Task { await model.lock() }
         }
     }
@@ -66,7 +67,7 @@ struct MainView: View {
 
 /// The side menu behind the top-left button: who and where you are, then where to go.
 struct SideMenu: View {
-    enum Item { case wallet, explore, settings, lock }
+    enum Item { case wallet, explore, tokens, settings, lock }
 
     @Binding var open: Bool
     let session: WalletSession
@@ -93,6 +94,8 @@ struct SideMenu: View {
             Divider()
             row("wallet.bifold", "Wallet", selected: tab == .wallet, .wallet)
             row("safari", "Explore", selected: tab == .explore, .explore)
+            // Test networks only: there is no faucet for arbitrary tokens, so the wallet makes its own.
+            if session.network.id.hasPrefix("testnet") { row("circle.hexagongrid", "Create a token", selected: false, .tokens) }
             row("gearshape", "Settings", selected: false, .settings)
             row("lock", "Lock wallet", selected: false, .lock)
             Spacer()

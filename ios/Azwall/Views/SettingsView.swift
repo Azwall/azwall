@@ -8,16 +8,11 @@ struct SettingsView: View {
     @State private var name = ""
     @State private var revealed: String?
     @State private var confirmWipe = false
-    @State private var tokenName = "Test Token"
-    @State private var tokenSymbol = "TST"
-    @State private var mintAmount = "1000"
-    @State private var mintPrivate = true
 
     var body: some View {
         Form {
             accountSection
             networkSection
-            if session.network.id.hasPrefix("testnet") && session.account?.deployed == true { testnetSection }
             securitySection
             Section("About") {
                 LabeledContent("Azwall", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
@@ -76,37 +71,10 @@ struct SettingsView: View {
         }
     }
 
-    /// Test networks have no faucet for arbitrary tokens: create one with this account as minter, then mint.
-    private var testnetSection: some View {
-        Section("Testnet tools") {
-            TextField("Name", text: $tokenName)
-            TextField("Symbol", text: $tokenSymbol).textInputAutocapitalization(.characters)
-            Button("Create test token") {
-                let name = tokenName, symbol = tokenSymbol
-                Task { await model.run(done: "Token creation sent.") { try await $0.deployTestToken(name: name, symbol: symbol) } }
-            }
-            .disabled(model.busy || tokenName.isEmpty || tokenSymbol.isEmpty)
-            if let token = session.tokens.first?.info {
-                TextField("Amount", text: $mintAmount).keyboardType(.decimalPad)
-                Toggle("Mint privately", isOn: $mintPrivate)
-                Button("Mint \(token.symbol)") { mint(token) }.disabled(model.busy)
-            }
-        }
-    }
-
     private var securitySection: some View {
         Section("Security") {
             Button("Lock wallet") { Task { await model.lock() } }
             Button("Remove wallet from this device", role: .destructive) { confirmWipe = true }
-        }
-    }
-
-    private func mint(_ token: TokenInfo) {
-        let amount = mintAmount, toPrivate = mintPrivate
-        Task {
-            await model.run(done: "Mint sent.") { session in
-                try await session.mint(token: token, amount: try Amounts.parse(amount, decimals: token.decimals), toPrivate: toPrivate)
-            }
         }
     }
 }

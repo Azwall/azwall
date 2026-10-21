@@ -41,8 +41,6 @@ data class SettingsActions(
     val onRevealKey: () -> Unit,
     val onCheckNode: () -> Unit,
     val onLoadProver: () -> Unit,
-    val onCreateTestToken: (name: String, symbol: String) -> Unit,
-    val onMint: (tokenAddress: String, amount: String, private: Boolean) -> Unit,
     val onLock: () -> Unit,
     val onWipe: () -> Unit,
 )
@@ -59,7 +57,6 @@ fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actio
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             AccountSection(state, actions)
             NetworkSection(state, info, actions)
-            if (state.network.id.startsWith("testnet")) TestnetSection(state, busy, actions)
             SecuritySection(actions)
             AboutSection(info)
         }

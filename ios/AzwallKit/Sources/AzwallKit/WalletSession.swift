@@ -49,6 +49,8 @@ public final class WalletSession {
     public internal(set) var found: [FoundToken] = []
     /// The token the user chose to show at the top (an address), if any.
     public private(set) var primary: String?
+    /// Tokens the selected account created (it mints them), as addresses.
+    public private(set) var created: [String] = []
     /// What runs in the background right now, for the status line (nil when idle).
     public internal(set) var task: BackgroundTask?
     /// The browser's link to the PXE host's dApp gateway.
@@ -159,6 +161,7 @@ public final class WalletSession {
             tokens = followed.map { info in TokenView(info: info, balance: balances.first { $0.token.lowercased() == info.address.lowercased() }) }
             activity = store.activity(account: account.address)
             primary = store.primary(account: account.address)
+            created = store.created(account: account.address)
             error = nil
         } catch {
             self.error = error.localizedDescription

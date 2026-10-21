@@ -71,7 +71,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
         )
         state.tokens.isEmpty() -> Notice(
             "Your account is ready",
-            "Add a token to see its private and public balances. On testnet, Settings can create a test token for you.",
+            "Add a token to see its private and public balances. On testnet, Create a token in the menu makes one for you.",
             "Add a token",
             actions.onAddToken,
         )

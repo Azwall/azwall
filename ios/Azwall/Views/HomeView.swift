@@ -11,7 +11,7 @@ struct HomeView: View {
     @State private var tab = 0
     @State private var sheet: Sheet?
 
-    enum Route: Hashable { case send, shield, receive, settings }
+    enum Route: Hashable { case send, shield, receive, settings, tokens }
     enum Sheet: Identifiable { case networks, accounts, addToken; var id: Self { self } }
 
     var body: some View {
@@ -94,6 +94,7 @@ struct HomeView: View {
         case .shield: TransferView(model: model, session: session, mode: .shield)
         case .receive: ReceiveView(session: session)
         case .settings: SettingsView(model: model, session: session)
+        case .tokens: TokenStudioView(model: model, session: session)
         }
     }
 

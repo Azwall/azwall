@@ -22,7 +22,7 @@ struct BalanceHero: View {
             hero(token)
         } else {
             Notice(title: "Your account is ready",
-                   text: "Add a token to see its private and public balances. On testnet, Settings can create a test token for you.",
+                   text: "Add a token to see its private and public balances. On testnet, Create a token in the menu makes one for you.",
                    action: "Add a token", onAction: onAddToken)
         }
     }

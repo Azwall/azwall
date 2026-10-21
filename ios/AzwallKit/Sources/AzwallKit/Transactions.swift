@@ -41,20 +41,23 @@ extension WalletSession {
         try await track(item) { client in
             let deployed = try await client.deployToken(admin: admin, name: name, symbol: symbol, decimals: decimals)
             store.addToken(TokenInfo(address: deployed.token, name: name, symbol: symbol, decimals: decimals))
+            store.markCreated(account: admin, token: deployed.token)
             return deployed.txHash
         }
     }
 
-    /// Test networks: mints to the selected account (which must be the token's minter).
-    public func mint(token: TokenInfo, amount: String, toPrivate: Bool) async throws {
+    /// Test networks: mints to `to` (the selected account when nil or empty), as the token's minter.
+    public func mint(token: TokenInfo, amount: String, toPrivate: Bool, to: String? = nil) async throws {
         let me = try selectedAddress()
+        let recipient = to?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? me
         var item = ActivityItem(account: me, kind: .mint)
         item.token = token.address
         item.symbol = token.symbol
         item.decimals = token.decimals
         item.amount = amount
+        item.counterparty = recipient == me ? nil : recipient
         try await track(item) { client in
-            try await client.mint(admin: me, token: token.address, to: me, amount: amount, toPrivate: toPrivate)
+            try await client.mint(admin: me, token: token.address, to: recipient, amount: amount, toPrivate: toPrivate)
         }
     }
 
@@ -133,4 +136,9 @@ public enum Settlement {
         }
         return done
     }
+}
+
+extension String {
+    /// nil for an empty string: optional chaining over user input.
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

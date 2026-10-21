@@ -25,6 +25,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "accountState": return .object(["deployed": .bool(deployed)])
         case "balances": return try JSONValue.parse(#"[{"token":"0xt","private":"2500000","public":"0"}]"#)
         case "tokenInfo": return .object(["address": .string(p("token")), "name": .string("Test"), "symbol": .string("TST"), "decimals": .number(6)])
+        case "mint": return .object(["txHash": .string("0xmint")])
         case "deployAccount", "transfer":
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])

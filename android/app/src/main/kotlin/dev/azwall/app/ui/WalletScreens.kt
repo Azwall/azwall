@@ -38,6 +38,9 @@ import dev.azwall.app.ui.receive.ReceiveScreen
 import dev.azwall.app.ui.send.ProvingOverlay
 import dev.azwall.app.ui.send.TransferMode
 import dev.azwall.app.ui.send.TransferScreen
+import dev.azwall.core.wallet.TokenView
+import dev.azwall.app.ui.tokens.TokenStudioScreen
+import dev.azwall.app.ui.tokens.TokenStudioActions
 import dev.azwall.app.ui.settings.SecretKeyDialog
 import dev.azwall.app.ui.settings.SettingsActions
 import dev.azwall.app.ui.settings.SettingsInfo
@@ -50,7 +53,7 @@ import dev.azwall.core.wallet.WalletSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class Route { HOME, SEND, SHIELD, RECEIVE, SETTINGS }
+private enum class Route { HOME, SEND, SHIELD, RECEIVE, SETTINGS, TOKENS }
 
 private enum class Sheet { NONE, NETWORKS, ACCOUNTS, ADD_TOKEN, CONNECTIONS }
 
@@ -80,6 +83,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
                     MenuItem.WALLET -> { tab = MainTab.WALLET; route = Route.HOME }
                     MenuItem.EXPLORE -> tab = MainTab.EXPLORE
                     MenuItem.SETTINGS -> { tab = MainTab.WALLET; route = Route.SETTINGS }
+                    MenuItem.TOKENS -> { tab = MainTab.WALLET; route = Route.TOKENS }
                     MenuItem.LOCK -> vm.lock()
                 }
             }
@@ -132,6 +136,11 @@ private fun WalletRoutes(
         }
         Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
         Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, home)
+        Route.TOKENS -> TokenStudioScreen(state, busy, TokenStudioActions(
+            onBack = home,
+            onCreate = { name, symbol, decimals -> vm.run("Token creation sent.") { it.transactions.deployTestToken(name, symbol, decimals) } },
+            onMint = { token, amount, private, to -> mint(vm, token, amount, private, to) },
+        ))
     }
 }
 
@@ -205,17 +214,14 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
         onRevealKey = { scope.launch { revealed = runCatching { vm.revealKey(state.selected!!, auth("Show the secret key")) }.getOrNull() } },
         onCheckNode = { vm.checkNode(network) },
         onLoadProver = { vm.loadProver(network) },
-        onCreateTestToken = { name, symbol -> vm.run("Token creation sent.") { it.transactions.deployTestToken(name, symbol) } },
-        onMint = { token, amount, private -> mint(vm, token, amount, private) },
         onLock = { vm.lock() },
         onWipe = { vm.wipe(auth("Remove the wallet")) },
     ))
     revealed?.let { key -> SecretKeyDialog(key, onCopy = { clipboard.setText(AnnotatedString(key)) }, onDismiss = { revealed = null }) }
 }
 
-private fun mint(vm: AppViewModel, token: String, amount: String, private: Boolean) = vm.run("Mint sent.") { session ->
-    val info = session.state.value.tokens.first { it.info.address == token }.info
-    session.transactions.mint(info, Amounts.parse(amount, info.decimals), private)
+private fun mint(vm: AppViewModel, token: TokenView, amount: String, private: Boolean, to: String) = vm.run("Mint sent.") { session ->
+    session.transactions.mint(token.info, Amounts.parse(amount, token.info.decimals), private, to)
 }
 
 private fun coreVersion(): String = runCatching { dev.azwall.core.ffi.coreVersion() }.getOrDefault("?")
