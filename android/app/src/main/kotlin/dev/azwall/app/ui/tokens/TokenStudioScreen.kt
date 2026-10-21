@@ -15,6 +15,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.home.TokenRow
+import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
@@ -52,10 +55,15 @@ data class TokenStudioActions(
  */
 @Composable
 fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioActions) {
-    var managing by rememberSaveable { mutableStateOf<String?>(null) }
-    var minting by rememberSaveable { mutableStateOf(false) }
-    val token = state.tokens.firstOrNull { it.info.address == managing }
-    if (token != null) return ManagedToken(token, state, busy, minting, { minting = it }, { managing = null }, actions)
+    var minting by rememberSaveable { mutableStateOf<String?>(null) }
+    var sharing by rememberSaveable { mutableStateOf<String?>(null) }
+    state.tokens.firstOrNull { it.info.address == minting }?.let { token ->
+        return MintScreen(token, busy, onBack = { minting = null }) { amount, private, to ->
+            actions.onMint(token, amount, private, to)
+            minting = null
+        }
+    }
+    state.tokens.firstOrNull { it.info.address == sharing }?.let { ShareTokenSheet(it, state.network.id, state.network.label) { sharing = null } }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
@@ -89,7 +97,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             CreateForm(busy, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
-            mine.forEach { t -> CreatedToken(t) { managing = t.info.address } }
+            mine.forEach { t -> CreatedToken(t, onShare = { sharing = t.info.address }, onMint = { minting = t.info.address }) }
         }
     }
 }
@@ -121,27 +129,10 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
     }
 }
 
-/** A token this account created, as on the home screen; Manage opens its balances, QR code and minting. */
+/** A token this account created, as on the home screen, with its two actions: share its QR code, and mint it. */
 @Composable
-private fun CreatedToken(token: TokenView, onManage: () -> Unit) = Row(verticalAlignment = Alignment.CenterVertically) {
-    Box(Modifier.weight(1f)) { TokenRow(token, onClick = onManage) }
-    TextButton(onClick = onManage) { Text("Manage") }
-}
-
-/** A token opened from the list: its manage screen, or minting it. */
-@Composable
-private fun ManagedToken(
-    token: TokenView,
-    state: SessionState,
-    busy: Boolean,
-    minting: Boolean,
-    setMinting: (Boolean) -> Unit,
-    close: () -> Unit,
-    actions: TokenStudioActions,
-) {
-    if (!minting) return ManageTokenScreen(token, state.network.id, state.network.label, busy, onBack = close, onMint = { setMinting(true) })
-    MintScreen(token, busy, onBack = { setMinting(false) }) { amount, private, to ->
-        actions.onMint(token, amount, private, to)
-        setMinting(false)
-    }
+private fun CreatedToken(token: TokenView, onShare: () -> Unit, onMint: () -> Unit) = Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.weight(1f)) { TokenRow(token, showsBalance = false, onClick = onShare) }
+    IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, "Share ${token.info.symbol}") }
+    IconButton(onClick = onMint) { Icon(Icons.Outlined.AddCircleOutline, "Mint ${token.info.symbol}") }
 }

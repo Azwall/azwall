@@ -105,6 +105,8 @@ struct TokenList: View {
 struct TokenRow: View {
     let token: TokenView
     var stale = false
+    /// Off in the token studio, where the row only names the token.
+    var showsBalance = true
 
     var body: some View {
         let d = token.info.decimals
@@ -115,7 +117,9 @@ struct TokenRow: View {
                 Text(token.info.symbol).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if let balance = token.balance, let total = token.total {
+            if !showsBalance {
+                EmptyView()
+            } else if let balance = token.balance, let total = token.total {
                 VStack(alignment: .trailing) {
                     Text(Amounts.display(total, decimals: d, maxFraction: 4)).font(.subheadline.weight(.semibold))
                     Text("\(Amounts.display(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.display(balance.public, decimals: d, maxFraction: 2)) public")

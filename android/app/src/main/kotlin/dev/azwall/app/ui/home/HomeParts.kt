@@ -127,8 +127,9 @@ private fun Notice(title: String, body: String, action: String, onAction: () -> 
     }
 }
 
+/** `showsBalance` is off in the token studio, where the row only names the token. */
 @Composable
-internal fun TokenRow(token: TokenView, stale: Boolean = false, onClick: () -> Unit = {}) {
+internal fun TokenRow(token: TokenView, stale: Boolean = false, showsBalance: Boolean = true, onClick: () -> Unit = {}) {
     val decimals = token.info.decimals
     Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Share", onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         TokenBadge(token.info.symbol, token.info.address)
@@ -138,7 +139,7 @@ internal fun TokenRow(token: TokenView, stale: Boolean = false, onClick: () -> U
             Text(token.info.symbol, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         val balance = token.balance
-        Column(Modifier.stalePulse(stale), horizontalAlignment = Alignment.End) {
+        if (showsBalance) Column(Modifier.stalePulse(stale), horizontalAlignment = Alignment.End) {
             if (balance == null) {
                 Text("…")
             } else {

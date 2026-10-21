@@ -9,7 +9,8 @@ struct TokenStudioView: View {
     @State private var name = "Test Token"
     @State private var symbol = "TST"
     @State private var decimals = 6
-    @State private var managing: String?
+    @State private var minting: String?
+    @State private var sharing: TokenView?
 
     var body: some View {
         Form {
@@ -30,24 +31,25 @@ struct TokenStudioView: View {
                 if !mine.isEmpty {
                     Section("Your tokens") {
                         ForEach(mine) { t in
-                            // As on the home screen; the whole row opens the token, which only shows it.
-                            Button { managing = t.id } label: {
-                                HStack(spacing: 0) {
-                                    TokenRow(token: t)
-                                    Text("Manage").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.accent)
-                                }
+                            HStack(spacing: 4) {
+                                TokenRow(token: t, showsBalance: false)
+                                // Borderless: in a Form, a plain button makes the whole row its tap target.
+                                Button { sharing = t } label: { Image(systemName: "square.and.arrow.up").frame(width: 36, height: 36) }
+                                    .buttonStyle(.borderless).accessibilityLabel("Share \(t.info.symbol)")
+                                Button { minting = t.id } label: { Image(systemName: "plus.circle").frame(width: 36, height: 36) }
+                                    .buttonStyle(.borderless).accessibilityLabel("Mint \(t.info.symbol)")
                             }
-                            .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 16))
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 12))
                         }
                     }
                 }
             }
         }
         .navigationTitle("Create a token")
-        .navigationDestination(item: $managing) { address in
-            if let token = session.tokens.first(where: { $0.id == address }) { TokenManageView(model: model, token: token, network: session.network) }
+        .navigationDestination(item: $minting) { address in
+            if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }
         }
+        .sheet(item: $sharing) { ShareTokenSheet(token: $0, network: session.network) }
     }
 
     private var createSection: some View {
