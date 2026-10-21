@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.azwall.app.ui.siteOf
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.wallet.ApprovalKind
 import dev.azwall.core.wallet.ApprovalRequest
@@ -65,9 +66,10 @@ fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
 @Composable
 private fun Header(request: ApprovalRequest, expanded: Boolean, onToggle: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
+        // The site as the browser knows it comes first: what a page says about itself is only a detail below.
         Column(Modifier.weight(1f)) {
-            Text(request.origin.removePrefix("https://"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(request.title, style = MaterialTheme.typography.titleMedium, maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis)
+            Text(siteOf(request.origin), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(request.title, style = MaterialTheme.typography.bodyMedium, maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onToggle) {
             Icon(if (expanded) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess, if (expanded) "Collapse" else "Expand")

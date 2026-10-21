@@ -1,5 +1,7 @@
 package dev.azwall.app.ui.browser
 
+import androidx.compose.runtime.key
+import androidx.compose.foundation.border
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -60,10 +62,10 @@ import dev.azwall.core.wallet.DappSession
 import dev.azwall.core.wallet.SearchEngine
 import kotlinx.coroutines.delay
 
-/** The Explore tab: a start page of the network's dApps, then any website, with dApps able to connect to the wallet. */
+/** The Explore tab: tabs on a start page of the network's dApps, then any website, with dApps able to connect. */
 @Composable
 fun BrowserScreen(
-    browser: BrowserController,
+    browser: BrowserTabs,
     network: NetworkInfo,
     sessions: List<DappSession>,
     engine: SearchEngine,
@@ -71,21 +73,36 @@ fun BrowserScreen(
     onConnections: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val page by browser.page.collectAsStateWithLifecycle()
-    val open = { input: String -> browser.open(input, engine) }
-    BackHandler(enabled = !page.start) { browser.back() }
+    val tab by browser.current.collectAsStateWithLifecycle()
+    val tabs by browser.tabs.collectAsStateWithLifecycle()
+    val page by tab.page.collectAsStateWithLifecycle()
+    var switching by remember { mutableStateOf(false) }
+    val open = { input: String -> tab.open(input, engine) }
+    BackHandler(enabled = !page.start) { tab.back() }
     Column(modifier.fillMaxSize().statusBarsPadding()) {
         AddressBar(if (page.start) "" else page.url, sessions.size, onMenu = onMenu, onOpen = open, onConnections = onConnections)
         if (page.start) {
             Box(Modifier.weight(1f)) { StartPage(network.dapps, sessions, engine, open) }
         } else {
             if (page.progress < 100) LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
-            AndroidView(
-                factory = { browser.webView.also { (it.parent as? ViewGroup)?.removeView(it) } },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+            key(tab.id) {
+                AndroidView(
+                    factory = { tab.webView.also { (it.parent as? ViewGroup)?.removeView(it) } },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
         }
-        NavigationRow(page, browser)
+        NavigationRow(page, tab, tabs.size) { switching = true }
+    }
+    if (switching) {
+        TabsSheet(
+            tabs,
+            tab,
+            onSelect = { browser.select(it); switching = false },
+            onClose = browser::close,
+            onNew = { browser.open(); switching = false },
+            onDismiss = { switching = false },
+        )
     }
 }
 
@@ -139,12 +156,18 @@ private fun AddressBar(url: String, connections: Int, onMenu: () -> Unit, onOpen
 }
 
 @Composable
-private fun NavigationRow(page: PageState, browser: BrowserController) {
+private fun NavigationRow(page: PageState, tab: BrowserTab, tabCount: Int, onTabs: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = browser::back, enabled = !page.start) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
-        IconButton(onClick = browser::forward, enabled = page.canGoForward || (page.start && page.url.isNotEmpty())) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Forward") }
-        IconButton(onClick = browser::home, enabled = !page.start) { Icon(Icons.Outlined.Home, "Home") }
-        IconButton(onClick = browser::reload, enabled = !page.start) { Icon(Icons.Outlined.Refresh, "Reload") }
+        IconButton(onClick = tab::back, enabled = !page.start) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+        IconButton(onClick = tab::forward, enabled = page.canGoForward || (page.start && page.url.isNotEmpty())) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Forward") }
+        IconButton(onClick = tab::home, enabled = !page.start) { Icon(Icons.Outlined.Home, "Home") }
+        IconButton(onClick = tab::reload, enabled = !page.start) { Icon(Icons.Outlined.Refresh, "Reload") }
         Text(if (page.start) "" else page.title, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 8.dp))
+        // Like a mobile browser: the number of open tabs in a square, which opens the tab list.
+        IconButton(onClick = onTabs) {
+            Box(Modifier.size(22.dp).border(1.5.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                Text("$tabCount", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }

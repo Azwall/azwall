@@ -16,6 +16,9 @@ fun shortAddress(address: String, keep: Int = 4): String =
 /** A dApp origin as people read it: `https://vote.example` → `vote.example`. */
 fun siteOf(origin: String): String = origin.removePrefix("https://")
 
+/** "https://aztec.network/blog?x" → "aztec.network". */
+fun hostOf(url: String): String = url.substringAfter("://").substringBefore('/')
+
 /** "now", "5 min", "3 h", "2 d". */
 fun timeAgo(epochMillis: Long, now: Long = System.currentTimeMillis()): String {
     val minutes = (now - epochMillis).coerceAtLeast(0) / 60_000

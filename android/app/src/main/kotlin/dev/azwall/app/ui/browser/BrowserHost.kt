@@ -15,22 +15,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
-import dev.azwall.app.ui.components.AccountAvatar
-import dev.azwall.core.wallet.SessionState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.AppViewModel
+import dev.azwall.app.ui.components.AccountAvatar
+import dev.azwall.core.wallet.DappApprovals
+import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.WalletSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class MainTab { WALLET, EXPLORE }
@@ -68,27 +71,37 @@ private fun Item(icon: ImageVector, label: String, selected: Boolean, onClick: (
 }
 
 /**
- * One browser for the whole unlocked app (its web view survives tab switches), connected to the selected
- * network's dApp gateway: that network's content script, its PXE host. Switching network reconnects it.
+ * One browser for the whole unlocked app (its tabs survive tab switches), connected to the selected network's dApp
+ * gateway: that network's content script, its PXE host. Switching network reconnects it. When a page goes away
+ * (navigation, closed tab), its pending requests are rejected and its sessions closed.
  */
 @Composable
-fun rememberBrowser(session: WalletSession): BrowserController {
+fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTabs {
     val context = LocalContext.current
-    val browser = remember { BrowserController(context) }
     val scope = rememberCoroutineScope()
+    val current by rememberUpdatedState(session)
+    val browser = remember {
+        BrowserTabs(context) { page ->
+            approvals.rejectTab(page)
+            scope.launch { runCatching { current.dapps.closePage(page) } }
+        }
+    }
     LaunchedEffect(session) {
         val path = "pxe/${session.network.pxeBundle}/dapp-content-script.js"
         val script = withContext(Dispatchers.IO) { runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrNull() }
-        if (script != null && BrowserController.supported()) browser.attach(session.dapps, script, scope)
+        if (script != null && BrowserTabs.supported()) browser.attach(session.dapps, script, scope)
     }
     return browser
 }
 
-/** The first pending dApp request, docked under the page (the browser is brought to the front first). */
+/** The first pending dApp request, docked under the page (its tab is brought to the front first). */
 @Composable
-fun DappRequests(vm: AppViewModel, onShowPage: () -> Unit) {
+fun DappRequests(vm: AppViewModel, browser: BrowserTabs, onShowPage: () -> Unit) {
     val pending by vm.approvals.pending.collectAsStateWithLifecycle()
     val request = pending.firstOrNull() ?: return
-    LaunchedEffect(request.id) { onShowPage() }
+    LaunchedEffect(request.id) {
+        browser.selectPage(request.tab)
+        onShowPage()
+    }
     key(request.id) { ApprovalPanel(request) { approved -> vm.approvals.decide(request.id, approved) } }
 }

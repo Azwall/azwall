@@ -67,7 +67,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
     val proving by session.transactions.proving.collectAsStateWithLifecycle()
     val state by session.state.collectAsStateWithLifecycle()
-    val browser = rememberBrowser(session)
+    val browser = rememberBrowser(session, vm.approvals)
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
@@ -100,7 +100,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
                     WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu)
                 }
             }
-            DappRequests(vm, onShowPage = { tab = MainTab.EXPLORE })
+            DappRequests(vm, browser, onShowPage = { tab = MainTab.EXPLORE })
         }
     }
     WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }

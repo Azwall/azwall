@@ -1,6 +1,6 @@
 package dev.azwall.app
 
-import dev.azwall.app.ui.browser.BrowserController.Companion.allowedOrigin
+import dev.azwall.app.ui.browser.BrowserTabs.Companion.allowedOrigin
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
