@@ -16,7 +16,6 @@ struct StartPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Explore").font(.title2.bold())
-                Text("dApps on \(network.label)").foregroundStyle(.secondary)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(network.dapps) { dapp in
                         Button { onOpen(dapp.url) } label: { DappTile(dapp: dapp) }.buttonStyle(.plain)

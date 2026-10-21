@@ -77,7 +77,7 @@ fun BrowserScreen(
     Column(modifier.fillMaxSize().statusBarsPadding()) {
         AddressBar(if (page.start) "" else page.url, sessions.size, onMenu = onMenu, onOpen = open, onConnections = onConnections)
         if (page.start) {
-            Box(Modifier.weight(1f)) { StartPage(network.label, network.dapps, sessions, engine, open) }
+            Box(Modifier.weight(1f)) { StartPage(network.dapps, sessions, engine, open) }
         } else {
             if (page.progress < 100) LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
             AndroidView(

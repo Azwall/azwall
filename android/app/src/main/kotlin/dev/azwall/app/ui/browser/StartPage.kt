@@ -38,10 +38,9 @@ import dev.azwall.core.wallet.SearchEngine
  * sites connected to the wallet. Badges are drawn, not favicons: loading those would tell each site the app opened.
  */
 @Composable
-fun StartPage(networkLabel: String, dapps: List<KnownDapp>, sessions: List<DappSession>, engine: SearchEngine, onOpen: (String) -> Unit) {
+fun StartPage(dapps: List<KnownDapp>, sessions: List<DappSession>, engine: SearchEngine, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Explore", style = MaterialTheme.typography.headlineSmall)
-        Text("dApps on $networkLabel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         dapps.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { DappTile(it, Modifier.weight(1f)) { onOpen(it.url) } }
