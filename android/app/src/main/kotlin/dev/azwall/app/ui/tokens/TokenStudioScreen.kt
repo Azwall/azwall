@@ -38,6 +38,7 @@ import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
 
@@ -70,6 +71,15 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             Text("Create a token", style = MaterialTheme.typography.titleLarge)
         }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // The account shown comes from the last session until the PXE is open: nothing can be sent before.
+            if (state.phase != Phase.READY) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (state.phase == Phase.STARTING) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    val text = if (state.phase == Phase.STARTING) "Opening the wallet…" else "The wallet could not open."
+                    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Column
+            }
             // Unknown until the PXE has read it: the account is loading, not inactive.
             when (state.account?.deployed) {
                 null -> {

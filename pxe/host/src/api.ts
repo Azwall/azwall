@@ -42,15 +42,19 @@ function hexToBytes(h: string): Uint8Array {
 export function createHandlers(bridge: Bridge): Handlers {
   let wallet: AzwallWallet | null = null;
   let dapps: DappGateway | null = null;
+  // Opening can take minutes when damaged stores were set aside and the PXE syncs again from the chain.
+  let opening = false;
   const w = () => {
+    if (opening) throw new Error('the wallet is still opening; try again in a moment');
     if (!wallet) throw new Error('the PXE is not open');
     return wallet;
   };
   const handlers: Record<string, (p: Params) => Promise<unknown>> = {
     open: async p => {
-      if (wallet) throw new Error('the PXE is already open');
-      const network = networkParams(object(p, 'network'));
-      const opened = await openWallet(bridge, network, hexToBytes(hex(p, 'dbKey', 32)));
+      if (wallet || opening) throw new Error('the PXE is already open');
+      const [network, dbKey] = [networkParams(object(p, 'network')), hexToBytes(hex(p, 'dbKey', 32))];
+      opening = true;
+      const opened = await openWallet(bridge, network, dbKey).finally(() => (opening = false));
       wallet = opened.wallet;
       dapps = new DappGateway(bridge, opened.wallet, network);
       return opened.check;
@@ -81,12 +85,19 @@ export function createHandlers(bridge: Bridge): Handlers {
     syncStatus: async () => w().syncStatus(),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),
-    // A message from the content script of the page at `origin` (taken from the native web view, not the page).
-    dappMessage: async p => dapps?.receive(int(p, 'tabId'), str(p, 'origin'), JSON.parse(str(p, 'message')), str(p, 'account')),
-    dappDisconnect: async p => dapps?.disconnect(str(p, 'sessionId')),
-    dappClosePage: async p => dapps?.closePage(int(p, 'tabId')),
+    ...dappHandlers(() => dapps),
   };
   return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
+}
+
+/** Messages of the browser's pages, for the dApp gateway (none before the PXE is open). */
+function dappHandlers(dapps: () => DappGateway | null): Record<string, (p: Params) => Promise<unknown>> {
+  return {
+    // A message from the content script of the page at `origin` (taken from the native web view, not the page).
+    dappMessage: async p => dapps()?.receive(int(p, 'tabId'), str(p, 'origin'), JSON.parse(str(p, 'message')), str(p, 'account')),
+    dappDisconnect: async p => dapps()?.disconnect(str(p, 'sessionId')),
+    dappClosePage: async p => dapps()?.closePage(int(p, 'tabId')),
+  };
 }
 
 /** Deploys the account contract; the Sponsored FPC pays, since a new account holds no fee juice. */

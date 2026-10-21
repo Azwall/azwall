@@ -123,6 +123,7 @@ export async function startOverOnOtherKey<T>(open: () => Promise<T>, discard: ()
     if (!unusableStore(err)) throw err;
     log('open', `the stores cannot be used with this wallet's key (${errorMessage(err)}): starting over with empty stores`, 'warn');
     await discard();
+    log('open', 'damaged stores removed; opening empty ones');
     return open();
   }
 }

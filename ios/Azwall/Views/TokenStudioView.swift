@@ -13,8 +13,14 @@ struct TokenStudioView: View {
 
     var body: some View {
         Form {
-            // Unknown until the PXE has read it: the account is loading, not inactive.
-            if session.account?.deployed == nil {
+            // The account shown comes from the last session until the PXE is open: nothing can be sent before.
+            if session.phase != .ready {
+                HStack(spacing: 12) {
+                    if session.phase == .starting { ProgressView() }
+                    Text(session.phase == .starting ? "Opening the wallet…" : "The wallet could not open.").foregroundStyle(.secondary)
+                }
+            } else if session.account?.deployed == nil {
+                // Unknown until the PXE has read it: the account is loading, not inactive.
                 HStack(spacing: 12) { ProgressView(); Text("Loading the account…").foregroundStyle(.secondary) }
             } else if session.account?.deployed == false {
                 Text("Activate the account first: it becomes the token's minter.").foregroundStyle(.secondary)
