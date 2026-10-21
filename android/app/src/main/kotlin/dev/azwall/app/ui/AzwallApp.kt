@@ -26,6 +26,7 @@ import dev.azwall.app.AppPhase
 import dev.azwall.app.AppViewModel
 import dev.azwall.app.Auth
 import dev.azwall.app.ui.onboarding.LockScreen
+import dev.azwall.app.ui.onboarding.OnboardingActions
 import dev.azwall.app.ui.onboarding.OnboardingFlow
 
 /** Root of the UI: onboarding, lock screen, or the unlocked wallet. [auth] builds a biometric prompt. */
@@ -48,7 +49,10 @@ fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
         Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             when (val p = phase) {
                 AppPhase.Booting -> Centered { CircularProgressIndicator() }
-                AppPhase.Onboarding -> OnboardingFlow(busy) { key, alias -> vm.createWallet(key, alias, auth("Secure your wallet")) }
+                AppPhase.Onboarding -> OnboardingFlow(
+                    busy,
+                    OnboardingActions(vm::newRecoveryPhrase, vm::checkSecret) { secret -> vm.createWallet(secret, "Account 1", auth("Secure your wallet")) },
+                )
                 AppPhase.Locked -> LockScreen(busy) { vm.unlock(auth("Unlock Azwall")) }
                 is AppPhase.Unlocked -> WalletScreens(vm, p.session, busy, auth) { snackbar.currentSnackbarData?.dismiss() }
                 is AppPhase.Failed -> Centered { Text("Azwall could not start:\n${p.message}", textAlign = TextAlign.Center) }

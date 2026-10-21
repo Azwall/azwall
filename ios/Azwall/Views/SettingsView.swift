@@ -7,6 +7,7 @@ struct SettingsView: View {
     let session: WalletSession
     @State private var name = ""
     @State private var revealed: String?
+    @State private var phrase: String?
     @Environment(\.scenePhase) private var scenePhase
     @State private var confirmWipe = false
     @AppStorage(BrowserTabs.engineKey) private var engine = SearchEngine.default.rawValue
@@ -31,7 +32,10 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         // Leaving the app hides a revealed key: it must not wait on screen for whoever opens the app next.
-        .onChange(of: scenePhase) { if scenePhase != .active { revealed = nil } }
+        .onChange(of: scenePhase) { if scenePhase != .active { revealed = nil; phrase = nil } }
+        .sheet(isPresented: .constant(phrase != nil), onDismiss: { phrase = nil }) {
+            if let phrase { PhraseSheet(words: phrase.split(separator: " ").map(String.init)) { self.phrase = nil } }
+        }
         .onAppear { name = session.account?.alias ?? "" }
         .alert("Secret key", isPresented: .constant(revealed != nil), presenting: revealed) { key in
             Button("Copy") { copySecret(key); revealed = nil }
@@ -84,8 +88,30 @@ struct SettingsView: View {
 
     private var securitySection: some View {
         Section("Security") {
+            if model.hasRecoveryPhrase { Button("Show recovery phrase") { Task { phrase = await model.revealPhrase() } } }
             Button("Lock wallet") { Task { await model.lock() } }
             Button("Remove wallet from this device", role: .destructive) { confirmWipe = true }
+        }
+    }
+}
+
+/// The recovery phrase once, until dismissed; no copy button: it is meant to be written down.
+private struct PhraseSheet: View {
+    let words: [String]
+    let onDone: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Anyone with these words controls every account of this wallet. Never share them.").foregroundStyle(Palette.danger)
+                    PhraseGrid(words: words)
+                }
+                .padding(24)
+            }
+            .navigationTitle("Recovery phrase")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done", action: onDone) }
         }
     }
 }

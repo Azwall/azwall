@@ -119,7 +119,7 @@ private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
             label = { Text("Signing key to import (optional)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             isError = keyError != null,
-            supportingText = { Text(keyError ?: "Leave empty to create a new account") },
+            supportingText = { Text(keyError ?: "Leave empty for the next account of your recovery phrase") },
             textStyle = MonoStyle,
             modifier = Modifier.fillMaxWidth(),
         )

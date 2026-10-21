@@ -4,9 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
-import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.vault.AuthenticationRequired
-import dev.azwall.core.vault.Vault
+import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.VaultContents
 import dev.azwall.core.wallet.AutoLock
 import dev.azwall.core.wallet.SearchEngine
@@ -85,10 +84,28 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     /** Creates the vault with [signingKey] (generated or imported), then opens the wallet. */
-    fun createWallet(signingKey: String, alias: String, auth: Auth) = action {
-        val account = AccountSecrets(alias.trim().ifEmpty { "Account 1" }, Vault.parseSigningKey(signingKey), Vault.ZERO_SALT)
-        val created = withAuth(auth) { withContext(io) { deps.vault.create(account) } }
+    /** Creates the wallet from [secret]: a recovery phrase (new or restored), or a signing key. */
+    fun createWallet(secret: String, alias: String, auth: Auth) = action {
+        val (account, phrase) = withContext(io) { Recovery.firstAccount(secret, alias, deps.backend) }
+        val created = withAuth(auth) { withContext(io) { deps.vault.create(account, phrase) } }
         start(created)
+    }
+
+    /** A new recovery phrase for onboarding; the Rust core loads on first use, off the main thread. */
+    suspend fun newRecoveryPhrase(): String = withContext(io) { deps.backend.newRecoveryPhrase() }
+
+    /** Null when [secret] is a usable phrase or key, else what is wrong with it. */
+    suspend fun checkSecret(secret: String): String? = withContext(io) {
+        runCatching { Recovery.firstAccount(secret, "", deps.backend) }.exceptionOrNull()?.message
+    }
+
+    /** False for a wallet created from a signing key, before recovery phrases. */
+    val hasRecoveryPhrase: Boolean get() = contents?.phrase != null
+
+    /** The recovery phrase, after the user authenticated again; null for a wallet created from a key. */
+    suspend fun revealPhrase(auth: Auth): String? {
+        if (!auth()) throw AuthCancelled()
+        return contents?.phrase
     }
 
     /**

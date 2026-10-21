@@ -1,23 +1,36 @@
 import AzwallKit
 import SwiftUI
 
-/// First run: create a wallet (and back its key up) or import an existing key.
+/// First run: create a wallet (back its 24 words up, then check three of them) or restore one.
 struct OnboardingView: View {
     let model: AppModel
     @State private var path: [Step] = []
-    @State private var newKey = Vault.newSigningKey()
+    @State private var phrase: [String] = []
 
-    enum Step: Hashable { case backup, importKey }
+    enum Step: Hashable { case backup, verify, restore }
 
     var body: some View {
         NavigationStack(path: $path) {
             welcome
                 .navigationDestination(for: Step.self) { step in
                     switch step {
-                    case .backup: BackupView(key: newKey, busy: model.busy) { Task { await model.createWallet(signingKey: newKey, alias: "Account 1") } }
-                    case .importKey: ImportView(busy: model.busy) { key in Task { await model.createWallet(signingKey: key, alias: "Account 1") } }
+                    case .backup: PhraseBackupView(words: phrase) { path.append(.verify) }
+                    case .verify: PhraseVerifyView(words: phrase, busy: model.busy) { create(phrase.joined(separator: " ")) }
+                    case .restore: RestoreView(busy: model.busy, check: model.checkSecret) { create($0) }
                     }
                 }
+        }
+    }
+
+    private func create(_ secret: String) {
+        Task { await model.createWallet(secret: secret, alias: "Account 1") }
+    }
+
+    private func start() {
+        Task {
+            guard let words = try? await model.newRecoveryPhrase() else { return }
+            phrase = words.split(separator: " ").map(String.init)
+            path.append(.backup)
         }
     }
 
@@ -31,8 +44,8 @@ struct OnboardingView: View {
             Feature(icon: "bolt", title: "Proven on your phone", text: "Every transaction is proven on this device, natively, in seconds.")
             Feature(icon: "point.3.connected.trianglepath.dotted", title: "Every Aztec network", text: "Switch between networks running different Aztec versions.")
             Spacer()
-            Button("Create a new wallet") { path.append(.backup) }.buttonStyle(PrimaryButtonStyle())
-            Button("I already have a key") { path.append(.importKey) }.frame(maxWidth: .infinity, minHeight: 44)
+            Button("Create a new wallet", action: start).buttonStyle(PrimaryButtonStyle())
+            Button("Restore a wallet") { path.append(.restore) }.frame(maxWidth: .infinity, minHeight: 44)
         }
         .padding(24)
         .background(Palette.background)
@@ -52,54 +65,6 @@ private struct Feature: View {
                 Text(text).font(.subheadline).foregroundStyle(.secondary)
             }
         }
-    }
-}
-
-private struct BackupView: View {
-    let key: String
-    let busy: Bool
-    let onDone: () -> Void
-    @State private var saved = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Back up your key").font(.title.bold())
-            Text("This key is your account. Write it down and keep it offline: anyone who has it controls your funds, and without it a lost phone means lost funds.")
-                .foregroundStyle(.secondary)
-            Card { Text(groupKey(key)).font(.system(.body, design: .monospaced)) }
-            Button("Copy for one minute") { copySecret(key) }
-            Toggle("I wrote my key down somewhere safe", isOn: $saved)
-            Spacer()
-            Button(busy ? "Creating…" : "Create wallet", action: onDone).buttonStyle(PrimaryButtonStyle()).disabled(!saved || busy)
-        }
-        .padding(24)
-        .background(Palette.background)
-    }
-}
-
-private struct ImportView: View {
-    let busy: Bool
-    let onImport: (String) -> Void
-    @State private var input = ""
-
-    private var error: String? {
-        guard !input.isEmpty else { return nil }
-        do { _ = try Vault.parseSigningKey(input); return nil } catch { return error.localizedDescription }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Import your key").font(.title.bold())
-            Text("Paste the 64-character signing key of your Aztec account.").foregroundStyle(.secondary)
-            TextField("Signing key", text: $input, axis: .vertical)
-                .font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
-                .padding(12).background(RoundedRectangle(cornerRadius: 12).stroke(error == nil ? Color.secondary.opacity(0.4) : Palette.danger))
-            if let error { Text(error).font(.caption).foregroundStyle(Palette.danger) }
-            Spacer()
-            Button(busy ? "Importing…" : "Import") { onImport(input) }.buttonStyle(PrimaryButtonStyle()).disabled(input.isEmpty || error != nil || busy)
-        }
-        .padding(24)
-        .background(Palette.background)
     }
 }
 

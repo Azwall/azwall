@@ -69,7 +69,7 @@ struct AccountsSheet: View {
                 }
                 Section("Add or import an account") {
                     TextField("Name (Account \(session.accounts.count + 1))", text: $alias)
-                    TextField("Signing key to import (optional)", text: $key).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    TextField("Signing key to import (empty: next account of your phrase)", text: $key).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
                     if let keyError { Text(keyError).font(.caption).foregroundStyle(Palette.danger) }
                     Button(key.isEmpty ? "Create account" : "Import account") {
                         let alias = alias, imported = key.isEmpty ? nil : key

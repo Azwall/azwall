@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
 import dev.azwall.app.ui.components.Panel
+import dev.azwall.app.ui.onboarding.PhraseGrid
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.NodeCheck
@@ -47,6 +48,7 @@ data class SettingsActions(
     val onLock: () -> Unit,
     val onWipe: () -> Unit,
     val onSearchEngine: (SearchEngine) -> Unit = {},
+    val onRevealPhrase: () -> Unit = {},
 )
 
 data class SettingsInfo(
@@ -56,6 +58,8 @@ data class SettingsInfo(
     val node: NodeCheck?,
     val proverReady: Boolean,
     val searchEngine: SearchEngine = SearchEngine.DEFAULT,
+    /** False for wallets created from a signing key, before recovery phrases. */
+    val hasPhrase: Boolean = false,
 )
 
 @Composable
@@ -69,7 +73,7 @@ fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actio
             AccountSection(state, actions)
             NetworkSection(state, info, actions)
             BrowserSection(info.searchEngine, actions.onSearchEngine)
-            SecuritySection(actions)
+            SecuritySection(info.hasPhrase, actions)
             AboutSection(info)
         }
     }
@@ -130,8 +134,9 @@ private fun NetworkSection(state: SessionState, info: SettingsInfo, actions: Set
 }
 
 @Composable
-private fun SecuritySection(actions: SettingsActions) = Section("Security") {
+private fun SecuritySection(hasPhrase: Boolean, actions: SettingsActions) = Section("Security") {
     var confirmWipe by rememberSaveable { mutableStateOf(false) }
+    if (hasPhrase) TextButton(onClick = actions.onRevealPhrase) { Text("Show recovery phrase") }
     TextButton(onClick = actions.onLock) { Text("Lock wallet") }
     TextButton(onClick = { confirmWipe = true }) { Text("Remove wallet from this device", color = WalletTheme.colors.danger) }
     if (confirmWipe) {
@@ -150,6 +155,23 @@ private fun AboutSection(info: SettingsInfo) = Section("About") {
     Line("Azwall", info.appVersion)
     Line("Rust core", info.coreVersion)
     Line("Provers", info.releases.joinToString(", "))
+}
+
+/** Shows the recovery phrase once, until dismissed; no copy button: it is meant to be written down. */
+@Composable
+fun PhraseDialog(phrase: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Recovery phrase") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Anyone with these words controls every account of this wallet. Never share them.", color = WalletTheme.colors.danger)
+                PhraseGrid(phrase.split(' '))
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
+    )
 }
 
 /** Shows a revealed signing key once, until dismissed. */

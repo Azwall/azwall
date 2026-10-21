@@ -41,6 +41,7 @@ import dev.azwall.app.ui.send.TransferScreen
 import dev.azwall.core.wallet.TokenView
 import dev.azwall.app.ui.tokens.TokenStudioScreen
 import dev.azwall.app.ui.tokens.TokenStudioActions
+import dev.azwall.app.ui.settings.PhraseDialog
 import dev.azwall.app.ui.settings.SecretKeyDialog
 import dev.azwall.app.ui.settings.SettingsActions
 import dev.azwall.app.ui.settings.SettingsInfo
@@ -205,10 +206,11 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     val proverReady by vm.proverReady.collectAsStateWithLifecycle()
     val engine by vm.searchEngine.collectAsStateWithLifecycle()
     var revealed by remember { mutableStateOf<String?>(null) }
+    var phrase by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val info = remember(nodes, proverReady, state.network, engine) {
-        SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id, engine)
+        SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id, engine, vm.hasRecoveryPhrase)
     }
     val network = state.network.id
     SettingsScreen(state, info, busy, SettingsActions(
@@ -220,7 +222,9 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
         onLock = { vm.lock() },
         onWipe = { vm.wipe(auth("Remove the wallet")) },
         onSearchEngine = vm::chooseSearchEngine,
+        onRevealPhrase = { scope.launch { phrase = runCatching { vm.revealPhrase(auth("Show the recovery phrase")) }.getOrNull() } },
     ))
+    phrase?.let { PhraseDialog(it) { phrase = null } }
     revealed?.let { key -> SecretKeyDialog(key, onCopy = { copySecret(context, key) }, onDismiss = { revealed = null }) }
 }
 
