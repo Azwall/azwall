@@ -25,13 +25,6 @@ func shortAddress(_ address: String, keep: Int = 4) -> String {
     return "\(address.prefix(2 + keep))…\(address.suffix(keep))"
 }
 
-/// A 32-byte hex key as four lines of four 4-character groups, easy to copy by hand.
-func groupKey(_ key: String) -> String {
-    let body = Array(key.hasPrefix("0x") ? String(key.dropFirst(2)) : key)
-    let groups = stride(from: 0, to: body.count, by: 4).map { String(body[$0..<min($0 + 4, body.count)]) }
-    return stride(from: 0, to: groups.count, by: 4).map { groups[$0..<min($0 + 4, groups.count)].joined(separator: " ") }.joined(separator: "\n")
-}
-
 func activityTitle(_ item: ActivityItem) -> String {
     switch item.kind {
     case .deployAccount: "Account activated"

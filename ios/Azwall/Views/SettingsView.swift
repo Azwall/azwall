@@ -43,7 +43,7 @@ struct SettingsView: View {
             Button("Copy") { copySecret(key); revealed = nil }
             Button("Done", role: .cancel) { revealed = nil }
         } message: { key in
-            Text("Anyone with this key controls the account. Never share it.\n\n\(groupKey(key))")
+            Text("Anyone with this key controls the account. Never share it.\n\n\(key)")
         }
         .confirmationDialog("Remove this wallet?", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { Task { await model.wipe() } }

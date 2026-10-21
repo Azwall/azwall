@@ -24,6 +24,14 @@ struct RecoveryTests {
         #expect(Recovery.isSigningKey(key) && !Recovery.isSigningKey(TestPhrases.phrase))
     }
 
+    @Test func aKeyCopiedInGroupsOrWrappedIsTheSameKey() throws {
+        let body = Array(key.dropFirst(2))
+        let grouped = stride(from: 0, to: 64, by: 4).map { String(body[$0..<$0 + 4]) }.joined(separator: " ")
+        let wrapped = "  " + String(body[0..<32]) + "\n" + String(body[32...]) + "\n"
+        #expect(try Recovery.firstAccount(grouped, alias: "", backend: backend).0.signingKey == key)
+        #expect(try Recovery.firstAccount(wrapped, alias: "", backend: backend).0.signingKey == key)
+    }
+
     @Test func newAccountsFollowThePhraseInOrder() throws {
         let first = try Recovery.firstAccount(TestPhrases.phrase, alias: "", backend: backend).0
         let imported = try Recovery.nextAccount(VaultContents(accounts: [], dbKey: db), alias: "x", importedKey: key, backend: backend)

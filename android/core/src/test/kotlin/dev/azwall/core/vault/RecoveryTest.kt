@@ -42,6 +42,15 @@ class RecoveryTest {
     }
 
     @Test
+    fun aKeyCopiedInGroupsOrWrappedIsTheSameKey() {
+        val body = key.removePrefix("0x")
+        val grouped = body.chunked(4).joinToString(" ")
+        val wrapped = "  ${body.take(32)}\n${body.drop(32)}\n"
+        assertEquals(key, Recovery.firstAccount(grouped, "", backend).first.signingKey)
+        assertEquals(key, Recovery.firstAccount(wrapped, "", backend).first.signingKey)
+    }
+
+    @Test
     fun newAccountsFollowThePhraseInOrder() {
         val contents = VaultContents(
             accounts = listOf(Recovery.firstAccount(TestPhrases.PHRASE, "", backend).first, Recovery.nextAccount(VaultContents(accounts = emptyList(), dbKey = DB), "x", key, backend)),

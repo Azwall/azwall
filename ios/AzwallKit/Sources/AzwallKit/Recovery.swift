@@ -5,7 +5,8 @@ import Foundation
 public enum Recovery {
     /// True when the user gave a signing key rather than words.
     public static func isSigningKey(_ secret: String) -> Bool {
-        var body = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        // As parseSigningKey reads it, spaces inside dropped; words are never 64 hexadecimal characters together.
+        var body = secret.filter { !$0.isWhitespace }
         if body.hasPrefix("0x") { body.removeFirst(2) }
         return body.count == 64 && body.allSatisfy(Vault.isAsciiHex)
     }

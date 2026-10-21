@@ -11,7 +11,7 @@ object Recovery {
     private val HEX_KEY = Regex("^(0x)?[0-9a-fA-F]{64}$")
 
     /** True when the user gave a signing key rather than words. */
-    fun isSigningKey(secret: String): Boolean = HEX_KEY.matches(secret.trim())
+    fun isSigningKey(secret: String): Boolean = HEX_KEY.matches(secret.filterNot { it.isWhitespace() })
 
     /** The first account of a new wallet and the phrase to keep with it (null when started from a key). */
     fun firstAccount(secret: String, alias: String, backend: WalletBackend): Pair<AccountSecrets, String?> {

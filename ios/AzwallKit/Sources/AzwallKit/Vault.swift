@@ -108,7 +108,8 @@ public struct Vault: Sendable {
 
     /// Normalises a typed or pasted key; throws unless it is a non-zero Grumpkin scalar.
     public static func parseSigningKey(_ input: String) throws -> String {
-        var body = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // Spaces and line breaks inside are dropped: a key copied by hand in groups, or wrapped by a note app.
+        var body = input.filter { !$0.isWhitespace }.lowercased()
         if body.hasPrefix("0x") { body.removeFirst(2) }
         guard body.count == 64, body.allSatisfy(isAsciiHex) else { throw VaultError("a signing key is 64 hexadecimal characters") }
         // Same length, lowercase hex: string order is numeric order.

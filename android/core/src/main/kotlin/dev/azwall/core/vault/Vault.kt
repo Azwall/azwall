@@ -87,7 +87,8 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
 
         /** Normalises a signing key typed or pasted by the user; throws unless it is a non-zero Grumpkin scalar. */
         fun parseSigningKey(input: String): String {
-            val body = input.trim().removePrefix("0x").lowercase()
+            // Spaces and line breaks inside are dropped: a key copied by hand in groups, or wrapped by a note app.
+            val body = input.filterNot { it.isWhitespace() }.removePrefix("0x").lowercase()
             require(body.length == 64 && body.all { it in "0123456789abcdef" }) { "a signing key is 64 hexadecimal characters" }
             val value = java.math.BigInteger(body, 16)
             require(value.signum() > 0 && value < GRUMPKIN_ORDER) { "this is not a valid Aztec signing key" }
