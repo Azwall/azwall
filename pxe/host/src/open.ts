@@ -11,6 +11,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 import { installBbMemo } from './bb_memo';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
+import { describePool } from './pool';
 import { NativeKernelProver } from './prover';
 import { CachedStore, clearBroken, forgetRows, isMarkedBroken } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
@@ -155,6 +156,8 @@ async function openStores(bases: [string, string], dbKey: Uint8Array) {
       }
     },
   );
+  // Until the iOS write failures are understood: what each pool holds when the stores open.
+  for (const name of names()) log('open', `${name} pool: ${await describePool(name)}`);
   return { ...stores, names: names() };
 }
 

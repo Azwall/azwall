@@ -17,6 +17,7 @@ import sqlite3InitModule from '@aztec/sqlite3mc-wasm';
 import type { AztecSQLiteOPFSStore } from '@aztec/kv-store/sqlite-opfs';
 
 import { log } from './log';
+import { describePool } from './pool';
 
 // Same schema as the sqlite-opfs worker of the kv-store of the Aztec version this host is built for.
 const SCHEMA_SQL = `
@@ -276,6 +277,7 @@ export class CachedStore {
     const name = this.stats.name;
     const ask = (sql: string) => this.diskAll(sql).then(r => JSON.stringify(r).slice(0, 200), e => `error: ${e instanceof Error ? e.message : e}`);
     log('store', `${name}: after the refused write: journal_mode ${await ask('PRAGMA journal_mode')}, quick_check ${await ask('PRAGMA quick_check')}, page_count ${await ask('PRAGMA page_count')}`, 'warn');
+    log('store', `${name}: pool files: ${await describePool(name)}`, 'warn');
     log('store', `${name}: trying again with a DELETE journal: ${await ask('PRAGMA journal_mode = DELETE')}`, 'warn');
     await this.flush();
     if (this.#pending.length) return;
