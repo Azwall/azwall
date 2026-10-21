@@ -283,6 +283,15 @@ function rememberRows(name: string, rows: number): void {
   }
 }
 
+/** Forgets a discarded store's row count, so its empty successor is not reported as a reset. */
+export function forgetRows(name: string): void {
+  try {
+    localStorage.removeItem(rowsKey(name));
+  } catch {
+    // diagnostics only
+  }
+}
+
 /** Reports loudly a store that comes back empty after holding data: something wiped or detached it. */
 function checkNotReset(name: string, loaded: number): void {
   let before = 0;

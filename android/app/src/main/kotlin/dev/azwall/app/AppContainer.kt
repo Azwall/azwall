@@ -1,6 +1,10 @@
 package dev.azwall.app
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import dev.azwall.core.AzwallRuntime
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.KeystoreSecretBox
@@ -51,5 +55,10 @@ class AppContainer(context: Context) : AppDeps {
         box.deleteKey()
         storeDir.deleteRecursively()
         prefs.edit().clear().apply()
+        // The PXE stores (encrypted with the vault's store key, useless without it) and the browser's sites data.
+        Handler(Looper.getMainLooper()).post {
+            WebStorage.getInstance().deleteAllData()
+            CookieManager.getInstance().removeAllCookies(null)
+        }
     }
 }

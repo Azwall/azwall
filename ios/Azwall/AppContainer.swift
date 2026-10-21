@@ -2,6 +2,7 @@ import AzwallKit
 import AzwallPlatform
 import AzwallRust
 import Foundation
+import WebKit
 
 /// The platform side of the app: Rust core, Keychain vault, PXE hosts in hidden web views.
 final class AppContainer: AppDependencies, @unchecked Sendable {
@@ -43,6 +44,12 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
         try vault.wipe()
         try? FileManager.default.removeItem(at: storeDirectory)
         UserDefaults.standard.removeObject(forKey: "azwall.network")
+        // The PXE stores (encrypted with the vault's store key, useless without it) and the browser's sites data.
+        Task { @MainActor in
+            let all = WKWebsiteDataStore.allWebsiteDataTypes()
+            await WKWebsiteDataStore.default().removeData(ofTypes: all, modifiedSince: .distantPast)
+            await BrowserTabs.dataStore.removeData(ofTypes: all, modifiedSince: .distantPast)
+        }
     }
 }
 

@@ -1,17 +1,17 @@
 // Opens the PXE for one network: node client, compatibility check, encrypted stores, native prover.
 import type { AztecNode } from '@aztec/aztec.js/node';
 import { createLogger } from '@aztec/foundation/log';
-import { storePoolDirectory } from '@aztec/kv-store/sqlite-opfs';
+import { deletePoolDirectory, storePoolDirectory } from '@aztec/kv-store/sqlite-opfs';
 import { getVKTreeRoot } from '@aztec/noir-protocol-circuits-types/vk-tree';
 import { protocolContractsHash } from '@aztec/protocol-contracts';
 import { WASMSimulator } from '@aztec/simulator/client';
-import { openEncryptedEmbeddedStores } from '@aztec/wallets/embedded/store-encryption';
+import { EmbeddedWalletEncryptionError, openEncryptedEmbeddedStores } from '@aztec/wallets/embedded/store-encryption';
 import type { Bridge } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
 import { log } from './log';
 import { NativeKernelProver } from './prover';
-import { CachedStore } from './store';
+import { CachedStore, forgetRows } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
 import { nodeClient } from './version';
 
@@ -62,6 +62,22 @@ export function compatibilityProblems(check: Omit<NetworkCheck, 'blockNumber'>, 
   return problems;
 }
 
+/**
+ * Opens the encrypted stores. Stores that the vault's key cannot decrypt were left by another wallet (the user
+ * removed theirs and created or restored one: a new key): unreadable for good, they are discarded and the PXE
+ * starts over, syncing from the chain again.
+ */
+export async function startOverOnOtherKey<T>(open: () => Promise<T>, discard: () => Promise<void>): Promise<T> {
+  try {
+    return await open();
+  } catch (err) {
+    if (!(err instanceof EmbeddedWalletEncryptionError)) throw err;
+    log('open', `the ${err.storeName} store belongs to another wallet (another key): starting over with empty stores`, 'warn');
+    await discard();
+    return open();
+  }
+}
+
 /** `dbKey`: 32-byte hex key of the encrypted stores, kept by the app's secure storage. */
 export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: Uint8Array) {
   installBbMemo();
@@ -71,15 +87,20 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   const { l1ContractAddresses } = await node.getNodeInfo();
   const suffix = `${check.l1ChainId}-${l1ContractAddresses.rollupAddress.toString().slice(2, 10)}`;
   const names = { pxe: `pxe-${suffix}`, wallet: `wallet-${suffix}` };
-  const { pxeStore, walletStore } = await openEncryptedEmbeddedStores(
+  const config = {
     // Each store needs its own OPFS pool; the default pool can only be held by one store at a time.
-    {
-      pxe: { name: names.pxe, poolDirectory: storePoolDirectory(names.pxe) },
-      wallet: { name: names.wallet, poolDirectory: storePoolDirectory(names.wallet) },
-    },
+    pxe: { name: names.pxe, poolDirectory: storePoolDirectory(names.pxe) },
+    wallet: { name: names.wallet, poolDirectory: storePoolDirectory(names.wallet) },
+  };
+  const { pxeStore, walletStore } = await startOverOnOtherKey(
     // The buffer is transferred to the SQLite worker (and detached), so hand out a fresh copy.
-    async () => dbKey.slice(),
-    createLogger('azwall:store'),
+    () => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store')),
+    async () => {
+      for (const name of [names.pxe, names.wallet]) {
+        await deletePoolDirectory(storePoolDirectory(name));
+        forgetRows(name);
+      }
+    },
   );
   const stores = [await CachedStore.wrap(pxeStore as never, names.pxe), await CachedStore.wrap(walletStore as never, names.wallet)];
   log('open', 'stores open; creating the PXE');
