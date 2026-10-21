@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +55,15 @@ data class TokenStudioActions(
  */
 @Composable
 fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioActions) {
+    var minting by rememberSaveable { mutableStateOf<String?>(null) }
+    val token = state.tokens.firstOrNull { it.info.address == minting }
+    if (token != null) {
+        MintScreen(token, busy, onBack = { minting = null }) { amount, private, to ->
+            actions.onMint(token, amount, private, to)
+            minting = null
+        }
+        return
+    }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
@@ -80,7 +88,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             CreateForm(busy, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
-            mine.forEach { CreatedToken(it, state.network.id, state.network.label, busy, actions.onMint) }
+            mine.forEach { CreatedToken(it, state.network.id, state.network.label, busy) { minting = it.info.address } }
         }
     }
 }
@@ -113,10 +121,7 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
 }
 
 @Composable
-private fun CreatedToken(token: TokenView, network: String, networkLabel: String, busy: Boolean, onMint: (TokenView, String, Boolean, String) -> Unit) = Panel {
-    var amount by rememberSaveable(token.info.address) { mutableStateOf("1000") }
-    var private by rememberSaveable(token.info.address) { mutableStateOf(true) }
-    var to by rememberSaveable(token.info.address) { mutableStateOf("") }
+private fun CreatedToken(token: TokenView, network: String, networkLabel: String, busy: Boolean, onMint: () -> Unit) = Panel {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             TokenBadge(token.info.symbol, token.info.address)
@@ -128,16 +133,13 @@ private fun CreatedToken(token: TokenView, network: String, networkLabel: String
             }
         }
         CopyAddress(token.info.address)
-        ShareToken(token, network, networkLabel)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, singleLine = true, modifier = Modifier.weight(1f))
-            FilterChip(selected = private, onClick = { private = !private }, label = { Text(if (private) "Private" else "Public") })
+            ShareToken(token, network, networkLabel)
+            Spacer(Modifier.weight(1f))
+            Button(onClick = onMint, enabled = !busy) { Text("Mint") }
         }
-        OutlinedTextField(to, { to = it.trim() }, label = { Text("To (empty: this account)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { onMint(token, amount, private, to) }, enabled = !busy && amount.isNotBlank()) { Text("Mint") }
     }
 }
-
 
 /** A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one. */
 @Composable

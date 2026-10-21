@@ -9,6 +9,7 @@ struct TokenStudioView: View {
     @State private var name = "Test Token"
     @State private var symbol = "TST"
     @State private var decimals = 6
+    @State private var minting: String?
 
     var body: some View {
         Form {
@@ -21,11 +22,16 @@ struct TokenStudioView: View {
                 createSection
                 let mine = session.tokens.filter { t in session.created.contains { $0.lowercased() == t.info.address.lowercased() } }
                 if !mine.isEmpty {
-                    Section("Your tokens") { ForEach(mine) { CreatedTokenRow(model: model, token: $0, network: session.network) } }
+                    Section("Your tokens") {
+                        ForEach(mine) { t in CreatedTokenRow(model: model, token: t, network: session.network) { minting = t.id } }
+                    }
                 }
             }
         }
         .navigationTitle("Create a token")
+        .navigationDestination(item: $minting) { address in
+            if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }
+        }
     }
 
     private var createSection: some View {
@@ -44,14 +50,12 @@ struct TokenStudioView: View {
     }
 }
 
-/// One token this account created: its balance, its address to share, and minting to anyone.
+/// One token this account created: its balance, its address to share, and the way to mint it.
 private struct CreatedTokenRow: View {
     let model: AppModel
     let token: TokenView
     let network: NetworkInfo
-    @State private var amount = "1000"
-    @State private var toPrivate = true
-    @State private var to = ""
+    let onMint: () -> Void
     @State private var sharing = false
 
     var body: some View {
@@ -65,26 +69,15 @@ private struct CreatedTokenRow: View {
                 }
             }
             CopyAddress(address: token.info.address)
-            // A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one.
-            Button("Share so others can add it") { sharing = true }.buttonStyle(.borderless)
+            // Borderless: in a Form, a plain button makes the whole row its tap target.
             HStack {
-                TextField("Amount", text: $amount).keyboardType(.decimalPad)
-                Toggle(toPrivate ? "Private" : "Public", isOn: $toPrivate).fixedSize()
+                // A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one.
+                Button("Share so others can add it") { sharing = true }.buttonStyle(.borderless)
+                Spacer()
+                Button("Mint", action: onMint).buttonStyle(.borderedProminent).disabled(model.busy)
             }
-            TextField("To (empty: this account)", text: $to).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
-            // Borderless: in a Form, a plain button makes the whole row its tap target (any tap on the token minted).
-            Button("Mint", action: mint).buttonStyle(.borderless).disabled(model.busy || amount.isEmpty)
         }
         .padding(.vertical, 4)
         .sheet(isPresented: $sharing) { ShareTokenSheet(token: token, network: network) }
-    }
-
-    private func mint() {
-        let info = token.info, amount = amount, toPrivate = toPrivate, to = to
-        Task {
-            await model.run(done: "Mint sent.") { session in
-                try await session.mint(token: info, amount: try Amounts.parse(amount, decimals: info.decimals), toPrivate: toPrivate, to: to)
-            }
-        }
     }
 }

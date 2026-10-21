@@ -87,7 +87,7 @@ fun TransferScreen(
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             ModeSelector(mode, publicSide) { publicSide = it }
             TokenPicker(tokens, tokenIndex) { tokenIndex = it }
-            if (mode == TransferMode.SEND) RecipientField(to, toError ?: scanNote, onScan = { scanning = true }) { to = it.trim(); scanNote = null }
+            if (mode == TransferMode.SEND) RecipientField("Recipient address", to, toError ?: scanNote, onScan = { scanning = true }) { to = it.trim(); scanNote = null }
             AmountField(amountText, token, available, amountError) { amountText = it }
             Text(explanation(kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -158,8 +158,9 @@ private fun actionLabel(kind: TransferKind): String = when (kind) {
     TransferKind.UNSHIELD -> "Make public"
 }
 
+/** A screen's title with a back arrow. */
 @Composable
-private fun Header(title: String, onBack: () -> Unit) {
+internal fun Header(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
         Text(title, style = MaterialTheme.typography.titleLarge)
@@ -201,13 +202,14 @@ private fun TokenPicker(tokens: List<TokenView>, selected: Int, onSelect: (Int) 
     }
 }
 
+/** An address to type, paste or scan; it wraps, so the whole address shows. */
 @Composable
-private fun RecipientField(value: String, error: String?, onScan: () -> Unit, onChange: (String) -> Unit) {
+internal fun RecipientField(label: String, value: String, error: String?, onScan: () -> Unit, onChange: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text("Recipient address") },
+        label = { Text(label) },
         textStyle = MonoStyle,
         isError = error != null,
         supportingText = { error?.let { Text(it) } },

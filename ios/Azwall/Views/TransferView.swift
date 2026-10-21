@@ -13,7 +13,6 @@ struct TransferView: View {
     @State private var publicSide = false
     @State private var to = ""
     @State private var amountText = ""
-    @State private var scanning = false
     @State private var scanNote: String?
     @State private var scanned: String?
 
@@ -83,19 +82,9 @@ struct TransferView: View {
     }
 
     private var recipientSection: some View {
-        Section {
-            HStack {
-                TextField("Recipient address", text: $to).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    // The note is about the scanned address: editing it to another one drops the note.
-                    .onChange(of: to) { if to != scanned { scanNote = nil } }
-                Button { scanning = true } label: { Image(systemName: "qrcode.viewfinder") }.buttonStyle(.borderless).accessibilityLabel("Scan a QR code")
-                Button { to = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? to } label: { Image(systemName: "doc.on.clipboard") }
-                    .buttonStyle(.borderless)
-            }
-            .fullScreenCover(isPresented: $scanning) { QrScanner(onResult: apply) }
-        } footer: {
-            if let note = recipientError ?? scanNote { Text(note).foregroundStyle(Palette.danger) }
-        }
+        RecipientSection(placeholder: "Recipient address", to: $to, note: recipientError ?? scanNote, onScan: apply)
+            // The note is about the scanned address: editing it to another one drops the note.
+            .onChange(of: to) { if to != scanned { scanNote = nil } }
     }
 
     private var amountSection: some View {
@@ -149,6 +138,31 @@ struct TransferView: View {
             scanNote = "This request is for \(network), not \(session.network.id): check before sending"
         } else if request.token != nil && index == nil {
             scanNote = "The requested token is not in your list: add it first"
+        }
+    }
+}
+
+/// An address to type, paste or scan; it wraps, so the whole address shows.
+struct RecipientSection: View {
+    let placeholder: String
+    @Binding var to: String
+    /// An error or a remark about a scanned code, shown under the field.
+    let note: String?
+    let onScan: (String) -> Void
+    @State private var scanning = false
+
+    var body: some View {
+        Section {
+            HStack {
+                TextField(placeholder, text: $to, axis: .vertical).lineLimit(1...3).font(.mono)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button { scanning = true } label: { Image(systemName: "qrcode.viewfinder") }.buttonStyle(.borderless).accessibilityLabel("Scan a QR code")
+                Button { to = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? to } label: { Image(systemName: "doc.on.clipboard") }
+                    .buttonStyle(.borderless).accessibilityLabel("Paste")
+            }
+            .fullScreenCover(isPresented: $scanning) { QrScanner(onResult: onScan) }
+        } footer: {
+            if let note { Text(note).foregroundStyle(Palette.danger) }
         }
     }
 }
