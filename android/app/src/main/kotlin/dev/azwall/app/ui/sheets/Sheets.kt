@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.QrCodeScanner
@@ -19,17 +20,19 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.PrimaryButton
@@ -106,7 +109,7 @@ fun AccountsSheet(
 @Composable
 private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
     var alias by rememberSaveable { mutableStateOf("Account $number") }
-    var key by rememberSaveable { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
     val keyError = key.takeIf { it.isNotBlank() }?.let { runCatching { Vault.parseSigningKey(it) }.exceptionOrNull()?.message }
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(alias, { alias = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -114,6 +117,7 @@ private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
             key,
             { key = it.trim() },
             label = { Text("Signing key to import (optional)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             isError = keyError != null,
             supportingText = { Text(keyError ?: "Leave empty to create a new account") },
             textStyle = MonoStyle,

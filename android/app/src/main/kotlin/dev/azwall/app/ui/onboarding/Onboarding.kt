@@ -9,11 +9,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -30,17 +31,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.Panel
-import dev.azwall.app.ui.groupKey
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.SecondaryButton
+import dev.azwall.app.ui.components.SecureWindow
+import dev.azwall.app.ui.groupKey
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.vault.Vault
@@ -51,7 +55,8 @@ private enum class Step { WELCOME, BACKUP, IMPORT }
 @Composable
 fun OnboardingFlow(busy: Boolean, onCreate: (signingKey: String, alias: String) -> Unit) {
     var step by rememberSaveable { mutableStateOf(Step.WELCOME) }
-    val newKey = rememberSaveable { Vault.newSigningKey() }
+    // Not saveable: the saved state may be written to disk, and a new key is as good if the process restarts.
+    val newKey = remember { Vault.newSigningKey() }
     when (step) {
         Step.WELCOME -> Welcome(onCreate = { step = Step.BACKUP }, onImport = { step = Step.IMPORT })
         Step.BACKUP -> Backup(newKey, busy, onBack = { step = Step.WELCOME }, onDone = { onCreate(newKey, "Account 1") })
@@ -99,6 +104,7 @@ private fun Feature(icon: ImageVector, title: String, body: String) {
 @Composable
 private fun Backup(key: String, busy: Boolean, onBack: () -> Unit, onDone: () -> Unit) = Screen(onBack) {
     var saved by rememberSaveable { mutableStateOf(false) }
+    SecureWindow()
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Back up your key", style = MaterialTheme.typography.headlineSmall)
         Text(
@@ -118,7 +124,8 @@ private fun Backup(key: String, busy: Boolean, onBack: () -> Unit, onDone: () ->
 
 @Composable
 private fun Import(busy: Boolean, onBack: () -> Unit, onImport: (String) -> Unit) = Screen(onBack) {
-    var input by rememberSaveable { mutableStateOf("") }
+    var input by remember { mutableStateOf("") }
+    SecureWindow()
     val error = input.takeIf { it.isNotBlank() }?.let { runCatching { Vault.parseSigningKey(it) }.exceptionOrNull()?.message }
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Import your key", style = MaterialTheme.typography.headlineSmall)
@@ -128,6 +135,8 @@ private fun Import(busy: Boolean, onBack: () -> Unit, onImport: (String) -> Unit
             onValueChange = { input = it.trim() },
             label = { Text("Signing key") },
             isError = error != null,
+            // A password field: keyboards neither learn nor suggest it.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             supportingText = { error?.let { Text(it) } },
             textStyle = MonoStyle,
             modifier = Modifier.fillMaxWidth(),

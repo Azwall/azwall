@@ -1,5 +1,12 @@
 import AzwallKit
 import Foundation
+import UIKit
+import UniformTypeIdentifiers
+
+/// Copies a secret to this device only (not to other devices through Universal Clipboard), for one minute.
+func copySecret(_ text: String) {
+    UIPasteboard.general.setItems([[UTType.plainText.identifier: text]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(60)])
+}
 
 /// `https://aztec.palmyr.io` → `aztec.palmyr.io`.
 func siteOf(_ origin: String) -> String {

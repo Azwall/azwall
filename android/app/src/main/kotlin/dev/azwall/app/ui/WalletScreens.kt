@@ -16,8 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +31,7 @@ import dev.azwall.app.ui.browser.MenuItem
 import dev.azwall.app.ui.browser.MainTab
 import dev.azwall.app.ui.browser.rememberBrowser
 import dev.azwall.app.ui.browser.ConnectionsSheet
+import dev.azwall.app.ui.components.copySecret
 import dev.azwall.app.ui.home.HomeActions
 import dev.azwall.app.ui.home.HomeScreen
 import dev.azwall.app.ui.receive.ReceiveScreen
@@ -206,7 +206,7 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     val engine by vm.searchEngine.collectAsStateWithLifecycle()
     var revealed by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val info = remember(nodes, proverReady, state.network, engine) {
         SettingsInfo(BuildConfig.VERSION_NAME, coreVersion(), releases(), nodes[state.network.id], proverReady == state.network.id, engine)
     }
@@ -221,7 +221,7 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
         onWipe = { vm.wipe(auth("Remove the wallet")) },
         onSearchEngine = vm::chooseSearchEngine,
     ))
-    revealed?.let { key -> SecretKeyDialog(key, onCopy = { clipboard.setText(AnnotatedString(key)) }, onDismiss = { revealed = null }) }
+    revealed?.let { key -> SecretKeyDialog(key, onCopy = { copySecret(context, key) }, onDismiss = { revealed = null }) }
 }
 
 private fun mint(vm: AppViewModel, token: TokenView, amount: String, private: Boolean, to: String) = vm.run("Mint sent.") { session ->

@@ -66,7 +66,8 @@ private struct BackupView: View {
             Text("Back up your key").font(.title.bold())
             Text("This key is your account. Write it down and keep it offline: anyone who has it controls your funds, and without it a lost phone means lost funds.")
                 .foregroundStyle(.secondary)
-            Card { Text(groupKey(key)).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
+            Card { Text(groupKey(key)).font(.system(.body, design: .monospaced)) }
+            Button("Copy for one minute") { copySecret(key) }
             Toggle("I wrote my key down somewhere safe", isOn: $saved)
             Spacer()
             Button(busy ? "Creating…" : "Create wallet", action: onDone).buttonStyle(PrimaryButtonStyle()).disabled(!saved || busy)

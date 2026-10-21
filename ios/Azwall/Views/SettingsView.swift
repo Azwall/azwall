@@ -7,6 +7,7 @@ struct SettingsView: View {
     let session: WalletSession
     @State private var name = ""
     @State private var revealed: String?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var confirmWipe = false
     @AppStorage(BrowserTabs.engineKey) private var engine = SearchEngine.default.rawValue
 
@@ -29,9 +30,11 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        // Leaving the app hides a revealed key: it must not wait on screen for whoever opens the app next.
+        .onChange(of: scenePhase) { if scenePhase != .active { revealed = nil } }
         .onAppear { name = session.account?.alias ?? "" }
         .alert("Secret key", isPresented: .constant(revealed != nil), presenting: revealed) { key in
-            Button("Copy") { UIPasteboard.general.string = key; revealed = nil }
+            Button("Copy") { copySecret(key); revealed = nil }
             Button("Done", role: .cancel) { revealed = nil }
         } message: { key in
             Text("Anyone with this key controls the account. Never share it.\n\n\(groupKey(key))")

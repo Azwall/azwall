@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.app.ui.theme.WalletTheme
@@ -164,5 +166,7 @@ fun SecretKeyDialog(key: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
         dismissButton = { TextButton(onClick = onCopy) { Text("Copy") } },
+        // The dialog has its own window: kept out of screenshots, recordings and the recent-apps thumbnail.
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
     )
 }
