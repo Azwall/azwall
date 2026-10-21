@@ -56,7 +56,7 @@ struct RootView: View {
 private struct PrivacyCover: View {
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "lock.shield").font(.system(size: 48)).foregroundStyle(Palette.accent)
+            Image("Logo").resizable().scaledToFit().frame(height: 96)
             Text("Azwall").font(.title2.bold())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

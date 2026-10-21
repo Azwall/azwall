@@ -57,7 +57,7 @@ struct ProvingView: View {
                     Circle().trim(from: 0, to: 0.28).stroke(Palette.privateFunds, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(spin ? 360 : 0))
                         .animation(.linear(duration: 1.4).repeatForever(autoreverses: false), value: spin)
-                    Image(systemName: "shield").font(.system(size: 32)).foregroundStyle(Palette.privateFunds)
+                    Image("Logo").resizable().scaledToFit().frame(width: 52, height: 52)
                 }
                 .frame(width: 96, height: 96)
                 Text("\(provingTitle(item.kind))…").font(.title2.bold())

@@ -8,15 +8,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -32,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.R
 import dev.azwall.app.ui.provingTitle
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.wallet.ProvingJob
@@ -92,6 +92,6 @@ private fun Spinner() {
             drawArc(color.copy(alpha = 0.15f), 0f, 360f, false, style = Stroke(6.dp.toPx()))
             drawArc(color, angle, 100f, false, style = Stroke(6.dp.toPx(), cap = StrokeCap.Round))
         }
-        Icon(Icons.Outlined.Shield, null, tint = color, modifier = Modifier.size(36.dp))
+        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.size(52.dp))
     }
 }
