@@ -29,6 +29,9 @@ public final class PxeHost {
         PxeLog.follow(await channel.events(), bundle: bundle)
         let webView = makeWebView(channel: channel, origin: "http://127.0.0.1:\(server.port)")
         box.webView = webView
+        #if canImport(UIKit)
+        OnScreen.attach(webView)
+        #endif
         webView.load(URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/pxe/\(bundle)/index.html")!))
         let host = PxeHost(bundle: bundle, channel: channel, webView: webView)
         do {
@@ -47,6 +50,9 @@ public final class PxeHost {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "azwall")
         webView.stopLoading()
         webView.loadHTMLString("", baseURL: nil)
+        #if canImport(UIKit)
+        OnScreen.detach(webView)
+        #endif
     }
 
     private static func server(for bundle: String, resources: URL) async throws -> BundleServer {
@@ -66,7 +72,7 @@ public final class PxeHost {
     private static func makeWebView(channel: PxeChannel, origin: String) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
-        // The PXE's web view is never on screen, and WebKit suspends an inactive page: its timers, workers and
+        // The PXE's web view is never seen (OnScreen), and WebKit suspends an inactive page: its timers, workers and
         // promise chains stop between native calls (creating the PXE never finished). Keep it scheduled.
         config.preferences.inactiveSchedulingPolicy = .none
         config.userContentController.add(MessageHandler(channel: channel, origin: origin), name: "azwall")
