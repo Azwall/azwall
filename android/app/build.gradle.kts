@@ -81,6 +81,9 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.zxing.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
     implementation(libs.compose.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
 

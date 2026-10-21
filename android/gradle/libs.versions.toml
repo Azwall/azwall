@@ -13,6 +13,7 @@ webkit = "1.17.1"
 biometric = "1.1.0"
 fragment = "1.9.1"
 zxing = "3.5.4"
+camerax = "1.6.2"
 iconsExtended = "1.7.8"
 
 [libraries]
@@ -34,6 +35,9 @@ androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 compose-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "iconsExtended" }
 
 [plugins]

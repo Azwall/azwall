@@ -128,6 +128,7 @@ private fun WalletRoutes(
             mode = if (route == Route.SEND) TransferMode.SEND else TransferMode.SHIELD,
             tokens = state.tokens,
             me = state.account?.address.orEmpty(),
+            network = state.network.id,
             busy = busy,
             onBack = home,
         ) { kind, token, to, amount ->

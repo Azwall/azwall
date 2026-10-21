@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
@@ -47,6 +48,7 @@ import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.PaymentRequest
 import dev.azwall.core.wallet.TokenView
 import java.math.BigInteger
 
@@ -60,6 +62,7 @@ fun TransferScreen(
     mode: TransferMode,
     tokens: List<TokenView>,
     me: String,
+    network: String,
     busy: Boolean,
     onBack: () -> Unit,
     onSubmit: (TransferKind, TokenView, String, BigInteger) -> Unit,
@@ -71,6 +74,8 @@ fun TransferScreen(
     }
     var to by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable { mutableStateOf("") }
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
     val token = tokens.getOrNull(tokenIndex) ?: return
     val kind = kindOf(mode, publicSide)
     val available = available(token, kind)
@@ -82,7 +87,7 @@ fun TransferScreen(
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             ModeSelector(mode, publicSide) { publicSide = it }
             TokenPicker(tokens, tokenIndex) { tokenIndex = it }
-            if (mode == TransferMode.SEND) RecipientField(to, toError) { to = it.trim() }
+            if (mode == TransferMode.SEND) RecipientField(to, toError ?: scanNote, onScan = { scanning = true }) { to = it.trim(); scanNote = null }
             AmountField(amountText, token, available, amountError) { amountText = it }
             Text(explanation(kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -90,6 +95,28 @@ fun TransferScreen(
         PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { onSubmit(kind, token, to, amount.getOrThrow()) }
         Spacer(Modifier.height(16.dp))
     }
+    if (scanning) QrScanner(onDismiss = { scanning = false }, onResult = { text ->
+        scanning = false
+        val scan = readScan(text, network, tokens)
+        scan.to?.let { to = it }
+        scan.tokenIndex?.let { tokenIndex = it }
+        scan.amount?.let { amountText = it }
+        scanNote = scan.note
+    })
+}
+
+/** What a scanned QR code fills in, and what to tell the user about it. */
+private data class Scan(val to: String? = null, val tokenIndex: Int? = null, val amount: String? = null, val note: String? = null)
+
+private fun readScan(text: String, network: String, tokens: List<TokenView>): Scan {
+    val request = PaymentRequest.parse(text) ?: return Scan(note = "This QR code is not an Aztec address")
+    val index = request.token?.let { t -> tokens.indexOfFirst { it.info.address.equals(t, ignoreCase = true) }.takeIf { it >= 0 } }
+    val note = when {
+        request.network != null && request.network != network -> "This request is for ${request.network}, not $network: check before sending"
+        request.token != null && index == null -> "The requested token is not in your list: add it first"
+        else -> null
+    }
+    return Scan(to = request.address, tokenIndex = index, amount = request.amount, note = note)
 }
 
 private fun kindOf(mode: TransferMode, publicSide: Boolean): TransferKind = when (mode) {
@@ -175,7 +202,7 @@ private fun TokenPicker(tokens: List<TokenView>, selected: Int, onSelect: (Int) 
 }
 
 @Composable
-private fun RecipientField(value: String, error: String?, onChange: (String) -> Unit) {
+private fun RecipientField(value: String, error: String?, onScan: () -> Unit, onChange: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     OutlinedTextField(
         value = value,
@@ -185,7 +212,10 @@ private fun RecipientField(value: String, error: String?, onChange: (String) -> 
         isError = error != null,
         supportingText = { error?.let { Text(it) } },
         trailingIcon = {
-            IconButton(onClick = { clipboard.getText()?.text?.let(onChange) }) { Icon(Icons.Outlined.ContentPaste, "Paste") }
+            Row {
+                IconButton(onClick = onScan) { Icon(Icons.Outlined.QrCodeScanner, "Scan a QR code") }
+                IconButton(onClick = { clipboard.getText()?.text?.let(onChange) }) { Icon(Icons.Outlined.ContentPaste, "Paste") }
+            }
         },
         modifier = Modifier.fillMaxWidth(),
     )
