@@ -84,16 +84,53 @@ extension WalletSession {
         Task { await confirm(sent, client) }
     }
 
-    private func confirm(_ sent: ActivityItem, _ client: PxeClient) async {
-        var done = sent
+    /// Follows a sent transaction to a block. A wait can end without the transaction failing (the app was
+    /// suspended, the host stopped, a timeout), so the outcome always comes from a receipt; with none, the item
+    /// stays as it is and `resume()` looks again on the next opening.
+    func confirm(_ sent: ActivityItem, _ client: PxeClient) async {
+        guard let hash = sent.txHash else { return }
+        let receipt: Receipt?
         do {
-            done.blockNumber = try await client.waitForTx(sent.txHash ?? "").blockNumber
-            done.status = .confirmed
+            receipt = try await client.waitForTx(hash)
+        } catch is CancellationError {
+            return
         } catch {
-            done.status = .failed
-            done.error = error.localizedDescription
+            receipt = try? await client.txReceipt(hash)
         }
+        guard let receipt, let done = Settlement.settle(sent, receipt) else { return }
         record(done)
         await refresh()
+    }
+
+    /// Looks again at transactions sent but not settled by a receipt (e.g. the app closed while waiting).
+    func resume(_ client: PxeClient) {
+        for item in store.unsettled() { Task { await confirm(item, client) } }
+    }
+}
+
+/// How a receipt settles a sent transaction.
+public enum Settlement {
+    /// Failures read from a receipt: final, never looked at again.
+    public static let reverted = "reverted on chain"
+    public static let dropped = "dropped by the network"
+
+    /// The item once `receipt` is known, or nil while the transaction is still pending.
+    public static func settle(_ item: ActivityItem, _ receipt: Receipt) -> ActivityItem? {
+        var done = item
+        switch receipt.settled {
+        case .pending: return nil
+        case .success:
+            done.status = .confirmed
+            done.blockNumber = receipt.blockNumber
+            done.error = nil
+        case .reverted:
+            done.status = .failed
+            done.blockNumber = receipt.blockNumber
+            done.error = reverted
+        case .dropped:
+            done.status = .failed
+            done.error = dropped
+        }
+        return done
     }
 }

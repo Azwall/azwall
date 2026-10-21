@@ -1,5 +1,6 @@
 import AzwallKit
 import Foundation
+import OSLog
 import WebKit
 
 /// Runs one PXE host bundle (`pxe/<bundle>/` in the app's resources) in a web view the user never sees.
@@ -25,6 +26,7 @@ public final class PxeHost {
         let box = WebViewBox()
         let channel = PxeChannel(send: { json in Task { @MainActor in box.deliver(json) } }, handlers: handlers)
         let events = await channel.events()
+        PxeLog.follow(await channel.events(), bundle: bundle)
         let webView = makeWebView(channel: channel)
         box.webView = webView
         webView.load(URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/pxe/\(bundle)/index.html")!))
@@ -109,5 +111,31 @@ private final class MessageHandler: NSObject, WKScriptMessageHandler {
         guard let json = message.body as? String else { return }
         let channel = channel
         Task { await channel.receive(json) }
+    }
+}
+
+/// The PXE host's `log` events in the system log (subsystem dev.azwall, category pxe), like logcat's AzwallPxe on
+/// Android. Debug builds also print them, so a console attached to the app (Xcode, devicectl) shows them.
+enum PxeLog {
+    private static let logger = Logger(subsystem: "dev.azwall", category: "pxe")
+
+    static func follow(_ events: AsyncStream<PxeEvent>, bundle: String) {
+        Task.detached {
+            for await event in events where event.name == "log" {
+                write(event.data, bundle: bundle)
+            }
+        }
+    }
+
+    private static func write(_ data: JSONValue, bundle: String) {
+        let text = "[\(bundle)] [\(data["scope"]?.stringValue ?? "host")] \(data["message"]?.stringValue ?? "\(data)")"
+        switch data["level"]?.stringValue {
+        case "error": logger.error("\(text, privacy: .public)")
+        case "warn": logger.warning("\(text, privacy: .public)")
+        default: logger.info("\(text, privacy: .public)")
+        }
+        #if DEBUG
+        print("AzwallPxe \(text)")
+        #endif
     }
 }

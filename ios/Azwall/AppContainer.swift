@@ -9,7 +9,8 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
     private var loaded: WalletBackend?
     let vault = Vault(storage: KeychainVaultStorage())
     let storeDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wallet")
-    var launcher: PxeLauncher { IosPxeLauncher(backend: { try self.backend() }) }
+    let approvals = DappApprovals()
+    var launcher: PxeLauncher { IosPxeLauncher(backend: { try self.backend() }, approve: approvals.handler) }
 
     var lastNetwork: String? {
         get { UserDefaults.standard.string(forKey: "azwall.network") }
@@ -39,6 +40,8 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
 /// Starts a network's PXE bundle and answers its `prove` calls with the Rust prover.
 struct IosPxeLauncher: PxeLauncher {
     let backend: @Sendable () throws -> WalletBackend
+    /// Answers the dApp gateway's `approve` calls (DappApprovals).
+    let approve: NativeHandler
 
     func launch(_ network: NetworkInfo) async throws -> RunningPxe {
         guard let resources = Bundle.main.resourceURL else { throw PxeError("no app resources") }
@@ -50,7 +53,7 @@ struct IosPxeLauncher: PxeLauncher {
             let response = try await Task.detached(priority: .userInitiated) { try backend().prove(networkId: id, request: request) }.value
             return .object(["response": .string(response.base64EncodedString())])
         }
-        let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: ["prove": prove])
+        let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: ["prove": prove, "approve": approve])
         return RunningHost(host: host)
     }
 }
@@ -62,6 +65,10 @@ private struct RunningHost: RunningPxe {
     init(host: PxeHost) {
         self.host = host
         client = PxeClient(caller: host.channel)
+    }
+
+    func events() async -> AsyncStream<PxeEvent> {
+        await host.channel.events()
     }
 
     func stop() async {

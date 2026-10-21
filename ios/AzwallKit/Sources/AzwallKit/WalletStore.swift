@@ -3,6 +3,8 @@ import Foundation
 public enum ActivityKind: String, Codable, Sendable {
     case deployAccount = "DEPLOY_ACCOUNT", sendPrivate = "SEND_PRIVATE", sendPublic = "SEND_PUBLIC"
     case shield = "SHIELD", unshield = "UNSHIELD", mint = "MINT", deployToken = "DEPLOY_TOKEN"
+    /// A transaction a dApp asked for; a private transfer received (read back from the chain).
+    case dapp = "DAPP", receive = "RECEIVE"
 }
 
 public enum ActivityStatus: String, Codable, Sendable {
@@ -25,6 +27,9 @@ public struct ActivityItem: Codable, Equatable, Identifiable, Sendable {
     public var counterparty: String?
     public var blockNumber: Int64?
     public var error: String?
+    /// dApp items: the site that asked for the transaction, and what it does (its first call).
+    public var origin: String?
+    public var summary: String?
 
     public init(id: String = UUID().uuidString, account: String, kind: ActivityKind, status: ActivityStatus = .proving, createdAt: Date = Date()) {
         self.id = id
@@ -38,6 +43,8 @@ public struct ActivityItem: Codable, Equatable, Identifiable, Sendable {
 private struct StoredNetwork: Codable {
     var tokens: [TokenInfo] = []
     var activity: [ActivityItem] = []
+    /// Found tokens the user chose not to follow: not suggested again. Optional: older files lack it.
+    var dismissed: [String]?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
@@ -66,6 +73,35 @@ public final class WalletStore: @unchecked Sendable {
 
     public func removeToken(_ address: String) {
         update { d in d.tokens.removeAll { $0.address.lowercased() == address.lowercased() } }
+    }
+
+    public var dismissed: [String] { lock.withLock { data.dismissed ?? [] } }
+
+    public func dismiss(_ address: String) {
+        update { d in
+            if !(d.dismissed ?? []).contains(address) { d.dismissed = (d.dismissed ?? []) + [address] }
+        }
+    }
+
+    /// Sent transactions without a settled outcome: still pending, or failed without a receipt saying so.
+    public func unsettled() -> [ActivityItem] {
+        lock.withLock {
+            data.activity.filter { item in
+                guard item.txHash != nil else { return false }
+                return item.status == .pending
+                    || item.status == .failed && item.error != Settlement.reverted && item.error != Settlement.dropped
+            }
+        }
+    }
+
+    /// Adds the items the store does not have yet (by id), in one write.
+    public func addMissing(_ items: [ActivityItem]) {
+        update { d in
+            let ids = Set(d.activity.map(\.id))
+            d.activity += items.filter { !ids.contains($0.id) }
+            d.activity.sort { $0.createdAt > $1.createdAt }
+            d.activity = Array(d.activity.prefix(Self.maxActivity))
+        }
     }
 
     /// Inserts or replaces the item with the same id; keeps the newest `maxActivity` items.

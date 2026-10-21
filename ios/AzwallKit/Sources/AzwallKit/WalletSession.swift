@@ -4,6 +4,8 @@ import Observation
 /// A running PXE host for one network.
 public protocol RunningPxe: Sendable {
     var client: PxeClient { get }
+    /// The host's events (logs, dApp messages…), from now on.
+    func events() async -> AsyncStream<PxeEvent>
     func stop() async
 }
 
@@ -41,8 +43,14 @@ public final class WalletSession {
     public private(set) var check: NetworkCheck?
     public private(set) var accounts: [AccountView] = []
     public private(set) var selected: String?
-    public private(set) var tokens: [TokenView] = []
-    public private(set) var activity: [ActivityItem] = []
+    public internal(set) var tokens: [TokenView] = []
+    public internal(set) var activity: [ActivityItem] = []
+    /// Tokens the account holds that are not followed yet, found among the contracts dApps registered.
+    public internal(set) var found: [FoundToken] = []
+    /// What runs in the background right now, for the status line (nil when idle).
+    public internal(set) var task: BackgroundTask?
+    /// The browser's link to the PXE host's dApp gateway.
+    public let dapps = DappLink()
     public private(set) var refreshing = false
     public private(set) var error: String?
     public private(set) var proving: ActivityItem?
@@ -56,6 +64,8 @@ public final class WalletSession {
     private var contents: VaultContents
     let store: WalletStore
     private var pxe: RunningPxe?
+    @ObservationIgnored private var eventLoop: Task<Void, Never>?
+    @ObservationIgnored var lastDiscovery: Date?
 
     public init(backend: WalletBackend, launcher: PxeLauncher, vault: Vault, contents: VaultContents, storeDirectory: URL, network: NetworkInfo) {
         self.backend = backend
@@ -64,6 +74,7 @@ public final class WalletSession {
         self.contents = contents
         self.network = network
         store = WalletStore(directory: storeDirectory, networkId: network.id)
+        dapps.session = self
     }
 
     var client: PxeClient {
@@ -81,12 +92,16 @@ public final class WalletSession {
         do {
             let running = try await launcher.launch(network)
             pxe = running
+            await listen(running)
             let params = try await Task.detached { try backend.pxeOpenParams(networkId: id) }.value
             check = try await running.client.open(networkParamsJSON: params, dbKey: contents.dbKey)
             var views: [AccountView] = []
             for secrets in contents.accounts { views.append(try await register(secrets)) }
             accounts = views
             selected = selected ?? views.first?.address
+            // The PXE store can start over (a pool damaged by a crash is set aside): register followed tokens again.
+            try? await running.client.registerTokens(store.tokens.map(\.address))
+            resume(running.client)
             phase = .ready
             await refresh()
         } catch {
@@ -98,6 +113,7 @@ public final class WalletSession {
     public func close() async {
         guard let running = pxe else { return }
         pxe = nil
+        eventLoop?.cancel()
         try? await running.client.close()
         await running.stop()
     }
@@ -106,16 +122,17 @@ public final class WalletSession {
         guard accounts.contains(where: { $0.address == address }) else { return }
         selected = address
         tokens = tokens.map { TokenView(info: $0.info, balance: nil) }
+        found = []
+        lastDiscovery = nil
         await refresh()
     }
 
     /// Re-reads deployment status, balances and history of the selected account.
     public func refresh() async {
-        guard let account, !refreshing else { return }
+        guard let account, !refreshing, let client = try? self.client else { return }
         refreshing = true
-        defer { refreshing = false }
+        task = .syncing(from: try? await client.syncStatus())
         do {
-            let client = try self.client
             let deployed = try await client.isDeployed(account.address)
             let followed = store.tokens
             let balances = deployed && !followed.isEmpty ? try await client.balances(owner: account.address, tokens: followed.map(\.address)) : []
@@ -125,6 +142,21 @@ public final class WalletSession {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+        refreshing = false
+        task = nil
+        // Independent of the balances: a token that cannot be read must not hide the others found.
+        if self.account?.deployed == true { await discover(owner: account.address) }
+    }
+
+    /// Routes the host's events for as long as it runs: dApp messages, sessions and transactions.
+    private func listen(_ running: RunningPxe) async {
+        let events = await running.events()
+        eventLoop = Task { [weak self] in
+            for await event in events {
+                guard let self else { return }
+                _ = self.dapps.handle(event)
+            }
         }
     }
 

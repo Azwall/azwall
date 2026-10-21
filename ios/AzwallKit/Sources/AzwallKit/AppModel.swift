@@ -7,6 +7,8 @@ public protocol AppDependencies: Sendable {
     func backend() throws -> WalletBackend
     var vault: Vault { get }
     var launcher: PxeLauncher { get }
+    /// dApp requests waiting for the user; the PXE hosts' `approve` calls land here.
+    @MainActor var approvals: DappApprovals { get }
     var storeDirectory: URL { get }
     var lastNetwork: String? { get nonmutating set }
     /// Asks for Face ID, Touch ID or the passcode (before revealing a key or wiping).
@@ -48,6 +50,8 @@ public final class AppModel {
         self.deps = deps
     }
 
+    public var approvals: DappApprovals { deps.approvals }
+
     public var session: WalletSession? {
         if case .unlocked(let s) = phase { return s }
         return nil
@@ -84,12 +88,15 @@ public final class AppModel {
 
     public func switchNetwork(_ id: String) async {
         guard let current = session, current.network.id != id, let contents else { return }
+        // The host that asked is going away: its pending requests cannot be answered.
+        deps.approvals.rejectAll()
         await current.close()
         deps.lastNetwork = id
         await start(contents)
     }
 
     public func lock() async {
+        deps.approvals.rejectAll()
         await session?.close()
         contents = nil
         phase = .locked

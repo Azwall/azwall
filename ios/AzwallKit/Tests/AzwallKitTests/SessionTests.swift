@@ -8,9 +8,15 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var deployed = false
     var failOpen: String?
     var sent: [JSONValue] = []
+    var calls: [(String, JSONValue)] = []
+    var waitError: String?
+    var receiptOutcome = "success"
+    var discovered = #"[{"address":"0xpal","name":"Palmyr USD","symbol":"PUSD","decimals":6,"private":"0","public":"5000000"}]"#
+    let (events, emit) = AsyncStream<PxeEvent>.makeStream()
 
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
         func p(_ k: String) -> String { params[k]?.stringValue ?? "" }
+        calls.append((method, params))
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
@@ -22,7 +28,15 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "deployAccount", "transfer":
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])
-        case "waitForTx": return .object(["txHash": .string(p("txHash")), "status": .string("proposed"), "blockNumber": .number(11)])
+        case "waitForTx":
+            if let waitError { throw PxeError(waitError) }
+            return .object(["txHash": .string(p("txHash")), "status": .string("proposed"), "blockNumber": .number(11)])
+        case "txReceipt":
+            return .object(["txHash": .string(p("txHash")), "status": .string("proposed"), "blockNumber": .number(12), "outcome": .string(receiptOutcome)])
+        case "discoverTokens":
+            let known = params["known"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            return known.contains("0xpal") ? .array([]) : try JSONValue.parse(discovered)
+        case "syncStatus": return .object(["syncedBlock": .number(10), "syncedAt": .number(1_000), "tip": .number(12)])
         default: return .null
         }
     }
@@ -30,12 +44,14 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
 
 struct FakeRunning: RunningPxe {
     let client: PxeClient
+    let pxe: FakePxe
+    func events() async -> AsyncStream<PxeEvent> { pxe.events }
     func stop() async {}
 }
 
 struct FakeLauncher: PxeLauncher {
     let pxe: FakePxe
-    func launch(_ network: NetworkInfo) async throws -> RunningPxe { FakeRunning(client: PxeClient(caller: pxe)) }
+    func launch(_ network: NetworkInfo) async throws -> RunningPxe { FakeRunning(client: PxeClient(caller: pxe), pxe: pxe) }
 }
 
 struct FakeBackend: WalletBackend {
@@ -51,10 +67,9 @@ struct FakeBackend: WalletBackend {
 struct SessionTests {
     let network = NetworkInfo(id: "testnet-v6", label: "Testnet", aztecVersion: "6.0.0-rc.3", barretenbergVersion: "6.0.0-rc.6", rpcHost: "node", pxeBundle: "v6", proverSupported: true)
 
-    func session(_ pxe: FakePxe) throws -> WalletSession {
+    func session(_ pxe: FakePxe, dir: URL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)) throws -> WalletSession {
         let vault = Vault(storage: MemoryStorage())
         let contents = try vault.create(first: AccountSecrets(alias: "main", signingKey: "0x" + String(repeating: "ab", count: 32), salt: Vault.zeroSalt))
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         return WalletSession(backend: FakeBackend(), launcher: FakeLauncher(pxe: pxe), vault: vault, contents: contents, storeDirectory: dir, network: network)
     }
 

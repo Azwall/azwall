@@ -29,10 +29,60 @@ public struct NetworkCheck: Codable, Equatable, Sendable {
     public let blockNumber: Int64
 }
 
+/// The node's statuses folded into what the app shows (pxe/<bundle>/src/wallet.ts `outcomeOf`).
+public enum TxOutcome: String, Codable, Sendable {
+    case pending, success, reverted, dropped
+}
+
 public struct Receipt: Codable, Equatable, Sendable {
     public let txHash: String
     public let status: String
     public let blockNumber: Int64?
+    /// Absent from hosts older than the outcome field: a receipt from a completed wait is a success.
+    public let outcome: TxOutcome?
+
+    public var settled: TxOutcome { outcome ?? .success }
+}
+
+/// Where the PXE stands: its last synced block (number, time in seconds) and the chain's tip.
+public struct SyncStatus: Codable, Equatable, Sendable {
+    public let syncedBlock: Int64
+    public let syncedAt: Int64
+    public let tip: Int64
+
+    public init(syncedBlock: Int64, syncedAt: Int64, tip: Int64) {
+        self.syncedBlock = syncedBlock
+        self.syncedAt = syncedAt
+        self.tip = tip
+    }
+
+    public var blocksBehind: Int64 { max(0, tip - syncedBlock) }
+}
+
+/// A token the account holds that the wallet does not follow yet (pxe/<bundle>/src/discover.ts).
+public struct FoundToken: Codable, Equatable, Identifiable, Sendable {
+    public let address: String
+    public let name: String
+    public let symbol: String
+    public let decimals: Int
+    public let `private`: String
+    public let `public`: String
+
+    public var id: String { address }
+    public var info: TokenInfo { TokenInfo(address: address, name: name, symbol: symbol, decimals: decimals) }
+    public var balance: TokenBalance { TokenBalance(token: address, private: self.private, public: self.public) }
+}
+
+/// One private token transfer of the account, read back from the chain (pxe/<bundle>/src/history.ts).
+public struct TokenMove: Codable, Equatable, Sendable {
+    public let token: String
+    public let txHash: String
+    public let block: Int64
+    /// Block time, in milliseconds (0 if unknown).
+    public let at: Int64
+    public let from: String
+    public let to: String
+    public let amount: String
 }
 
 public struct TokenInfo: Codable, Equatable, Hashable, Sendable {
@@ -103,6 +153,35 @@ public struct PxeClient: Sendable {
 
     public func waitForTx(_ txHash: String) async throws -> Receipt {
         try await typed("waitForTx", .object(["txHash": .string(txHash)]))
+    }
+
+    /// The receipt as it stands, without waiting.
+    public func txReceipt(_ txHash: String) async throws -> Receipt {
+        try await typed("txReceipt", .object(["txHash": .string(txHash)]))
+    }
+
+    public func syncStatus() async throws -> SyncStatus {
+        try await typed("syncStatus", .object([:]))
+    }
+
+    /// Registers followed tokens in the PXE again (its store can start over after a crash).
+    public func registerTokens(_ tokens: [String]) async throws {
+        _ = try await caller.call("registerTokens", .object(["tokens": .array(tokens.map { .string($0) })]))
+    }
+
+    /// Tokens registered in the PXE (by dApps too) outside `known`, that `owner` holds.
+    public func discoverTokens(owner: String, known: [String]) async throws -> [FoundToken] {
+        try await typed("discoverTokens", .object(["owner": .string(owner), "known": .array(known.map { .string($0) })]))
+    }
+
+    /// The private transfers of `owner` on `tokens`, as the PXE decrypts them from the chain.
+    public func tokenHistory(owner: String, tokens: [String]) async throws -> [TokenMove] {
+        try await typed("tokenHistory", .object(["owner": .string(owner), "tokens": .array(tokens.map { .string($0) })]))
+    }
+
+    /// An untyped call, for the dApp gateway's messages.
+    public func callRaw(_ method: String, _ params: JSONValue) async throws -> JSONValue {
+        try await caller.call(method, params)
     }
 
     public func tokenInfo(_ token: String, from: String) async throws -> TokenInfo {
