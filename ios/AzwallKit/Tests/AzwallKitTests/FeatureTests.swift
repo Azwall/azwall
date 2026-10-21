@@ -292,5 +292,6 @@ struct BrowsingTests {
     @Test func aDappTileShowsItsHostAndTheSameColourAsOnAndroid() {
         #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io/swap?x=1").host == "aztec.palmyr.io")
         #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io").tint == "ac675a")
+        #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io/swap").iconPath == "dapps/aztec.palmyr.io.png")
     }
 }

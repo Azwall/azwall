@@ -26,6 +26,10 @@ targets:
       - path: ../assets/pxe
         type: folder
         buildPhase: resources
+      # The start page's dApp icons (icons/dapps/<host>.png), shipped so that showing them asks nothing of those sites.
+      - path: ../icons/dapps
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: AzwallKit
         product: AzwallKit

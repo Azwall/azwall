@@ -20,6 +20,9 @@ public struct KnownDapp: Equatable, Identifiable, Sendable {
         return String(rest.prefix { $0 != "/" })
     }
 
+    /// The icon shipped with the app for this site (icons/dapps/<host>.png), drawn without asking the site.
+    public var iconPath: String { "dapps/\(host).png" }
+
     /// Six hex digits derived from the URL (FNV-1a), for a badge colour that is the same on every device.
     public var tint: String {
         let hash = url.utf8.reduce(UInt32(0x811c_9dc5)) { ($0 ^ UInt32($1)) &* 0x0100_0193 }

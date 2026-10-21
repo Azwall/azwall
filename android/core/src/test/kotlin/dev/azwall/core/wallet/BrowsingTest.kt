@@ -27,6 +27,7 @@ class BrowsingTest {
     @Test
     fun aDappTileShowsItsHost() {
         assertEquals("aztec.palmyr.io", KnownDapp("Palmyr", "https://aztec.palmyr.io/swap?x=1").host)
+        assertEquals("dapps/aztec.palmyr.io.png", KnownDapp("Palmyr", "https://aztec.palmyr.io/swap").iconPath)
         // The same on iOS (BrowsingTests): a dApp has one colour everywhere.
         assertEquals("ac675a", KnownDapp("Palmyr", "https://aztec.palmyr.io").tint)
     }

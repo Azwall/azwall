@@ -7,6 +7,9 @@ data class KnownDapp(val name: String, val url: String, val description: String 
     /** What a tile shows under the name: `aztec.palmyr.io`. */
     val host: String get() = url.substringAfter("://").substringBefore('/')
 
+    /** The icon shipped with the app for this site (icons/dapps/<host>.png), drawn without asking the site. */
+    val iconPath: String get() = "dapps/$host.png"
+
     /** Six hex digits derived from the URL (FNV-1a), for a badge colour that is the same on every device. */
     val tint: String get() = "%06x".format(fnv1a(url) and 0xFFFFFF)
 }

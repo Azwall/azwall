@@ -47,7 +47,7 @@ private struct DappTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TokenBadge(symbol: dapp.name, address: dapp.tint)
+            DappIcon(dapp: dapp)
             Text(dapp.name).font(.subheadline.weight(.semibold)).lineLimit(1)
             Text(dapp.description).font(.caption).foregroundStyle(.secondary).lineLimit(2, reservesSpace: true)
             Text(dapp.host).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -65,7 +65,7 @@ private struct ConnectedSite: View {
     var body: some View {
         let site = session.origin.replacingOccurrences(of: "https://", with: "")
         HStack(spacing: 12) {
-            TokenBadge(symbol: site, address: KnownDapp(name: "", url: session.origin).tint, size: 32)
+            DappIcon(dapp: KnownDapp(name: site, url: session.origin), size: 32)
             VStack(alignment: .leading) {
                 Text(site).font(.subheadline.weight(.semibold))
                 Text(session.emojis).font(.caption)
@@ -74,5 +74,19 @@ private struct ConnectedSite: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+    }
+}
+
+/// The site's icon shipped in the app bundle, or a drawn badge for sites without one.
+private struct DappIcon: View {
+    let dapp: KnownDapp
+    var size: CGFloat = 40
+
+    var body: some View {
+        if let path = Bundle.main.path(forResource: dapp.iconPath, ofType: nil), let image = UIImage(contentsOfFile: path) {
+            Image(uiImage: image).resizable().scaledToFit().frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            TokenBadge(symbol: dapp.name, address: dapp.tint, size: size)
+        }
     }
 }

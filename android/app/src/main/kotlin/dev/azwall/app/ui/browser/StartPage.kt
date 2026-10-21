@@ -1,5 +1,7 @@
 package dev.azwall.app.ui.browser
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,14 +10,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.components.TokenBadge
@@ -56,7 +64,7 @@ fun StartPage(networkLabel: String, dapps: List<KnownDapp>, sessions: List<DappS
 @Composable
 private fun DappTile(dapp: KnownDapp, modifier: Modifier, onClick: () -> Unit) = Panel(modifier.clip(MaterialTheme.shapes.large).clickable(onClick = onClick)) {
     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TokenBadge(dapp.name, dapp.tint)
+        DappIcon(dapp)
         Text(dapp.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(dapp.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 2, maxLines = 2)
         Text(dapp.host, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -66,10 +74,20 @@ private fun DappTile(dapp: KnownDapp, modifier: Modifier, onClick: () -> Unit) =
 @Composable
 private fun ConnectedSite(session: DappSession, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).padding(vertical = 8.dp)) {
-        TokenBadge(siteOf(session.origin), KnownDapp("", session.origin).tint, size = 32.dp)
+        DappIcon(KnownDapp(siteOf(session.origin), session.origin), 32.dp)
         Column(Modifier.padding(start = 12.dp)) {
             Text(siteOf(session.origin), style = MaterialTheme.typography.titleSmall)
             Text(session.emojis, style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+/** The site's icon shipped in the app's assets, or a drawn badge for sites without one. */
+@Composable
+private fun DappIcon(dapp: KnownDapp, size: Dp = 40.dp) {
+    val context = LocalContext.current
+    val icon = remember(dapp.iconPath) {
+        runCatching { context.assets.open(dapp.iconPath).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
+    }
+    if (icon == null) TokenBadge(dapp.name, dapp.tint, size) else Image(icon, null, Modifier.size(size).clip(RoundedCornerShape(10.dp)))
 }
