@@ -64,14 +64,27 @@ sequenceDiagram
 
 ## Safety
 
-- **Every transaction is approved.** Each `sendTx`, each `createAuthWit`, and any batch containing
-  one shows the origin and the calls (contract, function, kind) and waits for the user. Reads and
-  simulations are allowed once capabilities are granted.
-- **The origin comes from native code**, never from the page itself.
+- **Every transaction is approved.** Each `sendTx` and each `createAuthWit`, also inside a batch, shows
+  what will really run and waits for the user. A call names its function twice: a label the dApp
+  chooses and a selector, which is what runs. The wallet looks the selector up in the contract's
+  artifact, shows that function with its decoded arguments, and refuses a call whose label names
+  another function. A call to a contract the wallet does not know is marked unverified.
+- **A session belongs to one page.** The browser gives each page load a page id. A session and a
+  pending connection answer only the page and origin that opened them; when the tab loads another
+  page or closes, the gateway ends them and the app drops their pending requests. Another site
+  cannot take over a connection approved for a site.
+- **A session acts as one account.** The one selected when its capabilities were granted, even if
+  the user switches account later. Calls cannot act as another account of the wallet, and the
+  scopes they read are stripped of the other accounts. `getAddressBook` returns nothing, and methods
+  the protocol does not need are refused.
+- **Nothing before the emoji check.** Wallet messages wait until the user confirmed the emojis.
+- **The origin comes from native code**, never from the page itself, and leads every request
+  panel; what a page says about itself is shown as a claim below. A page can have one connection
+  prompt open at a time, and messages over 1 MB are dropped.
 - **Isolation.** The dApp runs in its own web view with no access to the wallet's code, files or
-  keys. The content script injected into the page is a pure relay and holds no keys. Navigation
-  stays within the dApp's origin; only HTTPS is allowed (plus `localhost` for development).
-- **Validation.** Arguments go untouched to the PXE, which validates them against Aztec's
+  keys. The content script injected into the page is a pure relay and holds no keys. Only HTTPS is
+  allowed (plus `localhost` for development), and no other scheme leaves the browser.
+- **Validation.** Arguments then go to the PXE, which validates them against Aztec's
   `WalletSchema`, as Aztec's own JSON-RPC server does.
 
 ## Several networks
@@ -98,5 +111,4 @@ with every transaction proven natively by the wallet:
 ## Still to do
 
 - Enforce capabilities call by call (per contract and function), and keep grants beyond a session.
-- Decode call arguments in approvals, not only function names and addresses.
-- Tabs, bookmarks and history in the dApp browser.
+- Bookmarks and history in the dApp browser.
