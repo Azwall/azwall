@@ -89,3 +89,13 @@ struct AutoLockTests {
         #expect(key == "0x" + String(repeating: "1", count: 64))
     }
 }
+
+struct ErrorsTests {
+    @Test func keepsTheFirstLineWithoutTheBridgePrefix() {
+        #expect(Errors.friendly("transfer: insufficient balance\n  at stack") == "insufficient balance")
+        #expect(Errors.friendly("open: node https://rpc.io/… is down") == "node https://rpc.io/… is down")
+        #expect(Errors.friendly("Timeout after 30 s\nmore") == "Timeout after 30 s")
+        #expect(Errors.friendly(nil) == "Something went wrong")
+        #expect(Errors.friendly("\nstack only") == "Something went wrong")
+    }
+}

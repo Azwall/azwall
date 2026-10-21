@@ -23,7 +23,7 @@ public struct PaymentRequest: Equatable, Sendable {
     }
 
     public static func isAddress(_ text: String) -> Bool {
-        text.count == 66 && text.hasPrefix("0x") && text.dropFirst(2).allSatisfy(\.isHexDigit)
+        text.count == 66 && text.hasPrefix("0x") && text.dropFirst(2).allSatisfy { $0.isASCII && $0.isHexDigit }
     }
 
     /// The request in `text`, or nil when it is neither an address nor an `aztec:` URI with one.
@@ -40,7 +40,7 @@ public struct PaymentRequest: Equatable, Sendable {
             let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
             if kv.count == 2 { params[kv[0].lowercased()] = kv[1].removingPercentEncoding ?? kv[1] }
         }
-        let amount = params["amount"].flatMap { $0.range(of: #"^\d+(\.\d+)?$"#, options: .regularExpression) != nil ? $0 : nil }
+        let amount = params["amount"].flatMap { $0.range(of: #"^[0-9]+(\.[0-9]+)?$"#, options: .regularExpression) != nil ? $0 : nil }
         let network = params["network"].flatMap { $0.isEmpty ? nil : $0 }
         return PaymentRequest(address: address, network: network, token: params["token"].flatMap { isAddress($0) ? $0 : nil }, amount: amount)
     }

@@ -1,13 +1,13 @@
 package dev.azwall.app.ui
 
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.Errors
 import dev.azwall.core.wallet.ActivityKind
 import dev.azwall.core.wallet.ActivityStatus
 import dev.azwall.core.wallet.BackgroundTask
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.Amounts
-import java.math.BigInteger
 
 /** `0x1b17…3d37`. */
 fun shortAddress(address: String, keep: Int = 4): String =
@@ -57,7 +57,8 @@ fun provingTitle(kind: ActivityKind): String = when (kind) {
 
 /** "−1.5 TST", "+10 TST" or null for transactions without an amount. */
 fun activityAmount(item: ActivityItem): String? {
-    val amount = item.amount?.let(::BigInteger) ?: return null
+    // Stored data: a damaged amount shows no amount rather than crashing the list.
+    val amount = item.amount?.toBigIntegerOrNull() ?: return null
     val text = "${Amounts.format(amount, item.decimals ?: 0)} ${item.symbol.orEmpty()}".trim()
     return when (item.kind) {
         ActivityKind.SEND_PRIVATE, ActivityKind.SEND_PUBLIC -> "−$text"
@@ -66,9 +67,11 @@ fun activityAmount(item: ActivityItem): String? {
     }
 }
 
+/** What Send and Shield say without any token: the same text on both apps. */
+const val NO_TOKENS = "Add a token in the wallet first: Send and Shield move the tokens you follow."
+
 /** Human-sized error text: the first line, without the method prefix the bridge adds. */
-fun friendlyError(message: String?): String =
-    message.orEmpty().lineSequence().firstOrNull().orEmpty().substringAfter(": ", message.orEmpty()).ifBlank { "Something went wrong" }
+fun friendlyError(message: String?): String = Errors.friendly(message)
 
 /** A 32-byte hex key as four lines of four 4-character groups, easy to copy by hand. */
 fun groupKey(key: String): String =

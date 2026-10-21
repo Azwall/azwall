@@ -44,7 +44,7 @@ struct TransferView: View {
 
     private var recipientError: String? {
         guard mode == .send, !to.isEmpty else { return nil }
-        if to.count != 66 || !to.hasPrefix("0x") || !to.dropFirst(2).allSatisfy(\.isHexDigit) { return "an Aztec address is 0x followed by 64 hexadecimal characters" }
+        if !PaymentRequest.isAddress(to) { return "an Aztec address is 0x followed by 64 hexadecimal characters" }
         return to.lowercased() == session.account?.address.lowercased() ? "this is your own address" : nil
     }
 
@@ -53,6 +53,15 @@ struct TransferView: View {
     }
 
     var body: some View {
+        if session.tokens.isEmpty {
+            ContentUnavailableView("No token yet", systemImage: "circle.dashed", description: Text(noTokens))
+                .navigationTitle(mode == .send ? "Send" : "Shield")
+        } else {
+            form
+        }
+    }
+
+    private var form: some View {
         Form {
             Picker("", selection: $publicSide) {
                 Text(mode == .send ? "Private" : "Make private").tag(mode == .shield)

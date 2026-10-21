@@ -17,9 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.ui.NO_TOKENS
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.theme.MonoStyle
@@ -55,7 +56,6 @@ import java.math.BigInteger
 /** Send moves funds to someone else; Shield moves the user's own funds between public and private. */
 enum class TransferMode { SEND, SHIELD }
 
-private val ADDRESS = Regex("^0x[0-9a-fA-F]{64}$")
 
 @Composable
 fun TransferScreen(
@@ -76,7 +76,7 @@ fun TransferScreen(
     var amountText by rememberSaveable { mutableStateOf("") }
     var scanning by rememberSaveable { mutableStateOf(false) }
     var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
-    val token = tokens.getOrNull(tokenIndex) ?: return
+    val token = tokens.getOrNull(tokenIndex) ?: return NoTokens(mode, onBack)
     val kind = kindOf(mode, publicSide)
     val available = available(token, kind)
     val amount = runCatching { Amounts.parse(amountText, token.info.decimals) }
@@ -139,7 +139,7 @@ private fun amountError(text: String, amount: Result<BigInteger>, available: Big
 
 private fun recipientError(to: String, me: String): String? = when {
     to.isEmpty() -> null
-    !ADDRESS.matches(to) -> "an Aztec address is 0x followed by 64 hexadecimal characters"
+    !PaymentRequest.isAddress(to) -> "an Aztec address is 0x followed by 64 hexadecimal characters"
     to.equals(me, ignoreCase = true) -> "this is your own address"
     else -> null
 }
@@ -239,4 +239,13 @@ private fun AmountField(value: String, token: TokenView, available: BigInteger, 
         },
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** Without any token there is nothing to move: say so, under the usual header. */
+@Composable
+private fun NoTokens(mode: TransferMode, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp)) {
+        Header(if (mode == TransferMode.SEND) "Send" else "Shield", onBack)
+        Text(NO_TOKENS, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 24.dp))
+    }
 }

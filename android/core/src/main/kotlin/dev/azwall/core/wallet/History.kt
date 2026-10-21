@@ -29,7 +29,7 @@ internal object History {
             else -> ActivityKind.RECEIVE
         }
         return ActivityItem(
-            id = "chain-${move.txHash}-${move.token}-${move.to}-${move.amount}",
+            id = "chain-$owner-${move.txHash}-${move.token}-${move.to}-${move.amount}",
             account = owner,
             kind = kind,
             status = ActivityStatus.CONFIRMED,

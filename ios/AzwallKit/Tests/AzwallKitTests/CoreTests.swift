@@ -34,6 +34,7 @@ struct AmountsTests {
     @Test func parsesHumanInput() throws {
         #expect(try Amounts.parse("1.5", decimals: 6) == "1500000")
         #expect(try Amounts.parse(" 1,5 ", decimals: 6) == "1500000")
+        #expect(try Amounts.parse("1.5\n", decimals: 6) == "1500000") // pasted with its line break, as on Android
         #expect(try Amounts.parse(".5", decimals: 6) == "500000")
         #expect(try Amounts.parse("1000000", decimals: 18) == "1" + String(repeating: "0", count: 24))
     }

@@ -3,6 +3,7 @@ package dev.azwall.core.wallet
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TokenMove
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -28,5 +29,16 @@ class HistoryTest {
         val recorded = ActivityItem("a", me, ActivityKind.DAPP, ActivityStatus.CONFIRMED, 1, txHash = "0xTX")
         assertEquals(emptyList<ActivityItem>(), History.items(me, listOf(move("0xalice", me)), listOf(pusd), listOf(recorded)))
         assertEquals(emptyList<ActivityItem>(), History.items(me, listOf(move(me, me, "0x9")), listOf(pusd), emptyList()))
+    }
+
+    @Test
+    fun aTransferBetweenTwoOwnAccountsShowsOnBoth() {
+        val transfer = move(me, "0xother")
+        val sent = History.items(me, listOf(transfer), listOf(pusd), emptyList()).single()
+        val received = History.items("0xother", listOf(transfer), listOf(pusd), emptyList()).single()
+        assertEquals(ActivityKind.SEND_PRIVATE, sent.kind)
+        assertEquals(ActivityKind.RECEIVE, received.kind)
+        // The store keeps one item per id across accounts: each side needs its own.
+        assertNotEquals(sent.id, received.id)
     }
 }

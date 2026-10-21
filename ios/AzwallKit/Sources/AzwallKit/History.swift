@@ -25,7 +25,7 @@ enum History {
         else if isZero(move.from) { kind = .mint }
         else { kind = .receive }
         var item = ActivityItem(
-            id: "chain-\(move.txHash)-\(move.token)-\(move.to)-\(move.amount)", account: owner, kind: kind, status: .confirmed,
+            id: "chain-\(owner)-\(move.txHash)-\(move.token)-\(move.to)-\(move.amount)", account: owner, kind: kind, status: .confirmed,
             createdAt: Date(timeIntervalSince1970: Double(move.at) / 1000),
         )
         item.txHash = move.txHash

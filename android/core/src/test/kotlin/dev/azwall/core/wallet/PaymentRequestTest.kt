@@ -26,6 +26,8 @@ class PaymentRequestTest {
         assertNull(PaymentRequest.parse("https://example.com"))
         assertNull(PaymentRequest.parse("aztec:0x12"))
         assertEquals(PaymentRequest(me), PaymentRequest.parse("aztec:$me?token=nope&amount=-3"))
+        // A crafted QR code must not crash the scanner: a bad escape is kept as text, then rejected as an amount.
+        assertEquals(PaymentRequest(me, "a+b"), PaymentRequest.parse("aztec:$me?network=a+b&amount=1%zz"))
     }
 
     @Test

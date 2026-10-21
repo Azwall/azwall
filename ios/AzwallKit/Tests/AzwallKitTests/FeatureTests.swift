@@ -178,6 +178,7 @@ struct SnapshotTests {
         let first = try SessionTests().session(pxe, dir: dir)
         await first.open()
         try await first.addToken("0xt")
+        first.choosePrimary("0xt")
         #expect(first.stale == false)
         // A new start, before the PXE answers: the snapshot of the last refresh, marked stale.
         let second = try SessionTests().session(pxe, dir: dir)
@@ -186,6 +187,7 @@ struct SnapshotTests {
         #expect(second.selected == "addr-abab")
         #expect(second.account?.deployed == true)
         #expect(second.tokens.first?.balance?.private == "2500000")
+        #expect(second.primary == "0xt", "the top token too, as on Android")
     }
 }
 
@@ -249,6 +251,16 @@ struct HistoryAndStatusTests {
         #expect(History.items(owner: "0xme", moves: [move("0xme", "0xme", tx: "0x9")], tokens: [pusd], known: []).isEmpty)
     }
 
+    @Test func aTransferBetweenTwoOwnAccountsShowsOnBoth() {
+        let transfer = move("0xme", "0xother")
+        let sent = History.items(owner: "0xme", moves: [transfer], tokens: [pusd], known: [])
+        let received = History.items(owner: "0xother", moves: [transfer], tokens: [pusd], known: [])
+        #expect(sent.map(\.kind) == [.sendPrivate])
+        #expect(received.map(\.kind) == [.receive])
+        // The store keeps one item per id across accounts: each side needs its own.
+        #expect(sent.first?.id != received.first?.id)
+    }
+
     @Test func statusTextSaysWhatRuns() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let late = SyncStatus(syncedBlock: 7_341, syncedAt: 1_000_000 - 36 * 3600, tip: 8_581)
@@ -280,6 +292,8 @@ struct PaymentRequestTests {
         #expect(PaymentRequest.parse("https://example.com") == nil)
         #expect(PaymentRequest.parse("aztec:0x12") == nil)
         #expect(PaymentRequest.parse("aztec:\(me)?token=nope&amount=-3") == PaymentRequest(address: me))
+        #expect(PaymentRequest.parse("aztec:\(me)?network=a+b&amount=1%zz") == PaymentRequest(address: me, network: "a+b"))
+        #expect(PaymentRequest.parse("aztec:\(me)?amount=١٢") == PaymentRequest(address: me)) // Arabic-Indic digits
     }
 
     @Test func aSharedTokenIsItsAddressWithTheNetwork() throws {

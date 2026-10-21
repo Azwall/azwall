@@ -29,6 +29,8 @@ extension WalletSession {
         selected = first.address
         tokens = store.tokens.map { info in TokenView(info: info, balance: first.balances.first { $0.token.lowercased() == info.address.lowercased() }) }
         activity = store.activity(account: first.address)
+        primary = store.primary(account: first.address)
+        created = store.created(account: first.address)
         stale = true
     }
 

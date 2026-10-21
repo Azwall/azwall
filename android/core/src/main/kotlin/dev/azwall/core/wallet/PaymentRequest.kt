@@ -20,6 +20,9 @@ data class PaymentRequest(val address: String, val network: String? = null, val 
 
         fun isAddress(text: String): Boolean = ADDRESS.matches(text)
 
+        /** Percent-decoding only (a `+` stays a `+`, as on iOS); malformed escapes leave the text as it was. */
+        private fun percentDecoded(v: String): String = runCatching { URLDecoder.decode(v.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(v)
+
         /** The request in [text], or null when it is neither an address nor an `aztec:` URI with one. */
         fun parse(text: String): PaymentRequest? {
             val trimmed = text.trim()
@@ -30,7 +33,7 @@ data class PaymentRequest(val address: String, val network: String? = null, val 
             if (!isAddress(address)) return null
             val params = rest.substringAfter('?', "").split('&').filter { '=' in it }.associate { pair ->
                 val (k, v) = pair.split('=', limit = 2)
-                k.lowercase() to URLDecoder.decode(v, Charsets.UTF_8)
+                k.lowercase() to percentDecoded(v)
             }
             val token = params["token"]?.takeIf(::isAddress)
             val amount = params["amount"]?.takeIf { it.matches(Regex("^\\d+(\\.\\d+)?$")) }

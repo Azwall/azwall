@@ -71,9 +71,8 @@ func activityAmount(_ item: ActivityItem) -> String? {
     }
 }
 
+/// What Send and Shield say without any token: the same text on both apps.
+let noTokens = "Add a token in the wallet first: Send and Shield move the tokens you follow."
+
 /// The first line of an error, without the method prefix the bridge adds.
-func friendlyError(_ message: String?) -> String {
-    let line = message?.split(separator: "\n").first.map(String.init) ?? ""
-    let trimmed = line.split(separator: ":", maxSplits: 1).last.map { $0.trimmingCharacters(in: .whitespaces) } ?? line
-    return trimmed.isEmpty ? "Something went wrong" : trimmed
-}
+func friendlyError(_ message: String?) -> String { Errors.friendly(message) }
