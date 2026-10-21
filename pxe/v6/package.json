@@ -4,9 +4,10 @@
   "description": "PXE host for Aztec 6.0.0-rc.3 (testnet v6)",
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build -c vite.content-script.config.ts",
-    "test": "vitest run",
-    "typecheck": "tsc -p ."
+    "sync": "node ../scripts/sync-host.mjs",
+    "build": "node ../scripts/sync-host.mjs && vite build && vite build -c vite.content-script.config.ts",
+    "test": "node ../scripts/sync-host.mjs && vitest run",
+    "typecheck": "node ../scripts/sync-host.mjs && tsc -p ."
   },
   "dependencies": {
     "@azwall/pxe-shared": "workspace:*",
@@ -37,5 +38,14 @@
     "vite": "8.3.4",
     "vite-plugin-node-polyfills": "0.28.0",
     "vitest": "5.0.5"
+  },
+  "azwallHost": {
+    "imports": {
+      "@aztec/bb.js": "@aztec-foundation/bb.js",
+      "@aztec/noir-acvm_js": "@aztec-foundation/noir-acvm_js",
+      "@aztec/noir-noirc_abi": "@aztec-foundation/noir-noirc_abi",
+      "@aztec/noir-noir_js": "@aztec-foundation/noir-noir_js",
+      "@aztec/": "@aztec-labs/"
+    }
   }
 }

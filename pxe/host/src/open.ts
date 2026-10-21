@@ -1,11 +1,11 @@
 // Opens the PXE for one network: node client, compatibility check, encrypted stores, native prover.
-import { createAztecNodeClient, type AztecNode } from '@aztec-labs/aztec.js/node';
-import { createLogger } from '@aztec-labs/foundation/log';
-import { storePoolDirectory } from '@aztec-labs/kv-store/sqlite-opfs';
-import { getVKTreeRoot } from '@aztec-labs/noir-protocol-circuits-types/vk-tree';
-import { protocolContractsHash } from '@aztec-labs/protocol-contracts';
-import { WASMSimulator } from '@aztec-labs/simulator/client';
-import { openEncryptedEmbeddedStores } from '@aztec-labs/wallets/embedded/store-encryption';
+import type { AztecNode } from '@aztec/aztec.js/node';
+import { createLogger } from '@aztec/foundation/log';
+import { storePoolDirectory } from '@aztec/kv-store/sqlite-opfs';
+import { getVKTreeRoot } from '@aztec/noir-protocol-circuits-types/vk-tree';
+import { protocolContractsHash } from '@aztec/protocol-contracts';
+import { WASMSimulator } from '@aztec/simulator/client';
+import { openEncryptedEmbeddedStores } from '@aztec/wallets/embedded/store-encryption';
 import type { Bridge } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
@@ -13,6 +13,7 @@ import { log } from './log';
 import { NativeKernelProver } from './prover';
 import { CachedStore } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
+import { nodeClient } from './version';
 
 /** What the app passes to `open`: a network of networks.json with its resolved RPC URL. */
 export type NetworkParams = {
@@ -64,7 +65,7 @@ export function compatibilityProblems(check: Omit<NetworkCheck, 'blockNumber'>, 
 /** `dbKey`: 32-byte hex key of the encrypted stores, kept by the app's secure storage. */
 export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: Uint8Array) {
   installBbMemo();
-  const node = createAztecNodeClient(network.rpcUrl, { maxBatchSize: network.rpcMaxBatch });
+  const node = nodeClient(network.rpcUrl, network.rpcMaxBatch);
   const check = await checkNetwork(node, network);
   log('open', `node ${check.nodeVersion} is compatible; opening the encrypted stores`);
   const { l1ContractAddresses } = await node.getNodeInfo();

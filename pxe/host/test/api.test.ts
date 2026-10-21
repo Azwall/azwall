@@ -5,26 +5,27 @@ import { Bridge } from '@azwall/pxe-shared';
 import { createHandlers } from '../src/api';
 import { compatibilityProblems, type NetworkParams } from '../src/open';
 import { addr } from '../src/token';
+import { AZTEC_VERSION } from '../src/version';
 
 const network: NetworkParams = {
-  id: 'testnet-v6',
+  id: 'testnet',
   rpcUrl: 'https://node.example',
   rpcMaxBatch: 3,
-  aztec: '6.0.0-rc.3',
+  aztec: AZTEC_VERSION,
   expected: { l1ChainId: 11155111, rollupVersion: 3409706519, vkTreeRoot: '0xaa', protocolContractsHash: '0xbb' },
 };
 
 const handlers = () => createHandlers(new Bridge({ send: () => {} }, {}));
 
 describe('compatibilityProblems', () => {
-  const ok = { nodeVersion: '6.0.0-rc.3', l1ChainId: 11155111, rollupVersion: 3409706519, vkTreeRoot: '0xaa', protocolContractsHash: '0xbb' };
+  const ok = { nodeVersion: AZTEC_VERSION, l1ChainId: 11155111, rollupVersion: 3409706519, vkTreeRoot: '0xaa', protocolContractsHash: '0xbb' };
 
   it('accepts a matching node and client', () => {
     expect(compatibilityProblems(ok, network)).toEqual([]);
   });
 
   it('lists every mismatch', () => {
-    const bad = { nodeVersion: '5.0.0', l1ChainId: 1, rollupVersion: 2, vkTreeRoot: '0x01', protocolContractsHash: '0x02' };
+    const bad = { nodeVersion: `${Number(AZTEC_VERSION.split('.')[0]) - 1}.0.0`, l1ChainId: 1, rollupVersion: 2, vkTreeRoot: '0x01', protocolContractsHash: '0x02' };
     expect(compatibilityProblems(bad, network)).toHaveLength(5);
   });
 });

@@ -1,13 +1,14 @@
-// Delegates the Chonk proof to the app's native prover (rust/azwall-prover, Barretenberg 6.0.0-rc.6).
+// Delegates the Chonk proof to the app's native prover (rust/azwall-prover, the network's Barretenberg release).
 // Kernel witness generation stays here, exactly as in the stock prover; only `createChonkProof` changes.
-import { serializeWitness } from '@aztec-foundation/noir-noirc_abi';
-import { BBLazyPrivateKernelProver } from '@aztec-labs/bb-prover/client/lazy';
-import type { CircuitSimulator } from '@aztec-labs/simulator/client';
-import type { PrivateExecutionStep } from '@aztec-labs/stdlib/kernel';
-import { ChonkProofWithPublicInputs } from '@aztec-labs/stdlib/proofs';
+import { serializeWitness } from '@aztec/noir-noirc_abi';
+import { BBLazyPrivateKernelProver } from '@aztec/bb-prover/client/lazy';
+import type { CircuitSimulator } from '@aztec/simulator/client';
+import type { PrivateExecutionStep } from '@aztec/stdlib/kernel';
+import { ChonkProofWithPublicInputs } from '@aztec/stdlib/proofs';
 import { type Bridge, decodeResponse, encodeRequest, fromBase64, toBase64 } from '@azwall/pxe-shared';
 
 import { log } from './log';
+import { stepKind } from './version';
 
 export class NativeKernelProver extends BBLazyPrivateKernelProver {
   constructor(
@@ -23,7 +24,7 @@ export class NativeKernelProver extends BBLazyPrivateKernelProver {
     // Bytecode as stored (gzipped) and serializeWitness output (gzipped): Rust inflates both.
     const request = encodeRequest(
       executionSteps.map(s => ({
-        kind: s.kind,
+        kind: stepKind(s),
         name: s.functionName,
         bytecode: s.bytecode,
         witness: serializeWitness(s.witness),

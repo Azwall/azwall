@@ -6,6 +6,7 @@ import { Bridge, detectNativePort, errorMessage } from '@azwall/pxe-shared';
 
 import { createHandlers } from './api';
 import { attachLog, log } from './log';
+import { AZTEC_VERSION } from './version';
 
 (globalThis as { Buffer?: typeof Buffer }).Buffer ??= Buffer;
 
@@ -16,8 +17,6 @@ declare global {
   // eslint-disable-next-line no-var
   var azwallHost: { aztec: string; receive(json: string): void } | undefined;
 }
-
-const AZTEC_VERSION = '5.1.0';
 
 // Outside the apps (desktop browser, tests) there is no native side: collect what would be sent to it.
 const outbox: string[] = ((globalThis as { azwallOutbox?: string[] }).azwallOutbox ??= []);

@@ -63,15 +63,24 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
      treat it as a new API);
    - new API: add `bbN = { package = "barretenberg-rs", version = "=<release>", … }` and a
      `bb-vN` feature to `rust/azwall-prover/Cargo.toml`, then `src/bindings/vN.rs`.
-3. `scripts/build-bb-android.sh <release> arm64-v8a x86_64`.
-4. `cargo test`: `registry_releases` fails if a network has no binding, `registry_file` if
+3. A PXE host: copy `pxe/v6` to `pxe/vN` (package name, Aztec dependencies, `src/version.ts`,
+   `azwallHost.imports` if the package names differ), add it to `pnpm-workspace.yaml`. The host's
+   code itself is shared (`pxe/host`); a version only adds what its API changed to `version.ts`.
+4. `scripts/build-bb-android.sh <release> arm64-v8a x86_64`.
+5. `cargo test`: `registry_releases` fails if a network has no binding, `registry_file` if
    `.env.example` lacks its key.
 
 ## The PXE host
 
 `pxe/` holds one JavaScript package per Aztec version (`pxe/v5`, `pxe/v6`), each built into
-`assets/pxe/<bundle>/` and run by the apps in a web view the user never sees. They share
-`pxe/shared`: the JSON message bridge, the proof framing and parameter validation.
+`assets/pxe/<bundle>/` and run by the apps in a web view the user never sees. The host's code is
+written once, in `pxe/host` (with the upstream `@aztec/…` package names); each version package
+holds only its `src/version.ts` (what differs: version constant, node client options, proving step
+kinds, ABI decoding), its dependencies and its Vite config. `pxe/scripts/sync-host.mjs` copies
+`pxe/host` into the package before every build, test or typecheck, renaming imports with the
+package's `azwallHost.imports` rules (`@aztec/` → `@aztec-labs/` for 6.x); the copies are not
+committed. All versions share `pxe/shared`: the JSON message bridge, the proof framing and
+parameter validation.
 
 | | Android | iOS |
 |---|---|---|

@@ -13,12 +13,12 @@
 // is always a prefix of the in-memory history (the PXE re-syncs whatever blocks it lost). Flushes run
 // shortly after each commit (debounced), when the page is hidden (Android pauses/freezes the WebView
 // right after), on pagehide, and before close. A flush failure is kept for retry and reported loudly.
-import sqlite3InitModule from '@aztec-labs/sqlite3mc-wasm';
-import type { AztecSQLiteOPFSStore } from '@aztec-labs/kv-store/sqlite-opfs';
+import sqlite3InitModule from '@aztec/sqlite3mc-wasm';
+import type { AztecSQLiteOPFSStore } from '@aztec/kv-store/sqlite-opfs';
 
 import { log } from './log';
 
-// Same schema as @aztec-labs/kv-store's sqlite-opfs worker (6.0.0-rc.3).
+// Same schema as the sqlite-opfs worker of the kv-store of the Aztec version this host is built for.
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS data (
     slot TEXT NOT NULL PRIMARY KEY,

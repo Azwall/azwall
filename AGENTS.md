@@ -11,13 +11,15 @@ multi-version design: [docs/architecture.md](docs/architecture.md).
   `scripts/check-limits.py` enforces both.
 - Match the surrounding style: doc comments on public items, comments explain *why*, not *what*.
 - Never edit generated code (`android/core/src/generated/`, `ios/AzwallRust/Sources/AzwallCoreFFI/generated/`,
-  `assets/`, `jniLibs/`, `build/`, `vendor/`): change the source (`rust/azwall-ffi`, `networks.json`, `.env`)
-  and rerun the scripts in `scripts/`.
+  `assets/`, `jniLibs/`, `build/`, `vendor/`, `pxe/v*/src` and `pxe/v*/test` except `src/version.ts`): change
+  the source (`rust/azwall-ffi`, `networks.json`, `.env`, `pxe/host`) and rerun the scripts in `scripts/`
+  (`pnpm build` in `pxe/` for the PXE hosts).
 
 ## Tests
 
 - Every change comes with tests: Rust unit tests next to the code and integration tests in
-  `rust/*/tests/`, JVM tests in `android/*/src/test/`, swift-testing in `ios/AzwallKit/Tests/`.
+  `rust/*/tests/`, JVM tests in `android/*/src/test/`, swift-testing in `ios/AzwallKit/Tests/`, vitest in
+  `pxe/host/test/` and `pxe/shared/test/`.
 - App logic depends on the `WalletBackend` interface so it is tested with fakes, never against the
   generated bindings.
 - Tests that need the network are `#[ignore]`d; run them with `LIVE=1 scripts/test-all.sh`.

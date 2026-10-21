@@ -4,9 +4,10 @@
   "description": "PXE host for Aztec 5.1.0 (testnet v5)",
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build -c vite.content-script.config.ts",
-    "test": "vitest run",
-    "typecheck": "tsc -p ."
+    "sync": "node ../scripts/sync-host.mjs",
+    "build": "node ../scripts/sync-host.mjs && vite build && vite build -c vite.content-script.config.ts",
+    "test": "node ../scripts/sync-host.mjs && vitest run",
+    "typecheck": "node ../scripts/sync-host.mjs && tsc -p ."
   },
   "dependencies": {
     "@aztec/accounts": "5.1.0",

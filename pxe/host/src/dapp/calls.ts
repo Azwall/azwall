@@ -2,7 +2,9 @@
 // dApp chooses, and `selector`, what runs. The wallet looks the selector up in the contract's artifact (registered in
 // the PXE), shows that function with its decoded arguments, and refuses a call whose label names another function.
 import { Fr } from '@aztec/aztec.js/fields';
-import { type AbiType, type ContractArtifact, decodeFromAbi, type FunctionAbi, FunctionSelector } from '@aztec/stdlib/abi';
+import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector } from '@aztec/stdlib/abi';
+
+import { decodeStruct } from '../version';
 
 /** The artifact of the contract at an address, if the PXE knows it. */
 export type ArtifactOf = (address: string) => Promise<ContractArtifact | undefined>;
@@ -56,8 +58,7 @@ export async function readCall(call: unknown, artifactOf: ArtifactOf): Promise<R
   try {
     // The parameters as one struct: decodes them in order, by name.
     const type = { kind: 'struct', path: fn.name, fields: fn.parameters.map(p => ({ name: p.name, type: p.type })) } as AbiType;
-    // Aztec 5 takes a list of types (one here); Aztec 6 a single type.
-    const values = decodeFromAbi([type], list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
+    const values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
     args = fn.parameters.map(p => `${p.name}: ${show(values[p.name])}`).join(', ');
   } catch {
     args = '…';

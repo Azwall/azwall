@@ -1,0 +1,4 @@
+# Generated from ../host by ../scripts/sync-host.mjs (see that script): edit pxe/host.
+/src/**/*.ts
+!/src/version.ts
+/test/
