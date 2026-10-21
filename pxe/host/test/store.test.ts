@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { clearBroken, isMarkedBroken, markBroken, retryDelay } from '../src/store';
+import { clearBroken, isMarkedBroken, journalMode, markBroken, retryDelay, useDeleteJournal } from '../src/store';
 
 /** The tests run without a browser: a minimal localStorage. */
 const items = new Map<string, string>();
@@ -23,5 +23,12 @@ describe('store', () => {
     expect(isMarkedBroken('pxe-x')).toBe(true);
     clearBroken('pxe-x');
     expect(isMarkedBroken('pxe-x')).toBe(false);
+  });
+
+  it('keeps a persistent journal unless this device needed a DELETE one', () => {
+    expect(journalMode()).toBe('PERSIST');
+    useDeleteJournal();
+    expect(journalMode()).toBe('DELETE');
+    localStorage.removeItem('azwall:journal-delete');
   });
 });

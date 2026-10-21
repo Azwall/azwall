@@ -77,6 +77,8 @@ export class CachedStore {
   #timer: ReturnType<typeof setTimeout> | undefined;
   /** Failed flushes in a row, for the retry backoff. */
   #failures = 0;
+  /** Set once a write refused as "not a database" was tried again with a DELETE journal. */
+  #triedDeleteJournal = false;
   #closed = false;
   #pendingSince: number | undefined;
   readonly #bornAt = performance.now();
@@ -87,6 +89,7 @@ export class CachedStore {
     private readonly diskRun: (sql: string, bind?: Bind) => Promise<{ changes: number }>,
     private readonly diskTx: <T>(cb: () => Promise<T>) => Promise<T>,
     private readonly diskClose: () => Promise<void>,
+    private readonly diskAll: (sql: string) => Promise<unknown[][]>,
     name: string,
   ) {
     this.stats = {
@@ -114,7 +117,7 @@ export class CachedStore {
 
     const d = disk as any;
     const diskAll = d.allAsync.bind(disk) as (sql: string, bind?: Bind) => Promise<unknown[][]>;
-    const cache = new CachedStore(disk, mem, d.runAsync.bind(disk), d.transactionAsync.bind(disk), d.close.bind(disk), name);
+    const cache = new CachedStore(disk, mem, d.runAsync.bind(disk), d.transactionAsync.bind(disk), d.close.bind(disk), diskAll, name);
 
     // Load: one SELECT on the disk database, inserted into memory in one transaction.
     const t0 = performance.now();
@@ -247,9 +250,11 @@ export class CachedStore {
         this.stats.flushErrors++;
         this.stats.lastError = err instanceof Error ? err.message : String(err);
         log('store', `${this.stats.name}: flush of ${count} statements FAILED (kept for retry): ${this.stats.lastError}`, 'error');
+        const notADatabase = /SQLITE_NOTADB|SQLITE_CORRUPT|file is not a database/.test(this.stats.lastError);
+        if (notADatabase && !this.#triedDeleteJournal) return void this.#retryWithDeleteJournal();
         // The files cannot be written with this key (open.ts checks this at open, but not every page): the next
         // start discards them and syncs again rather than failing the same way forever.
-        if (/SQLITE_NOTADB|SQLITE_CORRUPT|file is not a database/.test(this.stats.lastError)) markBroken(this.stats.name);
+        if (notADatabase) markBroken(this.stats.name);
         // Nothing else may commit soon: try again on its own, backing off.
         const delay = retryDelay(this.#failures++);
         clearTimeout(this.#timer);
@@ -260,6 +265,23 @@ export class CachedStore {
       });
     return this.#flushing;
   }
+
+  /**
+   * iOS refused every write of fresh, healthy stores as "not a database" while reads and an open-time write worked:
+   * the persistent journal is the suspect. Logs what the disk reports, then writes again with a DELETE journal; if
+   * that works, this device keeps DELETE (see journalMode).
+   */
+  async #retryWithDeleteJournal(): Promise<void> {
+    this.#triedDeleteJournal = true;
+    const name = this.stats.name;
+    const ask = (sql: string) => this.diskAll(sql).then(r => JSON.stringify(r).slice(0, 200), e => `error: ${e instanceof Error ? e.message : e}`);
+    log('store', `${name}: after the refused write: journal_mode ${await ask('PRAGMA journal_mode')}, quick_check ${await ask('PRAGMA quick_check')}, page_count ${await ask('PRAGMA page_count')}`, 'warn');
+    log('store', `${name}: trying again with a DELETE journal: ${await ask('PRAGMA journal_mode = DELETE')}`, 'warn');
+    await this.flush();
+    if (this.#pending.length) return;
+    useDeleteJournal();
+    log('store', `${name}: writes work with a DELETE journal; this device keeps it`, 'warn');
+  }
 }
 
 /**
@@ -269,8 +291,28 @@ export class CachedStore {
  * stays, so a transaction only writes pages, which the journal protects.
  */
 async function keepJournal(diskAll: (sql: string) => Promise<unknown[][]>, name: string): Promise<void> {
-  const mode = await diskAll('PRAGMA journal_mode = PERSIST').catch(err => [[`error: ${err instanceof Error ? err.message : err}`]]);
-  if (String(mode[0]?.[0]).toLowerCase() !== 'persist') log('store', `${name}: journal mode is ${String(mode[0]?.[0])}, not persist`, 'warn');
+  const wanted = journalMode();
+  const mode = await diskAll(`PRAGMA journal_mode = ${wanted}`).catch(err => [[`error: ${err instanceof Error ? err.message : err}`]]);
+  if (String(mode[0]?.[0]).toUpperCase() !== wanted) log('store', `${name}: journal mode is ${String(mode[0]?.[0])}, not ${wanted}`, 'warn');
+}
+
+const DELETE_JOURNAL_KEY = 'azwall:journal-delete';
+
+/** PERSIST, unless this device refused writes with it and they worked in DELETE mode (retryWithDeleteJournal). */
+export function journalMode(): 'PERSIST' | 'DELETE' {
+  try {
+    return localStorage.getItem(DELETE_JOURNAL_KEY) === '1' ? 'DELETE' : 'PERSIST';
+  } catch {
+    return 'PERSIST';
+  }
+}
+
+export function useDeleteJournal(): void {
+  try {
+    localStorage.setItem(DELETE_JOURNAL_KEY, '1');
+  } catch {
+    // without localStorage, the next start tries PERSIST again and falls back again
+  }
 }
 
 /** Rows the store held at its last flush, per store name: a store found empty after holding data was reset. */
