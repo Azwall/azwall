@@ -72,7 +72,8 @@ private struct CreatedTokenRow: View {
                 Toggle(toPrivate ? "Private" : "Public", isOn: $toPrivate).fixedSize()
             }
             TextField("To (empty: this account)", text: $to).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
-            Button("Mint", action: mint).disabled(model.busy || amount.isEmpty)
+            // Borderless: in a Form, a plain button makes the whole row its tap target (any tap on the token minted).
+            Button("Mint", action: mint).buttonStyle(.borderless).disabled(model.busy || amount.isEmpty)
         }
         .padding(.vertical, 4)
         .sheet(isPresented: $sharing) { ShareTokenSheet(token: token, network: network) }

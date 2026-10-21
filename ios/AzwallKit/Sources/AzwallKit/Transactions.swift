@@ -66,22 +66,27 @@ extension WalletSession {
         return address
     }
 
+    /// Cancels the transaction being proven: its proof is refused, so it is never sent (ProofGate).
+    public func cancelProving() { ProofGate.shared.cancel() }
+
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
     private func track(_ draft: ActivityItem, _ send: @escaping (PxeClient) async throws -> String) async throws {
         guard proving == nil else { throw PxeError("another transaction is being proven") }
         let client = try self.client
         record(draft)
+        ProofGate.shared.reset()
         setProving(draft)
-        defer { setProving(nil) }
+        defer { setProving(nil); ProofGate.shared.reset() }
         var sent = draft
         do {
             sent.txHash = try await send(client)
             sent.status = .pending
         } catch {
+            let cancelled = ProofGate.shared.cancelled || error is CancelledByUser
             sent.status = .failed
-            sent.error = error.localizedDescription
+            sent.error = cancelled ? "Cancelled" : error.localizedDescription
             record(sent)
-            throw error
+            throw cancelled ? CancelledByUser() : error
         }
         record(sent)
         Task { await confirm(sent, client) }

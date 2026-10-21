@@ -44,7 +44,9 @@ struct ReceiveView: View {
 struct ProvingView: View {
     let item: ActivityItem
     let since: Date
+    let onCancel: () -> Void
     @State private var spin = false
+    @State private var cancelling = false
 
     var body: some View {
         ZStack {
@@ -64,6 +66,9 @@ struct ProvingView: View {
                 TimelineView(.periodic(from: since, by: 1)) { context in
                     Text("\(Int(context.date.timeIntervalSince(since))) s · usually 15 to 30 s").font(.headline).foregroundStyle(Palette.privateFunds)
                 }
+                // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent.
+                Button(cancelling ? "Cancelling, nothing will be sent…" : "Cancel") { cancelling = true; onCancel() }
+                    .buttonStyle(.bordered).disabled(cancelling)
             }
             .padding(32)
         }

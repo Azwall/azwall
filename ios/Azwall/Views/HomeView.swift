@@ -38,7 +38,7 @@ struct HomeView: View {
             .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
             .animation(.default, value: session.task)
         }
-        .overlay { if let item = session.proving { ProvingView(item: item, since: session.provingSince ?? Date()) } }
+        .overlay { if let item = session.proving { ProvingView(item: item, since: session.provingSince ?? Date(), onCancel: session.cancelProving) } }
     }
 
     @ToolbarContentBuilder

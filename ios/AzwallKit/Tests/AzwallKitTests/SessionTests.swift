@@ -15,6 +15,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     let (events, emit) = AsyncStream<PxeEvent>.makeStream()
     /// Holds the first account's balances until `release` yields: a refresh still running when the user switches.
     var holdBalances = false
+    /// Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks.
+    var whileProving: (() -> Void)?
     let (released, release) = AsyncStream<Void>.makeStream()
 
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
@@ -33,6 +35,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "tokenInfo": return .object(["address": .string(p("token")), "name": .string("Test"), "symbol": .string("TST"), "decimals": .number(6)])
         case "mint": return .object(["txHash": .string("0xmint")])
         case "deployAccount", "transfer":
+            whileProving?()
+            try ProofGate.shared.check()
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])
         case "waitForTx":
@@ -144,6 +148,19 @@ struct SessionTests {
         try await s.addToken("0xt")
         #expect(s.tokens.first?.info.symbol == "TST")
         #expect(s.tokens.first?.total == "2500000")
+    }
+
+    @Test func aCancelledTransactionIsNeverSent() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try session(pxe)
+        await s.open()
+        pxe.whileProving = { ProofGate.shared.cancel() }
+        let token = TokenInfo(address: "0xt", name: "Test", symbol: "TST", decimals: 6)
+        await #expect(throws: CancelledByUser.self) { try await s.send(.private, token: token, to: "0x" + String(repeating: "cd", count: 32), amount: "1") }
+        #expect(pxe.sent.isEmpty)
+        #expect(s.activity.first?.error == "Cancelled")
+        #expect(!ProofGate.shared.cancelled)
     }
 
     @Test func goingToTheBackgroundFlushesThePxeStore() async throws {

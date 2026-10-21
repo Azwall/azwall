@@ -8,8 +8,10 @@ import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
 import dev.azwall.core.pxe.PxeHost
 import dev.azwall.core.wallet.DappApprovals
+import dev.azwall.core.wallet.ProofGate
 import dev.azwall.core.wallet.PxeLauncher
 import dev.azwall.core.wallet.RunningPxe
+import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -17,7 +19,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.util.Base64
 
 /**
  * Starts a network's PXE bundle in a hidden web view. Its `prove` calls go to the Rust prover, its `approve` calls
@@ -43,7 +44,10 @@ class AndroidPxeLauncher(
     private fun prove(): NativeHandler = { params ->
         val network = params["network"]!!.jsonPrimitive.content
         val request = Base64.getDecoder().decode(params["request"]!!.jsonPrimitive.content)
+        ProofGate.check()
         val response = withContext(Dispatchers.Default) { backend().prove(network, request) }
+        // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction.
+        ProofGate.check()
         buildJsonObject { put("response", Base64.getEncoder().encodeToString(response)) }
     }
 }

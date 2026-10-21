@@ -78,18 +78,24 @@ class Transactions internal constructor(private val session: WalletSession) {
         amount = amount?.toString(),
     )
 
+    /** Cancels the transaction being proven: its proof is refused, so it is never sent ([ProofGate]). */
+    fun cancel() = ProofGate.cancel()
+
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
     private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
         session.recordActivity(draft)
+        ProofGate.reset()
         _proving.value = ProvingJob(draft, System.currentTimeMillis())
         val sent = try {
             draft.copy(status = ActivityStatus.PENDING, txHash = send())
         } catch (e: Exception) {
-            session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = e.message))
-            throw e
+            val cancelled = ProofGate.cancelled || e is CancelledByUser
+            session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = if (cancelled) "Cancelled" else e.message))
+            throw if (cancelled) CancelledByUser() else e
         } finally {
             _proving.value = null
+            ProofGate.reset()
         }
         session.recordActivity(sent)
         session.scope.launch { confirm(sent) }

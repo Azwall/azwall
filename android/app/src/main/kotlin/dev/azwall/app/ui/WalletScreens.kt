@@ -105,7 +105,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
         }
     }
     WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }
-    proving?.let { ProvingOverlay(it) }
+    proving?.let { ProvingOverlay(it, onCancel = session.transactions::cancel) }
 }
 
 @Composable

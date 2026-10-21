@@ -48,6 +48,8 @@ private class FakePxe : PxeCaller {
     val sent = mutableListOf<JsonObject>()
     val minted = mutableListOf<JsonObject>()
     val calls = mutableListOf<String>()
+    /** Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks. */
+    var whileProving: () -> Unit = {}
     /** Holds the first account's balances until completed: a refresh still running when the user switches. */
     var hold: CompletableDeferred<Unit>? = null
 
@@ -67,7 +69,12 @@ private class FakePxe : PxeCaller {
             }
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
-            "deployAccount", "transfer" -> { sent += params; """{"txHash":"0xhash${sent.size}"}""" }
+            "deployAccount", "transfer" -> {
+                whileProving()
+                ProofGate.check()
+                sent += params
+                """{"txHash":"0xhash${sent.size}"}"""
+            }
             "waitForTx" -> { waitError?.let { throw PxeException(it) }; mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
             "discoverTokens" -> {
                 val known = params["known"]!!.jsonArray.map { it.jsonPrimitive.content }.also { discoveryKnown += it }
@@ -143,6 +150,19 @@ class WalletSessionTest {
         val token = s.state.value.tokens.single()
         assertEquals("TST", token.info.symbol)
         assertEquals(BigInteger("2500000"), token.balance?.privateAmount)
+    }
+
+    @Test
+    fun aCancelledTransactionIsNeverSent() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        pxe.whileProving = { s.transactions.cancel() }
+        val token = TokenInfo("0xt", "Test", "TST", 6)
+        val error = runCatching { s.transactions.send(TransferKind.PRIVATE, token, "0x" + "cd".repeat(32), BigInteger.ONE) }.exceptionOrNull()
+        assertTrue(error is CancelledByUser)
+        assertTrue(pxe.sent.isEmpty())
+        assertEquals("Cancelled", s.state.value.activity.first().error)
+        assertEquals(false, ProofGate.cancelled)
     }
 
     @Test

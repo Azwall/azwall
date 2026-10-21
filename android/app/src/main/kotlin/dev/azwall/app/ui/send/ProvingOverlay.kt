@@ -1,5 +1,6 @@
 package dev.azwall.app.ui.send
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,12 +18,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,8 +44,11 @@ import kotlinx.coroutines.delay
  * says what is happening and how long it usually takes.
  */
 @Composable
-fun ProvingOverlay(job: ProvingJob) {
+fun ProvingOverlay(job: ProvingJob, onCancel: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var cancelling by remember(job) { mutableStateOf(false) }
+    // The overlay covers the app while proving: the system back gesture cancels, like the button.
+    BackHandler(enabled = !cancelling) { cancelling = true; onCancel() }
     LaunchedEffect(job) {
         while (true) {
             now = System.currentTimeMillis()
@@ -64,6 +70,10 @@ fun ProvingOverlay(job: ProvingJob) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("$seconds s · usually 15 to 30 s", style = MaterialTheme.typography.labelLarge, color = WalletTheme.colors.private)
+            // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent.
+            OutlinedButton(onClick = { cancelling = true; onCancel() }, enabled = !cancelling) {
+                Text(if (cancelling) "Cancelling, nothing will be sent…" else "Cancel")
+            }
         }
     }
 }

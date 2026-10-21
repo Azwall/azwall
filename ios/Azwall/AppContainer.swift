@@ -66,7 +66,10 @@ struct IosPxeLauncher: PxeLauncher {
             guard let id = params["network"]?.stringValue, let b64 = params["request"]?.stringValue, let request = Data(base64Encoded: b64) else {
                 throw PxeError("malformed prove request")
             }
+            try ProofGate.shared.check()
             let response = try await Task.detached(priority: .userInitiated) { try backend().prove(networkId: id, request: request) }.value
+            // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction.
+            try ProofGate.shared.check()
             return .object(["response": .string(response.base64EncodedString())])
         }
         let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: ["prove": prove, "approve": approve])
