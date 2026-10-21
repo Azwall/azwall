@@ -260,4 +260,14 @@ struct PaymentRequestTests {
         #expect(PaymentRequest.parse("aztec:0x12") == nil)
         #expect(PaymentRequest.parse("aztec:\(me)?token=nope&amount=-3") == PaymentRequest(address: me))
     }
+
+    @Test func aSharedTokenIsItsAddressWithTheNetwork() throws {
+        let shared = PaymentRequest(address: token, network: "testnet-v6")
+        #expect(shared.uri == "aztec:\(token)?network=testnet-v6")
+        #expect(try #require(PaymentRequest.parse(shared.uri)).tokenAddress == token)
+        #expect(try #require(PaymentRequest.parse("aztec:\(me)?token=\(token)")).tokenAddress == token)
+        #expect(shared.networkNote(current: "testnet-v6") == nil)
+        #expect(shared.networkNote(current: "testnet-v5") == "This code is for testnet-v6, not testnet-v5")
+        #expect(PaymentRequest(address: token).networkNote(current: "testnet-v5") == nil)
+    }
 }

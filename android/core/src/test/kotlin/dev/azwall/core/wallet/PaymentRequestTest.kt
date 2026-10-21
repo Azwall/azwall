@@ -27,4 +27,15 @@ class PaymentRequestTest {
         assertNull(PaymentRequest.parse("aztec:0x12"))
         assertEquals(PaymentRequest(me), PaymentRequest.parse("aztec:$me?token=nope&amount=-3"))
     }
+
+    @Test
+    fun aSharedTokenIsItsAddressWithTheNetwork() {
+        val shared = PaymentRequest(token, "testnet-v6")
+        assertEquals("aztec:$token?network=testnet-v6", shared.toUri())
+        assertEquals(token, PaymentRequest.parse(shared.toUri())!!.tokenAddress)
+        assertEquals(token, PaymentRequest.parse("aztec:$me?token=$token")!!.tokenAddress)
+        assertNull(shared.networkNote("testnet-v6"))
+        assertEquals("This code is for testnet-v6, not testnet-v5", shared.networkNote("testnet-v5"))
+        assertNull(PaymentRequest(token).networkNote("testnet-v5"))
+    }
 }

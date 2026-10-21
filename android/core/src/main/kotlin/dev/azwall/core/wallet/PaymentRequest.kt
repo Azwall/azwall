@@ -10,6 +10,8 @@ import java.net.URLDecoder
  *
  * Every parameter is optional; `amount` is in the token's units (not base units). Addresses differ between
  * Aztec versions, hence `network`: the wallet warns when it is not the open one.
+ *
+ * A token is shared the same way, its contract in place of the address: `aztec:<token address>?network=testnet-v6`.
  */
 data class PaymentRequest(val address: String, val network: String? = null, val token: String? = null, val amount: String? = null) {
     companion object {
@@ -35,6 +37,12 @@ data class PaymentRequest(val address: String, val network: String? = null, val 
             return PaymentRequest(address, params["network"]?.takeIf { it.isNotBlank() }, token, amount)
         }
     }
+
+    /** The token a code is about when adding one: the token it requests, else its address (a shared token's code). */
+    val tokenAddress: String get() = token ?: address
+
+    /** What to tell the user when the code was made for another network than [current], or null. */
+    fun networkNote(current: String): String? = network?.takeIf { it != current }?.let { "This code is for $it, not $current" }
 
     /** The URI form: what a Receive screen encodes in its QR code when it asks for something specific. */
     fun toUri(): String {

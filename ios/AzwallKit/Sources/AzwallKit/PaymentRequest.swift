@@ -7,6 +7,8 @@ import Foundation
 ///
 /// Every parameter is optional; `amount` is in the token's units (not base units). Addresses differ between Aztec
 /// versions, hence `network`: the wallet warns when it is not the open one.
+///
+/// A token is shared the same way, its contract in place of the address: `aztec:<token address>?network=testnet-v6`.
 public struct PaymentRequest: Equatable, Sendable {
     public let address: String
     public var network: String?
@@ -41,6 +43,15 @@ public struct PaymentRequest: Equatable, Sendable {
         let amount = params["amount"].flatMap { $0.range(of: #"^\d+(\.\d+)?$"#, options: .regularExpression) != nil ? $0 : nil }
         let network = params["network"].flatMap { $0.isEmpty ? nil : $0 }
         return PaymentRequest(address: address, network: network, token: params["token"].flatMap { isAddress($0) ? $0 : nil }, amount: amount)
+    }
+
+    /// The token a code is about when adding one: the token it requests, else its address (a shared token's code).
+    public var tokenAddress: String { token ?? address }
+
+    /// What to tell the user when the code was made for another network than `current`, or nil.
+    public func networkNote(current: String) -> String? {
+        guard let network, network != current else { return nil }
+        return "This code is for \(network), not \(current)"
     }
 
     /// The URI form: what a Receive screen encodes in its QR code when it asks for something specific.
