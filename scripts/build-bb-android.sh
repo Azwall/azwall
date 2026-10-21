@@ -16,15 +16,13 @@ ABIS=("$@")
 [ ${#ABIS[@]} -eq 0 ] && ABIS=(arm64-v8a)
 
 if [ "$RELEASE" = all ]; then
-  for r in $(python3 -c "import json;print(' '.join(sorted({n['barretenberg'] for n in json.load(open('$ROOT/networks.json'))['networks']})))"); do
+  . "$ROOT/scripts/lib/bb-sources.sh"
+  for r in $(bb_releases "$ROOT"); do
     "$0" "$r" "${ABIS[@]}"
   done
   exit 0
 fi
 
-TAG="v$RELEASE"
-SRC="$ROOT/vendor/aztec-packages-$TAG"
-BB="$SRC/barretenberg/cpp"
 STATIC="$ROOT/vendor/bb-static/$RELEASE"
 API=${ANDROID_API:-24}
 JOBS=${JOBS:-$(nproc)}
@@ -32,29 +30,11 @@ JOBS=${JOBS:-$(nproc)}
 TOOLCHAIN="$NDK_HOME/build/cmake/android.toolchain.cmake"
 command -v cmake >/dev/null && command -v ninja >/dev/null || { echo "error: cmake and ninja are required" >&2; exit 1; }
 
-# 1. Sources at the release tag (sparse checkout).
-if [ ! -d "$SRC/.git" ]; then
-  echo "cloning aztec-packages $TAG (barretenberg/cpp only)"
-  git clone --quiet --depth 1 --branch "$TAG" --filter=blob:none --sparse \
-    https://github.com/AztecProtocol/aztec-packages "$SRC"
-  git -C "$SRC" sparse-checkout set barretenberg/cpp
-fi
-HEAD_TAG=$(git -C "$SRC" describe --tags --exact-match 2>/dev/null || true)
-[ "$HEAD_TAG" = "$TAG" ] || { echo "error: $SRC is at '${HEAD_TAG:-?}', expected $TAG; delete it to re-clone" >&2; exit 1; }
+# 1. Sources at the release tag, with the generated constants (scripts/lib/bb-sources.sh).
+. "$ROOT/scripts/lib/bb-sources.sh"
+bb_sources "$ROOT" "$RELEASE"
 
-# 2. aztec_constants.hpp is generated from the protocol's constants.nr; upstream CMake only does
-#    this inside a full monorepo checkout, so run the same generator here (needs Node >= 22).
-CONSTANTS="$BB/src/barretenberg/aztec/aztec_constants.hpp"
-if [ ! -f "$CONSTANTS" ]; then
-  git -C "$SRC" sparse-checkout set barretenberg/cpp protocol/constants-codegen \
-    noir-projects/fnd/noir-protocol-circuits/crates/types/src
-  "$SRC/protocol/constants-codegen/scripts/generate.sh" \
-    --cpp "$CONSTANTS" --selection "$BB/scripts/constants-codegen/cpp.json" 2>/dev/null
-  grep -q '#define ARCHIVE_HEIGHT' "$CONSTANTS" || { echo "error: constants generation failed" >&2; exit 1; }
-  git -C "$SRC" sparse-checkout set barretenberg/cpp
-fi
-
-# 3. Static build per ABI, hidden visibility, then the self-contained shared library.
+# 2. Static build per ABI, hidden visibility, then the self-contained shared library.
 for ABI in "${ABIS[@]}"; do
   case "$ABI" in arm64-v8a|x86_64) ;; *) echo "error: unsupported ABI $ABI" >&2; exit 1 ;; esac
   BUILD="$BB/build-android-$ABI"

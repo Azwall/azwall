@@ -15,7 +15,8 @@ scripts/build-android.sh arm64-v8a          # Rust core + bindings for Android
 cd android && ./gradlew assembleDebug
 ```
 
-On macOS, `scripts/build-ios.sh` then `xcodegen generate` in `ios/` produce the Xcode project.
+On macOS, `scripts/build-ios.sh` (Rust core), `scripts/build-bb-ios.sh all` (one Barretenberg framework per
+release, embedded in the app; needs cmake and ninja) then `xcodegen generate` in `ios/` produce the Xcode project.
 
 ## Tests
 
