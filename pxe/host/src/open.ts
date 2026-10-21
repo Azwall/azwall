@@ -9,6 +9,7 @@ import { EmbeddedWalletEncryptionError, openEncryptedEmbeddedStores } from '@azt
 import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
+import { generationName, nextGeneration } from './generation';
 import { log } from './log';
 import { NativeKernelProver } from './prover';
 import { CachedStore, clearBroken, forgetRows, isMarkedBroken } from './store';
@@ -123,9 +124,38 @@ export async function startOverOnOtherKey<T>(open: () => Promise<T>, discard: ()
     if (!unusableStore(err)) throw err;
     log('open', `the stores cannot be used with this wallet's key (${errorMessage(err)}): starting over with empty stores`, 'warn');
     await discard();
-    log('open', 'damaged stores removed; opening empty ones');
+    log('open', 'opening empty stores under new names');
     return open();
   }
+}
+
+/**
+ * Opens the PXE and wallet stores under their current names (generation.ts), each in its own OPFS pool (the default
+ * pool can only be held by one store at a time). Unusable stores are left behind for new names, and deleted in the
+ * background.
+ */
+async function openStores(bases: [string, string], dbKey: Uint8Array) {
+  const names = () => bases.map(generationName) as [string, string];
+  const stores = await startOverOnOtherKey(
+    () => {
+      const [pxe, wallet] = names();
+      const config = { pxe: { name: pxe, poolDirectory: storePoolDirectory(pxe) }, wallet: { name: wallet, poolDirectory: storePoolDirectory(wallet) } };
+      // The buffer is transferred to the SQLite worker (and detached), so hand out a fresh copy.
+      return openWritable(() => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store')), [pxe, wallet]);
+    },
+    async () => {
+      for (const base of bases) {
+        const old = nextGeneration(base);
+        forgetRows(old);
+        clearBroken(old);
+        deletePoolDirectory(storePoolDirectory(old)).then(
+          () => log('open', `${old}: old store deleted`),
+          err => log('open', `${old}: old store not deleted: ${errorMessage(err)}`, 'warn'),
+        );
+      }
+    },
+  );
+  return { ...stores, names: names() };
 }
 
 /** `dbKey`: 32-byte hex key of the encrypted stores, kept by the app's secure storage. */
@@ -136,24 +166,8 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   log('open', `node ${check.nodeVersion} is compatible; opening the encrypted stores`);
   const { l1ContractAddresses } = await node.getNodeInfo();
   const suffix = `${check.l1ChainId}-${l1ContractAddresses.rollupAddress.toString().slice(2, 10)}`;
-  const names = { pxe: `pxe-${suffix}`, wallet: `wallet-${suffix}` };
-  const config = {
-    // Each store needs its own OPFS pool; the default pool can only be held by one store at a time.
-    pxe: { name: names.pxe, poolDirectory: storePoolDirectory(names.pxe) },
-    wallet: { name: names.wallet, poolDirectory: storePoolDirectory(names.wallet) },
-  };
-  const { pxeStore, walletStore } = await startOverOnOtherKey(
-    // The buffer is transferred to the SQLite worker (and detached), so hand out a fresh copy.
-    () => openWritable(() => openEncryptedEmbeddedStores(config, async () => dbKey.slice(), createLogger('azwall:store')), [names.pxe, names.wallet]),
-    async () => {
-      for (const name of [names.pxe, names.wallet]) {
-        await deletePoolDirectory(storePoolDirectory(name));
-        forgetRows(name);
-        clearBroken(name);
-      }
-    },
-  );
-  const stores = [await CachedStore.wrap(pxeStore as never, names.pxe), await CachedStore.wrap(walletStore as never, names.wallet)];
+  const { pxeStore, walletStore, names } = await openStores([`pxe-${suffix}`, `wallet-${suffix}`], dbKey);
+  const stores = [await CachedStore.wrap(pxeStore as never, names[0]), await CachedStore.wrap(walletStore as never, names[1])];
   log('open', 'stores open; creating the PXE');
   const simulator = new WASMSimulator();
   // Creating the PXE loads Barretenberg's WebAssembly and its workers: say so if it takes long, so a slow start
