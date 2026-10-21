@@ -24,13 +24,18 @@ done
 ICON="$ROOT/ios/Azwall/Assets.xcassets/AppIcon.appiconset"
 mkdir -p "$ICON"
 magick "$SRC" -resize 1024x1024 -alpha off -strip "PNG24:$ICON/icon-1024.png"
-# The logo: the icon's background removed from its corners inwards (the pyramid's dark outlines are kept), trimmed.
+# The logo: the icon without its background. The pyramid's dark outlines are nearly the background's colour, so
+# the background is found by flooding it from the corners (painted magenta), never by colour alone; the mask keeps
+# everything else (the black keyhole too), grown by 3 px so no outline is cut, and softened for clean edges.
 LOGO=$(mktemp --suffix=.png)
+MASK=$(mktemp --suffix=.png)
+magick "$SRC" -fuzz 3% -fill '#FF00FF' -draw "color 0,0 floodfill" -draw "color 1023,0 floodfill" \
+  -draw "color 0,1023 floodfill" -draw "color 1023,1023 floodfill" -fuzz 0 -fill white +opaque '#FF00FF' \
+  -fill black -opaque '#FF00FF' -morphology Dilate Disk:3 -blur 0x1.2 -colorspace Gray "$MASK"
+magick "$SRC" "$MASK" -alpha off -compose CopyOpacity -composite -trim +repage "$LOGO"
 # iOS: a @3x image, 200 points wide on the launch screen.
-magick "$SRC" -alpha set -fuzz 4% -fill none -draw "alpha 0,0 floodfill" -draw "alpha 1023,0 floodfill" \
-  -draw "alpha 0,1023 floodfill" -draw "alpha 1023,1023 floodfill" -trim +repage "$LOGO"
 mkdir -p "$RES/drawable-nodpi" "$ROOT/ios/Azwall/Assets.xcassets/Logo.imageset"
 magick "$LOGO" -resize 512x -strip "PNG32:$RES/drawable-nodpi/azwall_logo.png"
 magick "$LOGO" -resize 600x -strip "PNG32:$ROOT/ios/Azwall/Assets.xcassets/Logo.imageset/logo.png"
-rm -f "$LOGO"
+rm -f "$LOGO" "$MASK"
 echo "icons written"
