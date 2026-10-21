@@ -10,6 +10,7 @@ struct HomeView: View {
     let onMenu: () -> Void
     @State private var tab = 0
     @State private var sheet: Sheet?
+    @State private var shared: TokenView?
 
     enum Route: Hashable { case send, shield, receive, settings, tokens }
     enum Sheet: Identifiable { case networks, accounts, addToken; var id: Self { self } }
@@ -24,7 +25,7 @@ struct HomeView: View {
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
                     Picker("", selection: $tab) { Text("Tokens").tag(0); Text("Activity").tag(1) }.pickerStyle(.segmented).padding(.horizontal)
-                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }) } else { ActivityList(items: session.activity) }
+                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }, onShare: { shared = $0 }) } else { ActivityList(items: session.activity) }
                 }
             }
             .refreshable { await session.refresh() }
@@ -32,6 +33,7 @@ struct HomeView: View {
             .toolbar { toolbar }
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
+            .sheet(item: $shared) { ShareTokenSheet(token: $0, network: session.network).presentationDetents([.large]) }
             .task { await autoRefresh() }
             .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
             .animation(.default, value: session.task)
@@ -103,7 +105,7 @@ struct HomeView: View {
         switch sheet {
         case .networks: NetworksSheet(model: model, current: session.network.id) { self.sheet = nil }
         case .accounts: AccountsSheet(model: model, session: session) { self.sheet = nil }
-        case .addToken: AddTokenSheet(model: model) { self.sheet = nil }
+        case .addToken: AddTokenSheet(model: model, network: session.network.id) { self.sheet = nil }
         }
     }
 

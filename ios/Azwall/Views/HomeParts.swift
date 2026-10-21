@@ -88,13 +88,16 @@ struct TokenList: View {
     let tokens: [TokenView]
     var stale = false
     let onAdd: () -> Void
+    var onShare: (TokenView) -> Void = { _ in }
 
     var body: some View {
         LazyVStack(spacing: 0) {
             if tokens.isEmpty {
                 EmptyHint(title: "No tokens yet", text: "Add a token by its address to see its private and public balances.", action: "Add a token", onAction: onAdd)
             }
-            ForEach(tokens) { TokenRow(token: $0, stale: stale) }
+            ForEach(tokens) { token in
+                Button { onShare(token) } label: { TokenRow(token: token, stale: stale) }.buttonStyle(.plain).accessibilityHint("Share")
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import VisionKit
 /// Full-screen camera that reads one QR code and returns its text: Apple's DataScannerViewController (VisionKit),
 /// on the device, nothing leaves it. iOS asks for the camera the first time (NSCameraUsageDescription).
 struct QrScanner: View {
+    var hint = "Point at an Aztec address QR code"
     let onResult: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -22,7 +23,7 @@ struct QrScanner: View {
                 .accessibilityLabel("Close")
         }
         .background(.black)
-        .overlay(alignment: .bottom) { Text("Point at an Aztec address QR code").foregroundStyle(.white).padding(48) }
+        .overlay(alignment: .bottom) { Text(hint).foregroundStyle(.white).padding(48) }
     }
 }
 

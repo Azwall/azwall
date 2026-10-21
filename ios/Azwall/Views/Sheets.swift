@@ -84,26 +84,34 @@ struct AccountsSheet: View {
     }
 }
 
-/// Follow a token by its contract address; name, symbol and decimals are read on chain.
+/// Follow a token by its contract address, typed, pasted or scanned from a shared token's QR code; the rest is read on chain.
 struct AddTokenSheet: View {
     let model: AppModel
+    let network: String
     let close: () -> Void
-    @State private var address = ""
+    @State private var text = ""
+    @State private var scanning = false
 
-    private var valid: Bool { address.count == 66 && address.hasPrefix("0x") && address.dropFirst(2).allSatisfy(\.isHexDigit) }
+    private var request: PaymentRequest? { PaymentRequest.parse(text) }
+    private var note: String? { !text.isEmpty && request == nil ? "Not a token address" : request?.networkNote(current: network) }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Token contract address", text: $address).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
+                HStack {
+                    TextField("Token contract address", text: $text).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button { scanning = true } label: { Image(systemName: "qrcode.viewfinder") }.buttonStyle(.borderless).accessibilityLabel("Scan a token QR code")
+                }
+                if let note { Text(note).foregroundStyle(Palette.danger) }
                 Button("Add token") {
-                    let token = address
+                    guard let token = request?.tokenAddress else { return }
                     close()
                     Task { await model.run(done: "Token added.") { try await $0.addToken(token) } }
                 }
-                .disabled(!valid)
+                .disabled(request == nil)
             }
             .navigationTitle("Add a token")
+            .fullScreenCover(isPresented: $scanning) { QrScanner(hint: "Point at a token QR code") { text = $0.trimmingCharacters(in: .whitespacesAndNewlines) } }
         }
     }
 }

@@ -21,7 +21,7 @@ struct TokenStudioView: View {
                 createSection
                 let mine = session.tokens.filter { t in session.created.contains { $0.lowercased() == t.info.address.lowercased() } }
                 if !mine.isEmpty {
-                    Section("Your tokens") { ForEach(mine) { CreatedTokenRow(model: model, token: $0) } }
+                    Section("Your tokens") { ForEach(mine) { CreatedTokenRow(model: model, token: $0, network: session.network) } }
                 }
             }
         }
@@ -48,9 +48,11 @@ struct TokenStudioView: View {
 private struct CreatedTokenRow: View {
     let model: AppModel
     let token: TokenView
+    let network: NetworkInfo
     @State private var amount = "1000"
     @State private var toPrivate = true
     @State private var to = ""
+    @State private var sharing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -63,6 +65,8 @@ private struct CreatedTokenRow: View {
                 }
             }
             CopyAddress(address: token.info.address)
+            // A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one.
+            Button("Share so others can add it") { sharing = true }.buttonStyle(.borderless)
             HStack {
                 TextField("Amount", text: $amount).keyboardType(.decimalPad)
                 Toggle(toPrivate ? "Private" : "Public", isOn: $toPrivate).fixedSize()
@@ -71,6 +75,7 @@ private struct CreatedTokenRow: View {
             Button("Mint", action: mint).disabled(model.busy || amount.isEmpty)
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $sharing) { ShareTokenSheet(token: token, network: network) }
     }
 
     private func mint() {
