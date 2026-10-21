@@ -16,6 +16,9 @@ struct ReceiveView: View {
                 Text(account.address).font(.mono).multilineTextAlignment(.center).textSelection(.enabled)
                 Text("Only send tokens on \(session.network.label) to this address. Funds sent privately stay hidden from everyone but you.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                // Balances are read per followed token: an unknown one goes unseen, privately or publicly.
+                Text("Your wallet only shows the tokens in your list: if you expect a token you do not have yet, add it first (Token, then scan its QR code), or you will not see what you receive.")
+                    .font(.footnote).foregroundStyle(Palette.pending).multilineTextAlignment(.center)
                 Spacer()
                 Button("Copy address") { UIPasteboard.general.string = account.address }.buttonStyle(PrimaryButtonStyle())
                 ShareLink("Share", item: account.address).frame(maxWidth: .infinity, minHeight: 44)

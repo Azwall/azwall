@@ -43,6 +43,7 @@ import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.SecondaryButton
 import dev.azwall.app.ui.theme.MonoStyle
+import dev.azwall.app.ui.theme.WalletTheme
 
 /** QR code of [text], one pixel per module (scaled up without smoothing when drawn). */
 fun qrBitmap(text: String): ImageBitmap {
@@ -80,6 +81,13 @@ fun ReceiveScreen(alias: String, address: String, networkLabel: String, onBack: 
                 "Only send tokens on $networkLabel to this address. Funds sent privately stay hidden from everyone but you.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            // Balances are read per followed token: an unknown one goes unseen, privately or publicly.
+            Text(
+                "Your wallet only shows the tokens in your list: if you expect a token you do not have yet, add it first (Token, then scan its QR code), or you will not see what you receive.",
+                style = MaterialTheme.typography.bodySmall,
+                color = WalletTheme.colors.pending,
                 textAlign = TextAlign.Center,
             )
         }
