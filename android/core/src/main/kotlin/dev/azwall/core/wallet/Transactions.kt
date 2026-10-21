@@ -5,10 +5,15 @@ import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.pxe.TxOutcome
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import java.math.BigInteger
 import java.util.UUID
 
@@ -78,28 +83,72 @@ class Transactions internal constructor(private val session: WalletSession) {
         amount = amount?.toString(),
     )
 
-    /** Cancels the transaction being proven: its proof is refused, so it is never sent ([ProofGate]). */
-    fun cancel() = ProofGate.cancel()
+    /** Cancels the transaction being proven: the screen is released at once, and its proof is refused ([ProofGate]). */
+    fun cancel() {
+        ProofGate.cancel()
+        stop?.complete(Unit)
+    }
+
+    private var stop: CompletableDeferred<Unit>? = null
+
+    /** A cancelled transaction still being proven in the background; the next one waits for its proof to be refused. */
+    private var winding: Job? = null
 
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
     private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
         session.recordActivity(draft)
-        ProofGate.reset()
+        val stop = CompletableDeferred<Unit>().also { this.stop = it }
         _proving.value = ProvingJob(draft, System.currentTimeMillis())
         val sent = try {
-            draft.copy(status = ActivityStatus.PENDING, txHash = send())
+            draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, send, stop))
         } catch (e: Exception) {
-            val cancelled = ProofGate.cancelled || e is CancelledByUser
+            val cancelled = e is CancelledByUser
             session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = if (cancelled) "Cancelled" else e.message))
-            throw if (cancelled) CancelledByUser() else e
+            throw e
         } finally {
             _proving.value = null
-            ProofGate.reset()
+            this.stop = null
         }
         session.recordActivity(sent)
         session.scope.launch { confirm(sent) }
         return sent
+    }
+
+    /**
+     * Runs [send], or gives it up as soon as the user cancels. Witnesses and the proof cannot be stopped, so a
+     * cancelled [send] goes on in the background until the app's prove handler refuses its proof.
+     */
+    private suspend fun proveAndSend(draft: ActivityItem, send: suspend () -> String, stop: CompletableDeferred<Unit>): String {
+        winding?.join()
+        ProofGate.reset()
+        if (stop.isCompleted) throw CancelledByUser()
+        val work = session.scope.async { send() }
+        val hash = try {
+            select<String?> { work.onAwait { it }; stop.onAwait { null } }
+        } catch (e: Exception) {
+            val cancelled = ProofGate.cancelled || stop.isCompleted
+            ProofGate.reset()
+            throw if (cancelled) CancelledByUser() else e
+        }
+        if (hash != null) return hash
+        winding = session.scope.launch { windDown(draft, work) }
+        throw CancelledByUser()
+    }
+
+    /** Waits for a cancelled transaction to end; one whose proof was accepted just before the cancel was sent, so it is followed. */
+    private suspend fun windDown(draft: ActivityItem, work: Deferred<String>) {
+        val hash = try {
+            work.await()
+        } catch (e: Exception) {
+            null
+        } finally {
+            ProofGate.reset()
+        }
+        if (hash == null) return
+        val sent = draft.copy(status = ActivityStatus.PENDING, txHash = hash)
+        session.recordActivity(sent)
+        confirm(sent)
     }
 
     /**

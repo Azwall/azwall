@@ -49,7 +49,7 @@ private class FakePxe : PxeCaller {
     val minted = mutableListOf<JsonObject>()
     val calls = mutableListOf<String>()
     /** Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks. */
-    var whileProving: () -> Unit = {}
+    var whileProving: suspend () -> Unit = {}
     /** Holds the first account's balances until completed: a refresh still running when the user switches. */
     var hold: CompletableDeferred<Unit>? = null
 
@@ -162,6 +162,24 @@ class WalletSessionTest {
         assertTrue(error is CancelledByUser)
         assertTrue(pxe.sent.isEmpty())
         assertEquals("Cancelled", s.state.value.activity.first().error)
+        advanceUntilIdle()
+        assertEquals(false, ProofGate.cancelled)
+    }
+
+    @Test
+    fun cancellingReleasesTheScreenWithoutWaitingForTheProof() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        val proof = CompletableDeferred<Unit>()
+        pxe.whileProving = { s.transactions.cancel(); proof.await() }
+        val token = TokenInfo("0xt", "Test", "TST", 6)
+        val error = runCatching { s.transactions.send(TransferKind.PRIVATE, token, "0x" + "cd".repeat(32), BigInteger.ONE) }.exceptionOrNull()
+        assertTrue(error is CancelledByUser)
+        assertEquals(null, s.transactions.proving.value)
+        assertEquals(true, ProofGate.cancelled)
+        proof.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(pxe.sent.isEmpty())
         assertEquals(false, ProofGate.cancelled)
     }
 

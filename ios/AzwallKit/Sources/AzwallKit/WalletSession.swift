@@ -65,6 +65,10 @@ public final class WalletSession {
     public private(set) var error: String?
     public private(set) var proving: ActivityItem?
     public private(set) var provingSince: Date?
+    /// Releases the transaction being proven when the user cancels it (Transactions.swift).
+    @ObservationIgnored var stopProving: (() -> Void)?
+    /// A cancelled transaction still being proven in the background; the next one waits for its proof to be refused.
+    @ObservationIgnored var winding: Task<Void, Never>?
 
     public var account: AccountView? { accounts.first { $0.address == selected } }
 
@@ -92,7 +96,14 @@ public final class WalletSession {
     @ObservationIgnored private var eventLoop: Task<Void, Never>?
     @ObservationIgnored var lastDiscovery: Date?
 
-    public init(backend: WalletBackend, launcher: PxeLauncher, vault: Vault, contents: VaultContents, storeDirectory: URL, network: NetworkInfo) {
+    /// Refuses the proof of a cancelled transaction; the app's prove handler checks the shared one.
+    let gate: ProofGate
+
+    public init(
+        backend: WalletBackend, launcher: PxeLauncher, vault: Vault, contents: VaultContents, storeDirectory: URL, network: NetworkInfo,
+        gate: ProofGate = .shared
+    ) {
+        self.gate = gate
         self.backend = backend
         self.launcher = launcher
         self.vault = vault

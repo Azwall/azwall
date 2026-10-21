@@ -16,7 +16,9 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     /// Holds the first account's balances until `release` yields: a refresh still running when the user switches.
     var holdBalances = false
     /// Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks.
-    var whileProving: (() -> Void)?
+    var whileProving: (() async -> Void)?
+    /// This fake's own gate, so that tests running in parallel do not cancel each other's transactions.
+    let gate = ProofGate()
     let (released, release) = AsyncStream<Void>.makeStream()
 
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
@@ -35,8 +37,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "tokenInfo": return .object(["address": .string(p("token")), "name": .string("Test"), "symbol": .string("TST"), "decimals": .number(6)])
         case "mint": return .object(["txHash": .string("0xmint")])
         case "deployAccount", "transfer":
-            whileProving?()
-            try ProofGate.shared.check()
+            await whileProving?()
+            try gate.check()
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])
         case "waitForTx":
@@ -119,7 +121,7 @@ struct SessionTests {
     func session(_ pxe: FakePxe, dir: URL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)) throws -> WalletSession {
         let vault = Vault(storage: MemoryStorage())
         let contents = try vault.create(first: AccountSecrets(alias: "main", signingKey: "0x" + String(repeating: "ab", count: 32), salt: Vault.zeroSalt))
-        return WalletSession(backend: FakeBackend(), launcher: FakeLauncher(pxe: pxe), vault: vault, contents: contents, storeDirectory: dir, network: network)
+        return WalletSession(backend: FakeBackend(), launcher: FakeLauncher(pxe: pxe), vault: vault, contents: contents, storeDirectory: dir, network: network, gate: pxe.gate)
     }
 
     @Test func openRegistersAccountsAndSelectsTheFirst() async throws {
@@ -155,12 +157,31 @@ struct SessionTests {
         pxe.deployed = true
         let s = try session(pxe)
         await s.open()
-        pxe.whileProving = { ProofGate.shared.cancel() }
+        pxe.whileProving = { pxe.gate.cancel() }
         let token = TokenInfo(address: "0xt", name: "Test", symbol: "TST", decimals: 6)
         await #expect(throws: CancelledByUser.self) { try await s.send(.private, token: token, to: "0x" + String(repeating: "cd", count: 32), amount: "1") }
         #expect(pxe.sent.isEmpty)
         #expect(s.activity.first?.error == "Cancelled")
-        #expect(!ProofGate.shared.cancelled)
+        #expect(!pxe.gate.cancelled)
+    }
+
+    @Test func cancellingReleasesTheScreenWithoutWaitingForTheProof() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try session(pxe)
+        await s.open()
+        let (proof, release) = AsyncStream<Void>.makeStream()
+        pxe.whileProving = { await s.cancelProving(); for await _ in proof { break } }
+        let token = TokenInfo(address: "0xt", name: "Test", symbol: "TST", decimals: 6)
+        await #expect(throws: CancelledByUser.self) { try await s.send(.private, token: token, to: "0x" + String(repeating: "cd", count: 32), amount: "1") }
+        #expect(s.proving == nil)
+        #expect(s.activity.first?.error == "Cancelled")
+        #expect(s.winding != nil)
+        #expect(pxe.gate.cancelled)
+        release.yield()
+        await s.winding?.value
+        #expect(pxe.sent.isEmpty)
+        #expect(!pxe.gate.cancelled)
     }
 
     @Test func goingToTheBackgroundFlushesThePxeStore() async throws {
@@ -177,7 +198,7 @@ struct SessionTests {
         let vault = Vault(storage: MemoryStorage())
         let contents = try vault.create(first: AccountSecrets(alias: "main", signingKey: "0x" + String(repeating: "ab", count: 32), salt: Vault.zeroSalt))
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let s = WalletSession(backend: FakeBackend(), launcher: launcher, vault: vault, contents: contents, storeDirectory: dir, network: network)
+        let s = WalletSession(backend: FakeBackend(), launcher: launcher, vault: vault, contents: contents, storeDirectory: dir, network: network, gate: pxe.gate)
         let opening = Task { await s.open() }
         try await Task.sleep(for: .milliseconds(20))
         await s.close() // locked while the PXE host starts

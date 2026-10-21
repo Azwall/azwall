@@ -66,30 +66,66 @@ extension WalletSession {
         return address
     }
 
-    /// Cancels the transaction being proven: its proof is refused, so it is never sent (ProofGate).
-    public func cancelProving() { ProofGate.shared.cancel() }
+    /// Cancels the transaction being proven: the screen is released at once, and its proof is refused (ProofGate).
+    public func cancelProving() {
+        gate.cancel()
+        stopProving?()
+    }
 
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
     private func track(_ draft: ActivityItem, _ send: @escaping (PxeClient) async throws -> String) async throws {
         guard proving == nil else { throw PxeError("another transaction is being proven") }
         let client = try self.client
         record(draft)
-        ProofGate.shared.reset()
         setProving(draft)
-        defer { setProving(nil); ProofGate.shared.reset() }
+        defer { setProving(nil); stopProving = nil }
         var sent = draft
         do {
-            sent.txHash = try await send(client)
+            sent.txHash = try await proveAndSend(draft, client, send)
             sent.status = .pending
         } catch {
-            let cancelled = ProofGate.shared.cancelled || error is CancelledByUser
             sent.status = .failed
-            sent.error = cancelled ? "Cancelled" : error.localizedDescription
+            sent.error = error is CancelledByUser ? "Cancelled" : error.localizedDescription
             record(sent)
-            throw cancelled ? CancelledByUser() : error
+            throw error
         }
         record(sent)
         Task { await confirm(sent, client) }
+    }
+
+    /// Runs `send`, or gives it up as soon as the user cancels. Witnesses and the proof cannot be stopped, so a
+    /// cancelled `send` goes on in the background until the app's prove handler refuses its proof.
+    private func proveAndSend(_ draft: ActivityItem, _ client: PxeClient, _ send: @escaping (PxeClient) async throws -> String) async throws -> String {
+        let first = FirstOf<String?>()
+        stopProving = { first.finish(.success(nil)) }
+        await winding?.value
+        winding = nil
+        if first.finished { gate.reset(); throw CancelledByUser() }
+        gate.reset()
+        let work = Task { try await send(client) }
+        Task { first.finish(await work.result.map { Optional($0) }) }
+        do {
+            if let hash = try await first.value() { return hash }
+        } catch {
+            let cancelled = gate.cancelled || error is CancelledByUser
+            gate.reset()
+            throw cancelled ? CancelledByUser() : error
+        }
+        winding = Task { await windDown(draft, work, client) }
+        throw CancelledByUser()
+    }
+
+    /// Waits for a cancelled transaction to end; one whose proof was accepted just before the cancel was sent, so
+    /// it is followed.
+    private func windDown(_ draft: ActivityItem, _ work: Task<String, Error>, _ client: PxeClient) async {
+        let hash = try? await work.value
+        gate.reset()
+        guard let hash else { return }
+        var sent = draft
+        sent.txHash = hash
+        sent.status = .pending
+        record(sent)
+        await confirm(sent, client)
     }
 
     /// Follows a sent transaction to a block. A wait can end without the transaction failing (the app was
