@@ -27,7 +27,8 @@ public final class PxeHost {
         let channel = PxeChannel(send: { json in Task { @MainActor in box.deliver(json) } }, handlers: handlers)
         let events = await channel.events()
         PxeLog.follow(await channel.events(), bundle: bundle)
-        let webView = makeWebView(channel: channel, origin: "http://127.0.0.1:\(server.port)")
+        let keepsStores = handlers["storeSave"] != nil
+        let webView = makeWebView(channel: channel, origin: "http://127.0.0.1:\(server.port)", keepsStores: keepsStores)
         box.webView = webView
         #if canImport(UIKit)
         OnScreen.attach(webView)
@@ -69,8 +70,13 @@ public final class PxeHost {
         return 47_600 + min(n, 99)
     }
 
-    private static func makeWebView(channel: PxeChannel, origin: String) -> WKWebView {
+    private static func makeWebView(channel: PxeChannel, origin: String, keepsStores: Bool) -> WKWebView {
         let config = WKWebViewConfiguration()
+        if keepsStores {
+            // Tells the page, before it runs, to keep its stores in memory and hand them to the app (PxeStoreFiles).
+            let flag = WKUserScript(source: "globalThis.azwallNativeStore = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+            config.userContentController.addUserScript(flag)
+        }
         config.websiteDataStore = .default()
         // The PXE's web view is never seen (OnScreen), and WebKit suspends an inactive page: its timers, workers and
         // promise chains stop between native calls (creating the PXE never finished). Keep it scheduled.

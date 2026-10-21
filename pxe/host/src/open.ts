@@ -11,7 +11,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 import { installBbMemo } from './bb_memo';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
-import { describePool } from './pool';
+import { AppCopies, appKeepsStores, openAppStores } from './native_store';
 import { NativeKernelProver } from './prover';
 import { CachedStore, clearBroken, forgetRows, isMarkedBroken } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
@@ -135,7 +135,7 @@ export async function startOverOnOtherKey<T>(open: () => Promise<T>, discard: ()
  * pool can only be held by one store at a time). Unusable stores are left behind for new names, and deleted in the
  * background.
  */
-async function openStores(bases: [string, string], dbKey: Uint8Array) {
+async function openOpfsStores(bases: [string, string], dbKey: Uint8Array) {
   const names = () => bases.map(generationName) as [string, string];
   const stores = await startOverOnOtherKey(
     () => {
@@ -156,9 +156,9 @@ async function openStores(bases: [string, string], dbKey: Uint8Array) {
       }
     },
   );
-  // Until the iOS write failures are understood: what each pool holds when the stores open.
-  for (const name of names()) log('open', `${name} pool: ${await describePool(name)}`);
-  return { ...stores, names: names() };
+  const [pxe, wallet] = names();
+  const caches = [await CachedStore.wrap(stores.pxeStore as never, pxe), await CachedStore.wrap(stores.walletStore as never, wallet)];
+  return { ...stores, caches };
 }
 
 /** `dbKey`: 32-byte hex key of the encrypted stores, kept by the app's secure storage. */
@@ -169,8 +169,10 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   log('open', `node ${check.nodeVersion} is compatible; opening the encrypted stores`);
   const { l1ContractAddresses } = await node.getNodeInfo();
   const suffix = `${check.l1ChainId}-${l1ContractAddresses.rollupAddress.toString().slice(2, 10)}`;
-  const { pxeStore, walletStore, names } = await openStores([`pxe-${suffix}`, `wallet-${suffix}`], dbKey);
-  const stores = [await CachedStore.wrap(pxeStore as never, names[0]), await CachedStore.wrap(walletStore as never, names[1])];
+  const names: [string, string] = [`pxe-${suffix}`, `wallet-${suffix}`];
+  const { pxeStore, walletStore, caches: stores } = appKeepsStores()
+    ? await openAppStores(names, new AppCopies(bridge, dbKey.slice()))
+    : await openOpfsStores(names, dbKey);
   log('open', 'stores open; creating the PXE');
   const simulator = new WASMSimulator();
   // Creating the PXE loads Barretenberg's WebAssembly and its workers: say so if it takes long, so a slow start

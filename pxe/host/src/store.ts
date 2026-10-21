@@ -35,6 +35,9 @@ const SCHEMA_SQL = `
 `;
 
 const FLUSH_DEBOUNCE_MS = 250;
+/** A copy kept by the app (NativeCopy) is the whole database each time: written less often. */
+const NATIVE_DEBOUNCE_MS = 2_000;
+const NATIVE_MAX_WAIT_MS = 10_000;
 /** Under continuous writes the debounce never fires: flush at least this often while anything is pending. */
 const FLUSH_MAX_WAIT_MS = 2_000;
 /** A failed flush is tried again after this, doubled at each failure in a row, up to a minute. */
@@ -45,6 +48,12 @@ const RETRY_MAX_MS = 60_000;
 export function retryDelay(failures: number): number {
   return Math.min(RETRY_MAX_MS, RETRY_FIRST_MS * 2 ** failures);
 }
+
+/**
+ * iOS: the database lives in memory only, and the app keeps a copy of it (native_store.ts) instead of OPFS, which
+ * WebKit took away from the hidden PXE page while it was open. `snapshot` is the copy to start from.
+ */
+export type NativeCopy = { snapshot: Uint8Array | null; save(bytes: Uint8Array): Promise<void> };
 
 type Stmt = { sql: string; bind: unknown[] | undefined };
 type Bind = unknown[] | undefined;
@@ -92,6 +101,7 @@ export class CachedStore {
     private readonly diskClose: () => Promise<void>,
     private readonly diskAll: (sql: string) => Promise<unknown[][]>,
     name: string,
+    private readonly native?: NativeCopy,
   ) {
     this.stats = {
       name,
@@ -111,29 +121,18 @@ export class CachedStore {
   }
 
   /** Wraps an opened store in place and returns the controller. The store object keeps its identity. */
-  static async wrap(disk: AztecSQLiteOPFSStore, name: string): Promise<CachedStore> {
+  static async wrap(disk: AztecSQLiteOPFSStore, name: string, native?: NativeCopy): Promise<CachedStore> {
     const sqlite = await (sqlitePromise ??= sqlite3InitModule());
-    const mem = new sqlite.oo1.DB(':memory:', 'c');
+    const mem = native?.snapshot ? memoryFrom(sqlite, native.snapshot) : new sqlite.oo1.DB(':memory:', 'c');
     mem.exec(SCHEMA_SQL);
 
     const d = disk as any;
     const diskAll = d.allAsync.bind(disk) as (sql: string, bind?: Bind) => Promise<unknown[][]>;
-    const cache = new CachedStore(disk, mem, d.runAsync.bind(disk), d.transactionAsync.bind(disk), d.close.bind(disk), diskAll, name);
+    const cache = new CachedStore(disk, mem, d.runAsync.bind(disk), d.transactionAsync.bind(disk), d.close.bind(disk), diskAll, name, native);
 
-    // Load: one SELECT on the disk database, inserted into memory in one transaction.
     const t0 = performance.now();
-    await keepJournal(diskAll, name);
-    const rows = await diskAll('SELECT slot, container, key, key_count, hash, value FROM data');
-    checkNotReset(name, rows.length);
-    mem.exec('BEGIN');
-    const ins = mem.prepare('INSERT INTO data (slot, container, key, key_count, hash, value) VALUES (?, ?, ?, ?, ?, ?)');
-    try {
-      for (const r of rows) ins.bind(r).stepReset();
-    } finally {
-      ins.finalize();
-    }
-    mem.exec('COMMIT');
-    cache.stats.loadedRows = rows.length;
+    cache.stats.loadedRows = native ? cache.rowCount() : await loadFromDisk(mem, diskAll, name);
+    if (native) checkNotReset(name, cache.stats.loadedRows);
     cache.stats.loadMs = performance.now() - t0;
 
     d.allAsync = (sql: string, bind?: Bind) => Promise.resolve(cache.#all(sql, bind));
@@ -150,7 +149,8 @@ export class CachedStore {
 
     flushWhenHidden(cache, name);
 
-    log('store', `${name}: ${rows.length} rows loaded into memory in ${cache.stats.loadMs.toFixed(0)} ms`);
+    const from = native ? "the app's copy" : 'disk';
+    log('store', `${name}: ${cache.stats.loadedRows} rows loaded into memory from ${from} in ${cache.stats.loadMs.toFixed(0)} ms`);
     return cache;
   }
 
@@ -212,25 +212,22 @@ export class CachedStore {
     this.stats.pendingStatements += group.length;
     clearTimeout(this.#timer);
     const waited = performance.now() - (this.#pendingSince ??= performance.now());
-    this.#timer = setTimeout(() => void this.flush(), Math.max(0, Math.min(FLUSH_DEBOUNCE_MS, FLUSH_MAX_WAIT_MS - waited)));
+    const [debounce, maxWait] = this.native ? [NATIVE_DEBOUNCE_MS, NATIVE_MAX_WAIT_MS] : [FLUSH_DEBOUNCE_MS, FLUSH_MAX_WAIT_MS];
+    this.#timer = setTimeout(() => void this.flush(), Math.max(0, Math.min(debounce, maxWait - waited)));
   }
 
   /** Writes every committed group to disk in one transaction. Resolves when the disk is caught up. */
   flush(): Promise<void> {
     if (this.#flushing) return this.#flushing.then(() => (this.#pending.length ? this.flush() : undefined));
     if (!this.#pending.length) return Promise.resolve();
+    if (this.native) return (this.#flushing = this.#saveCopy(this.native).finally(() => (this.#flushing = null)));
     const groups = this.#pending;
     this.#pending = [];
     this.#pendingSince = undefined;
     this.stats.pendingGroups = 0;
     this.stats.pendingStatements = 0;
     const count = groups.reduce((a, g) => a + g.length, 0);
-    const sizes: [string, number][] = groups.flat().map(st => [
-      String(st.bind?.[1] ?? st.sql.slice(0, 30)),
-      (st.bind ?? []).reduce((a: number, v) => a + (v instanceof Uint8Array ? v.byteLength : String(v ?? '').length), 0),
-    ]);
-    this.stats.lastFlushBytes = sizes.reduce((a, x) => a + x[1], 0);
-    this.stats.lastFlushLargest = [...sizes].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    this.#noteSizes(groups);
     const t0 = performance.now();
     this.#flushing = this.diskTx(async () => {
       for (const g of groups) for (const s of g) await this.diskRun(s.sql, s.bind);
@@ -267,6 +264,47 @@ export class CachedStore {
     return this.#flushing;
   }
 
+  /** Diagnostics: bytes of the statements a flush writes, and the largest ones. */
+  #noteSizes(groups: Stmt[][]): void {
+    const sizes: [string, number][] = groups.flat().map(st => [
+      String(st.bind?.[1] ?? st.sql.slice(0, 30)),
+      (st.bind ?? []).reduce((a: number, v) => a + (v instanceof Uint8Array ? v.byteLength : String(v ?? '').length), 0),
+    ]);
+    this.stats.lastFlushBytes = sizes.reduce((a, x) => a + x[1], 0);
+    this.stats.lastFlushLargest = [...sizes].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }
+
+  /** Hands the app a copy of the whole database, once no transaction is half done in it. */
+  async #saveCopy(native: NativeCopy): Promise<void> {
+    while (this.#group) await this.#txChain;
+    const groups = this.#pending;
+    const count = this.stats.pendingStatements;
+    this.#pending = [];
+    this.#pendingSince = undefined;
+    this.stats.pendingGroups = 0;
+    this.stats.pendingStatements = 0;
+    const t0 = performance.now();
+    try {
+      const bytes: Uint8Array = (await sqlitePromise!).capi.sqlite3_js_db_export(this.mem);
+      await native.save(bytes);
+      this.stats.flushes++;
+      this.stats.lastFlushMs = performance.now() - t0;
+      this.stats.lastFlushStatements = count;
+      this.stats.lastFlushBytes = bytes.byteLength;
+      this.#failures = 0;
+      rememberRows(this.stats.name, this.rowCount());
+    } catch (err) {
+      this.#pending = [...groups, ...this.#pending];
+      this.stats.pendingGroups = this.#pending.length;
+      this.stats.pendingStatements += count;
+      this.stats.flushErrors++;
+      this.stats.lastError = err instanceof Error ? err.message : String(err);
+      log('store', `${this.stats.name}: saving the app's copy FAILED (kept for retry): ${this.stats.lastError}`, 'error');
+      clearTimeout(this.#timer);
+      this.#timer = setTimeout(() => void this.flush(), retryDelay(this.#failures++));
+    }
+  }
+
   /**
    * iOS refused every write of fresh, healthy stores as "not a database" while reads and an open-time write worked:
    * the persistent journal is the suspect. Logs what the disk reports, then writes again with a DELETE journal; if
@@ -284,6 +322,31 @@ export class CachedStore {
     useDeleteJournal();
     log('store', `${name}: writes work with a DELETE journal; this device keeps it`, 'warn');
   }
+}
+
+/** Loads the disk database into memory with one SELECT, in one transaction; returns the row count. */
+async function loadFromDisk(mem: any, diskAll: (sql: string) => Promise<unknown[][]>, name: string): Promise<number> {
+  await keepJournal(diskAll, name);
+  const rows = await diskAll('SELECT slot, container, key, key_count, hash, value FROM data');
+  checkNotReset(name, rows.length);
+  mem.exec('BEGIN');
+  const ins = mem.prepare('INSERT INTO data (slot, container, key, key_count, hash, value) VALUES (?, ?, ?, ?, ?, ?)');
+  try {
+    for (const r of rows) ins.bind(r).stepReset();
+  } finally {
+    ins.finalize();
+  }
+  mem.exec('COMMIT');
+  return rows.length;
+}
+
+/** An in-memory database holding `bytes`, a whole database as sqlite3_js_db_export made it. */
+function memoryFrom(sqlite: any, bytes: Uint8Array): any {
+  const db = new sqlite.oo1.DB(':memory:', 'c');
+  const p = sqlite.wasm.allocFromTypedArray(bytes);
+  const flags = sqlite.capi.SQLITE_DESERIALIZE_FREEONCLOSE | sqlite.capi.SQLITE_DESERIALIZE_RESIZEABLE;
+  db.checkRc(sqlite.capi.sqlite3_deserialize(db.pointer, 'main', p, bytes.byteLength, bytes.byteLength, flags));
+  return db;
 }
 
 /**

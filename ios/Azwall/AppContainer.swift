@@ -20,7 +20,9 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
         return url
     }()
     let approvals = DappApprovals()
-    var launcher: PxeLauncher { IosPxeLauncher(backend: { try self.backend() }, approve: approvals.handler) }
+    var launcher: PxeLauncher {
+        IosPxeLauncher(backend: { try self.backend() }, approve: approvals.handler, stores: storeDirectory.appendingPathComponent("pxe"))
+    }
 
     var lastNetwork: String? {
         get { UserDefaults.standard.string(forKey: "azwall.network") }
@@ -58,6 +60,8 @@ struct IosPxeLauncher: PxeLauncher {
     let backend: @Sendable () throws -> WalletBackend
     /// Answers the dApp gateway's `approve` calls (DappApprovals).
     let approve: NativeHandler
+    /// Where the PXE stores' sealed copies are kept, one directory per bundle (PxeStoreFiles).
+    let stores: URL
 
     func launch(_ network: NetworkInfo) async throws -> RunningPxe {
         guard let resources = Bundle.main.resourceURL else { throw PxeError("no app resources") }
@@ -72,7 +76,9 @@ struct IosPxeLauncher: PxeLauncher {
             try ProofGate.shared.check()
             return .object(["response": .string(response.base64EncodedString())])
         }
-        let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: ["prove": prove, "approve": approve])
+        let files = PxeStoreFiles(directory: stores.appendingPathComponent(network.pxeBundle))
+        let handlers = files.handlers.merging(["prove": prove, "approve": approve]) { _, new in new }
+        let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: handlers)
         return RunningHost(host: host)
     }
 }
