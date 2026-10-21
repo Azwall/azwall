@@ -46,11 +46,13 @@ private class FakePxe : PxeCaller {
     val discoveryKnown = mutableListOf<List<String>>()
     val sent = mutableListOf<JsonObject>()
     val minted = mutableListOf<JsonObject>()
+    val calls = mutableListOf<String>()
     /** Holds the first account's balances until completed: a refresh still running when the user switches. */
     var hold: CompletableDeferred<Unit>? = null
 
     override suspend fun call(method: String, params: JsonObject): JsonElement {
         fun p(k: String) = params[k]!!.jsonPrimitive.content
+        calls += method
         val reply = when (method) {
             "open" -> failOpen?.let { throw PxeException("open: $it") }
                 ?: """{"nodeVersion":"6.0.0-rc.3","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"""
@@ -137,6 +139,34 @@ class WalletSessionTest {
         val token = s.state.value.tokens.single()
         assertEquals("TST", token.info.symbol)
         assertEquals(BigInteger("2500000"), token.balance?.privateAmount)
+    }
+
+    @Test
+    fun goingToTheBackgroundFlushesThePxeStore() = runTest {
+        val s = session().apply { open() }
+        s.flush()
+        assertEquals("flush", pxe.calls.last())
+    }
+
+    @Test
+    fun aHostThatStartsAfterCloseIsStopped() = runTest {
+        val started = CompletableDeferred<Unit>()
+        var stopped = false
+        val vault = Vault(tmp.root.resolve("vault"), PlainBox)
+        val contents = vault.create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val launcher = PxeLauncher {
+            started.await()
+            object : RunningPxe { override val client = PxeClient(pxe); override val events = emptyFlow<PxeEvent>(); override fun stop() { stopped = true } }
+        }
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
+        val s = WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
+        val opening = launch { s.open() }
+        advanceUntilIdle()
+        s.close() // locked while the PXE host starts
+        started.complete(Unit)
+        opening.join()
+        assertTrue("the late host is stopped", stopped)
+        assertTrue("nothing was opened on it", pxe.calls.isEmpty())
     }
 
     @Test

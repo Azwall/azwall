@@ -6,14 +6,18 @@ import dev.azwall.core.pxe.AccountSecrets
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.PxeClient
-import dev.azwall.core.pxe.SyncStatus
 import dev.azwall.core.pxe.PxeEvent
+import dev.azwall.core.pxe.SyncStatus
 import dev.azwall.core.pxe.TokenBalance
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +28,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.File
 
 /** A running PXE host for one network. */
 interface RunningPxe {
@@ -98,8 +101,11 @@ class WalletSession(
     private var contents: VaultContents,
     private val storeDir: File,
     val network: NetworkInfo,
-    internal val scope: CoroutineScope,
+    private val parent: CoroutineScope,
 ) {
+    /** The session's own coroutines (refreshes, followers, confirmations): cancelled together by [close]. */
+    internal val scope = CoroutineScope(parent.coroutineContext + SupervisorJob(parent.coroutineContext[Job]))
+    @Volatile private var closed = false
     private val _state = MutableStateFlow(SessionState(network))
     val state: StateFlow<SessionState> = _state.asStateFlow()
     internal val store = WalletStore(storeDir, network.id)
@@ -124,7 +130,10 @@ class WalletSession(
         scope.launch { dapps.followActivity() }
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
         try {
-            val host = launcher.launch(network).also { running.value = it }
+            val host = launcher.launch(network)
+            // Locked or switched away while the host started: nobody would ever stop it.
+            if (closed) return host.stop()
+            running.value = host
             val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
             val known = _state.value.accounts
@@ -141,9 +150,19 @@ class WalletSession(
         }
     }
 
+    /**
+     * The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory
+     * now rather than at its next debounce.
+     */
+    suspend fun flush() {
+        runCatching { pxe?.client?.flush() }
+    }
+
     fun close() {
-        pxe?.let { host -> scope.launch { runCatching { host.client.close() }; host.stop() } }
+        closed = true
+        pxe?.let { host -> parent.launch { runCatching { host.client.close() }; host.stop() } }
         running.value = null
+        scope.cancel()
     }
 
     fun select(address: String) {

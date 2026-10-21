@@ -61,6 +61,28 @@ struct FakeLauncher: PxeLauncher {
     func launch(_ network: NetworkInfo) async throws -> RunningPxe { FakeRunning(client: PxeClient(caller: pxe), pxe: pxe) }
 }
 
+/// A launcher whose host starts only when `release` yields, and remembers being stopped.
+final class SlowLauncher: PxeLauncher, @unchecked Sendable {
+    let pxe: FakePxe
+    var stopped = false
+    let (gate, release) = AsyncStream<Void>.makeStream()
+
+    init(pxe: FakePxe) { self.pxe = pxe }
+
+    func launch(_ network: NetworkInfo) async throws -> RunningPxe {
+        for await _ in gate { break }
+        return Stoppable(client: PxeClient(caller: pxe), pxe: pxe, launcher: self)
+    }
+
+    struct Stoppable: RunningPxe {
+        let client: PxeClient
+        let pxe: FakePxe
+        let launcher: SlowLauncher
+        func events() async -> AsyncStream<PxeEvent> { pxe.events }
+        func stop() async { launcher.stopped = true }
+    }
+}
+
 struct FakeBackend: WalletBackend {
     func networks() -> [NetworkInfo] { [] }
     func defaultNetworkId() -> String { "testnet-v6" }
@@ -106,6 +128,30 @@ struct SessionTests {
         try await s.addToken("0xt")
         #expect(s.tokens.first?.info.symbol == "TST")
         #expect(s.tokens.first?.total == "2500000")
+    }
+
+    @Test func goingToTheBackgroundFlushesThePxeStore() async throws {
+        let pxe = FakePxe()
+        let s = try session(pxe)
+        await s.open()
+        await s.flush()
+        #expect(pxe.calls.last?.0 == "flush")
+    }
+
+    @Test func aHostThatStartsAfterCloseIsStopped() async throws {
+        let pxe = FakePxe()
+        let launcher = SlowLauncher(pxe: pxe)
+        let vault = Vault(storage: MemoryStorage())
+        let contents = try vault.create(first: AccountSecrets(alias: "main", signingKey: "0x" + String(repeating: "ab", count: 32), salt: Vault.zeroSalt))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let s = WalletSession(backend: FakeBackend(), launcher: launcher, vault: vault, contents: contents, storeDirectory: dir, network: network)
+        let opening = Task { await s.open() }
+        try await Task.sleep(for: .milliseconds(20))
+        await s.close() // locked while the PXE host starts
+        launcher.release.yield()
+        await opening.value
+        #expect(launcher.stopped)
+        #expect(pxe.calls.isEmpty)
     }
 
     @Test func aRefreshOfThePreviousAccountDoesNotShowUnderTheNewOne() async throws {

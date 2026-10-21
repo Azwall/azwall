@@ -92,6 +92,11 @@ class PxeClient(private val caller: PxeCaller) {
         caller.call("close", JsonObject(emptyMap()))
     }
 
+    /** Writes the PXE's pending store changes to disk now. */
+    suspend fun flush() {
+        caller.call("flush", JsonObject(emptyMap()))
+    }
+
     suspend fun newSigningKey(): String = field("newSigningKey", JsonObject(emptyMap()), "signingKey")
 
     suspend fun addAccount(account: AccountSecrets): String = field("addAccount", secrets(account), "address")

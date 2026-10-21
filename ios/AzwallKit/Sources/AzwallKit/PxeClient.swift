@@ -138,6 +138,11 @@ public struct PxeClient: Sendable {
         _ = try await caller.call("close", .object([:]))
     }
 
+    /// Writes the PXE's pending store changes to disk now.
+    public func flush() async throws {
+        _ = try await caller.call("flush", .object([:]))
+    }
+
     public func addAccount(_ account: AccountSecrets) async throws -> String {
         try await field("addAccount", try JSONValue.from(account), "address")
     }

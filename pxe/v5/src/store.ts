@@ -36,6 +36,14 @@ const SCHEMA_SQL = `
 const FLUSH_DEBOUNCE_MS = 250;
 /** Under continuous writes the debounce never fires: flush at least this often while anything is pending. */
 const FLUSH_MAX_WAIT_MS = 2_000;
+/** A failed flush is tried again after this, doubled at each failure in a row, up to a minute. */
+const RETRY_FIRST_MS = 1_000;
+const RETRY_MAX_MS = 60_000;
+
+/** How long to wait before trying a flush again after `failures` failed flushes in a row. */
+export function retryDelay(failures: number): number {
+  return Math.min(RETRY_MAX_MS, RETRY_FIRST_MS * 2 ** failures);
+}
 
 type Stmt = { sql: string; bind: unknown[] | undefined };
 type Bind = unknown[] | undefined;
@@ -67,6 +75,8 @@ export class CachedStore {
   #txChain: Promise<unknown> = Promise.resolve();
   #flushing: Promise<void> | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
+  /** Failed flushes in a row, for the retry backoff. */
+  #failures = 0;
   #closed = false;
   #pendingSince: number | undefined;
   readonly #bornAt = performance.now();
@@ -127,6 +137,7 @@ export class CachedStore {
     d.transactionAsync = <T>(cb: () => Promise<T>) => cache.#transaction(cb);
     d.close = async () => {
       await cache.flush();
+      if (cache.#pending.length) log('store', `${name}: closing with ${cache.stats.pendingStatements} statements not written`, 'error');
       cache.#closed = true;
       cache.mem.close();
       return cache.diskClose();
@@ -224,6 +235,7 @@ export class CachedStore {
         this.stats.flushes++;
         this.stats.lastFlushMs = performance.now() - t0;
         this.stats.lastFlushStatements = count;
+        this.#failures = 0;
         rememberRows(this.stats.name, this.rowCount());
         this.stats.history.push([Math.round(t0 - this.#bornAt), count, this.stats.lastFlushBytes, Math.round(this.stats.lastFlushMs)]);
       })
@@ -235,6 +247,10 @@ export class CachedStore {
         this.stats.flushErrors++;
         this.stats.lastError = err instanceof Error ? err.message : String(err);
         log('store', `${this.stats.name}: flush of ${count} statements FAILED (kept for retry): ${this.stats.lastError}`, 'error');
+        // Nothing else may commit soon: try again on its own, backing off.
+        const delay = retryDelay(this.#failures++);
+        clearTimeout(this.#timer);
+        this.#timer = setTimeout(() => void this.flush(), delay);
       })
       .finally(() => {
         this.#flushing = null;

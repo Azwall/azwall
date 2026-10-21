@@ -40,7 +40,14 @@ struct RootView: View {
         // The app switcher shows a snapshot taken on the way out: a cover, not the balances or a revealed key.
         .overlay { if scenePhase != .active { PrivacyCover() } }
         .onChange(of: scenePhase) {
-            if scenePhase == .background { model.onBackground() }
+            if scenePhase == .background {
+                // A few seconds granted by iOS to write the PXE store before the app is suspended.
+                let task = UIApplication.shared.beginBackgroundTask()
+                Task {
+                    await model.onBackground()
+                    UIApplication.shared.endBackgroundTask(task)
+                }
+            }
             if scenePhase == .active { Task { await model.onForeground() } }
         }
     }

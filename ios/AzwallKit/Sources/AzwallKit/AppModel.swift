@@ -72,7 +72,8 @@ public final class AppModel {
     /// Creates the vault with `signingKey` (generated or imported), then opens the wallet.
     public func createWallet(signingKey: String, alias: String) async {
         await action {
-            let account = AccountSecrets(alias: alias.isEmpty ? "Account 1" : alias, signingKey: try Vault.parseSigningKey(signingKey), salt: Vault.zeroSalt)
+            let name = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+            let account = AccountSecrets(alias: name.isEmpty ? "Account 1" : name, signingKey: try Vault.parseSigningKey(signingKey), salt: Vault.zeroSalt)
             let vault = self.deps.vault
             await self.start(try await Task.detached { try vault.create(first: account) }.value)
         }
@@ -97,7 +98,10 @@ public final class AppModel {
 
     @ObservationIgnored private var autoLock = AutoLock()
 
-    public func onBackground() { autoLock.backgrounded() }
+    public func onBackground() async {
+        autoLock.backgrounded()
+        await session?.flush()
+    }
 
     /// Back from the background: locks if away too long, unless a transaction is being proven or sent.
     public func onForeground() async {

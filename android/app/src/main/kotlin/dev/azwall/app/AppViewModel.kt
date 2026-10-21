@@ -111,7 +111,10 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
 
     private val autoLock = AutoLock()
 
-    fun onBackground() = autoLock.backgrounded()
+    fun onBackground() {
+        autoLock.backgrounded()
+        (_phase.value as? AppPhase.Unlocked)?.session?.let { session -> viewModelScope.launch { session.flush() } }
+    }
 
     /** Back from the background: locks if away too long, unless a transaction is being proven or sent. */
     fun onForeground() {

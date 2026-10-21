@@ -48,9 +48,9 @@ public final class WalletSession {
     /// Tokens the account holds that are not followed yet, found among the contracts dApps registered.
     public internal(set) var found: [FoundToken] = []
     /// The token the user chose to show at the top (an address), if any.
-    public private(set) var primary: String?
+    public internal(set) var primary: String?
     /// Tokens the selected account created (it mints them), as addresses.
-    public private(set) var created: [String] = []
+    public internal(set) var created: [String] = []
     /// True while the shown balances come from the last session (AccountSnapshot), until a refresh confirms them.
     public internal(set) var stale = false
     /// What runs in the background right now, for the status line (nil when idle).
@@ -58,6 +58,8 @@ public final class WalletSession {
     /// The browser's link to the PXE host's dApp gateway.
     public let dapps = DappLink()
     public private(set) var refreshing = false
+    /// Set by close(): a host that finishes starting afterwards is stopped at once.
+    @ObservationIgnored private var closed = false
     /// Set when a refresh is asked while one runs: the running one goes round again.
     @ObservationIgnored private var refreshAgain = false
     public private(set) var error: String?
@@ -116,6 +118,8 @@ public final class WalletSession {
         Task.detached { try? backend.prepareProver(networkId: id) }
         do {
             let running = try await launcher.launch(network)
+            // Locked or switched away while the host started: nobody would ever stop it.
+            if closed { await running.stop(); return }
             pxe = running
             await listen(running)
             let params = try await Task.detached { try backend.pxeOpenParams(networkId: id) }.value
@@ -141,7 +145,14 @@ public final class WalletSession {
         }
     }
 
+    /// The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory
+    /// now rather than at its next debounce.
+    public func flush() async {
+        try? await pxe?.client.flush()
+    }
+
     public func close() async {
+        closed = true
         guard let running = pxe else { return }
         pxe = nil
         eventLoop?.cancel()
@@ -213,7 +224,8 @@ public final class WalletSession {
     /// Creates a fresh account, or imports one from its key, and saves it in the vault.
     public func addAccount(alias: String, importedKey: String?) async throws {
         let key = try importedKey.map(Vault.parseSigningKey) ?? Vault.newSigningKey()
-        let name = alias.trimmingCharacters(in: .whitespaces).isEmpty ? "Account \(contents.accounts.count + 1)" : alias
+        let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Account \(contents.accounts.count + 1)" : trimmed
         let secrets = AccountSecrets(alias: name, signingKey: key, salt: Vault.zeroSalt)
         let vault = vault, current = contents
         contents = try await Task.detached { try vault.addAccount(current, secrets) }.value
@@ -222,17 +234,18 @@ public final class WalletSession {
         await select(view.address)
     }
 
-    public func renameAccount(_ address: String, alias: String) async throws {
+    public func renameAccount(_ address: String, alias rawAlias: String) async throws {
+        let alias = rawAlias.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let account = accounts.first(where: { $0.address == address }) else { return }
         let vault = vault, current = contents
         contents = try await Task.detached { try vault.renameAccount(current, signingKey: account.signingKey, alias: alias) }.value
-        if let i = accounts.firstIndex(where: { $0.address == address }) { accounts[i].alias = alias.trimmingCharacters(in: .whitespaces) }
+        if let i = accounts.firstIndex(where: { $0.address == address }) { accounts[i].alias = alias }
     }
 
     /// Looks a token up on chain and follows it.
     public func addToken(_ address: String) async throws {
         guard let from = account?.address else { throw PxeError("no account") }
-        store.addToken(try await client.tokenInfo(address.trimmingCharacters(in: .whitespaces), from: from))
+        store.addToken(try await client.tokenInfo(address.trimmingCharacters(in: .whitespacesAndNewlines), from: from))
         await refresh()
     }
 
