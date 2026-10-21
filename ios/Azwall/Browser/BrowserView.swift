@@ -2,30 +2,36 @@ import AzwallKit
 import SwiftUI
 import WebKit
 
-/// The Explore tab: any website, with dApps able to connect to the wallet.
+/// The Explore tab: a start page of the network's dApps, then any website, with dApps able to connect to the wallet.
 struct BrowserView: View {
     let browser: BrowserController
+    let network: NetworkInfo
     let sessions: [DappSession]
     let onMenu: () -> Void
     let onConnections: () -> Void
+    @AppStorage(BrowserController.engineKey) private var engine = SearchEngine.default.rawValue
 
     var body: some View {
         VStack(spacing: 0) {
-            AddressBar(url: browser.url, connections: sessions.count, onMenu: onMenu, onOpen: browser.open, onConnections: onConnections)
-            if browser.progress < 1 { ProgressView(value: browser.progress).progressViewStyle(.linear).frame(height: 2) }
-            WebViewHost(webView: browser.webView)
+            AddressBar(url: browser.start ? "" : browser.url, connections: sessions.count, onMenu: onMenu, onOpen: browser.open, onConnections: onConnections)
+            if browser.start {
+                StartPage(network: network, sessions: sessions, engine: SearchEngine.named(engine), onOpen: browser.open).frame(maxHeight: .infinity)
+            } else {
+                if browser.progress < 1 { ProgressView(value: browser.progress).progressViewStyle(.linear).frame(height: 2) }
+                WebViewHost(webView: browser.webView)
+            }
             navigationRow
         }
-        .onAppear { if browser.webView.url == nil { browser.open(BrowserController.home.absoluteString) } }
     }
 
     private var navigationRow: some View {
         HStack(spacing: 20) {
-            Button(action: browser.back) { Image(systemName: "chevron.backward") }.disabled(!browser.canGoBack)
-            Button(action: browser.forward) { Image(systemName: "chevron.forward") }.disabled(!browser.canGoForward)
-            Button { browser.open(BrowserController.home.absoluteString) } label: { Image(systemName: "house") }
-            Button(action: browser.reload) { Image(systemName: "arrow.clockwise") }
-            Text(browser.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Button(action: browser.back) { Image(systemName: "chevron.backward") }.disabled(browser.start)
+            Button(action: browser.forward) { Image(systemName: "chevron.forward") }
+                .disabled(!(browser.canGoForward || (browser.start && !browser.url.isEmpty)))
+            Button(action: browser.home) { Image(systemName: "house") }.disabled(browser.start)
+            Button(action: browser.reload) { Image(systemName: "arrow.clockwise") }.disabled(browser.start)
+            Text(browser.start ? "" : browser.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
         }
         .padding(.horizontal, 16).padding(.vertical, 8)

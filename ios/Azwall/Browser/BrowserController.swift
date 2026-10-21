@@ -10,7 +10,8 @@ import WebKit
 @MainActor
 @Observable
 final class BrowserController: NSObject {
-    static let home = URL(string: "https://www.google.com")!
+    /// Where Settings saves the search engine (SearchEngine raw value).
+    static let engineKey = "azwall.searchEngine"
     /// One tab for now; the gateway routes its replies by tab.
     private static let tab = 1
     private static let bridge = "azwallBridge"
@@ -25,6 +26,8 @@ final class BrowserController: NSObject {
     private(set) var progress = 1.0
     private(set) var canGoBack = false
     private(set) var canGoForward = false
+    /// The native start page (suggested dApps) shows instead of the web view.
+    private(set) var start = true
 
     @ObservationIgnored let webView: WKWebView
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
@@ -59,13 +62,23 @@ final class BrowserController: NSObject {
         }
     }
 
+    /// Opens a URL, or searches the text with the saved engine; nothing typed: the start page.
     func open(_ input: String) {
-        guard let target = Self.url(for: input) else { return }
+        let engine = SearchEngine.named(UserDefaults.standard.string(forKey: Self.engineKey))
+        guard let address = Browsing.address(of: input, engine: engine), let target = URL(string: address) else { return home() }
+        start = false
         webView.load(URLRequest(url: target))
     }
 
-    func back() { webView.goBack() }
-    func forward() { webView.goForward() }
+    /// The start page; the web view keeps its page and history underneath.
+    func home() { start = true }
+
+    /// Back in the page's history, then out to the start page.
+    func back() { if webView.canGoBack { webView.goBack() } else { home() } }
+
+    /// From the start page, forward returns to the page left open; then on in its history.
+    func forward() { if start && webView.url != nil { start = false } else { webView.goForward() } }
+
     func reload() { webView.reload() }
 
     fileprivate func received(_ message: WKScriptMessage) {
@@ -100,17 +113,6 @@ final class BrowserController: NSObject {
     static func allowedOrigin(_ origin: String) -> Bool {
         guard let url = URL(string: origin), let host = url.host() else { return false }
         return url.scheme == "https" || (url.scheme == "http" && (host == "localhost" || host == "127.0.0.1"))
-    }
-
-    /// What the address bar opens: a URL as typed, a host (https), or a Google search.
-    static func url(for input: String) -> URL? {
-        let text = input.trimmingCharacters(in: .whitespaces)
-        if text.isEmpty { return nil }
-        if text.hasPrefix("http://") || text.hasPrefix("https://") { return URL(string: text) }
-        if text.hasPrefix("localhost") || text.hasPrefix("127.0.0.1") { return URL(string: "http://\(text)") }
-        if text.contains(".") && !text.contains(" ") { return URL(string: "https://\(text)") }
-        let query = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
-        return URL(string: "https://www.google.com/search?q=\(query)")
     }
 }
 

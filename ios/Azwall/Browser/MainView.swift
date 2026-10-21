@@ -20,7 +20,7 @@ struct MainView: View {
                 switch tab {
                 case .wallet: HomeView(model: model, session: session, route: $route, onMenu: openMenu)
                 case .explore:
-                    BrowserView(browser: browser, sessions: session.dapps.sessions, onMenu: openMenu, onConnections: { showConnections = true })
+                    BrowserView(browser: browser, network: session.network, sessions: session.dapps.sessions, onMenu: openMenu, onConnections: { showConnections = true })
                 }
                 if let request = model.approvals.pending.first {
                     ApprovalPanel(request: request) { model.approvals.decide(request.id, approved: $0) }

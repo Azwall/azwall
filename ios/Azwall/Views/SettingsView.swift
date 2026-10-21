@@ -8,11 +8,19 @@ struct SettingsView: View {
     @State private var name = ""
     @State private var revealed: String?
     @State private var confirmWipe = false
+    @AppStorage(BrowserController.engineKey) private var engine = SearchEngine.default.rawValue
 
     var body: some View {
         Form {
             accountSection
             networkSection
+            Section {
+                Picker("Search engine", selection: $engine) { ForEach(SearchEngine.allCases) { Text($0.label).tag($0.rawValue) } }
+            } header: {
+                Text("Browser")
+            } footer: {
+                Text("Where the Explore address bar searches: only engines that do not profile who searches.")
+            }
             securitySection
             Section("About") {
                 LabeledContent("Azwall", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
