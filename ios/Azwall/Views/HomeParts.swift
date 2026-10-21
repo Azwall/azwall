@@ -112,7 +112,7 @@ struct ActivityList: View {
 
     var body: some View {
         LazyVStack(spacing: 0) {
-            if items.isEmpty { EmptyHint(title: "No activity yet", text: "Transactions you make from this account appear here.") }
+            if items.isEmpty { EmptyHint(title: "No activity yet", text: "Transactions you make from this account, here or in dApps, appear here.") }
             ForEach(items) { ActivityRow(item: $0) }
         }
     }
@@ -140,7 +140,8 @@ struct ActivityRow: View {
     private var detail: String {
         let parts: [String?] = [
             item.createdAt.formatted(.relative(presentation: .named)),
-            item.counterparty.map { "to \(shortAddress($0))" },
+            item.origin.map { "via \($0.replacingOccurrences(of: "https://", with: ""))" },
+            item.counterparty.map { item.kind == .receive ? "from \(shortAddress($0))" : "to \(shortAddress($0))" },
             item.blockNumber.map { "block \($0)" },
         ]
         return parts.compactMap { $0 }.joined(separator: " · ")

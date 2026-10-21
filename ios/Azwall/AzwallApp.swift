@@ -24,7 +24,7 @@ struct RootView: View {
             case .booting: ProgressView()
             case .onboarding: OnboardingView(model: model)
             case .locked: LockView(model: model)
-            case .unlocked(let session): HomeView(model: model, session: session)
+            case .unlocked(let session): MainView(model: model, session: session)
             case .failed(let message): Text("Azwall could not start:\n\(message)").multilineTextAlignment(.center).padding()
             }
         }

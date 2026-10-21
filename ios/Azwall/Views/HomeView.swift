@@ -5,8 +5,10 @@ import SwiftUI
 struct HomeView: View {
     let model: AppModel
     let session: WalletSession
+    /// Set by the side menu too (Settings).
+    @Binding var route: Route?
+    let onMenu: () -> Void
     @State private var tab = 0
-    @State private var route: Route?
     @State private var sheet: Sheet?
 
     enum Route: Hashable { case send, shield, receive, settings }
@@ -20,6 +22,7 @@ struct HomeView: View {
                     BalanceHero(session: session, onActivate: activate, onAddToken: { sheet = .addToken }, onShield: { route = .shield }, onRetry: refresh)
                         .padding(.top, 20)
                     actions.padding(.vertical, 20)
+                    FoundTokensView(session: session)
                     Picker("", selection: $tab) { Text("Tokens").tag(0); Text("Activity").tag(1) }.pickerStyle(.segmented).padding(.horizontal)
                     if tab == 0 { TokenList(tokens: session.tokens, onAdd: { sheet = .addToken }) } else { ActivityList(items: session.activity) }
                 }
@@ -30,6 +33,8 @@ struct HomeView: View {
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
             .task { await autoRefresh() }
+            .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
+            .animation(.default, value: session.task)
         }
         .overlay { if let item = session.proving { ProvingView(item: item, since: session.provingSince ?? Date()) } }
     }
@@ -37,6 +42,9 @@ struct HomeView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
+            Button(action: onMenu) { Image(systemName: "line.3.horizontal") }.accessibilityLabel("Menu")
+        }
+        ToolbarItem(placement: .principal) {
             Button { sheet = .networks } label: {
                 HStack(spacing: 6) {
                     Circle().fill(nodeHealthy ? Palette.success : Palette.pending).frame(width: 8, height: 8)
@@ -48,7 +56,7 @@ struct HomeView: View {
             .foregroundStyle(.primary)
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { route = .settings } label: { Image(systemName: "gearshape") }
+            Button { route = .receive } label: { Image(systemName: "qrcode") }.accessibilityLabel("Receive")
         }
     }
 
