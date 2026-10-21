@@ -21,8 +21,8 @@ struct SettingsView: View {
             securitySection
             Section("About") {
                 LabeledContent("Azwall", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
-                LabeledContent("Rust core", value: coreVersion())
-                LabeledContent("Provers", value: supportedBarretenbergReleases().joined(separator: ", "))
+                LabeledContent("Rust core", value: AzwallRuntime.coreVersion)
+                LabeledContent("Provers", value: AzwallRuntime.proverReleases.joined(separator: ", "))
             }
         }
         .navigationTitle("Settings")

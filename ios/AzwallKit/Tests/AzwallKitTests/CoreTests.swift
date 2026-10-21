@@ -89,10 +89,10 @@ struct ChannelTests {
         let id = out.all[0]["id"]!.intValue!
         await channel.receive(#"{"kind":"reply","id":\#(id),"ok":true,"result":7678}"#)
         #expect(try await block == .number(7678))
-        async let open = channel.call("open")
+        let open = Task { try await channel.call("open") }
         try await Task.sleep(for: .milliseconds(50))
         await channel.receive(#"{"kind":"reply","id":\#(id + 1),"ok":false,"error":"not compatible"}"#)
-        await #expect(throws: PxeError("open: not compatible")) { try await open }
+        await #expect(throws: PxeError("open: not compatible")) { try await open.value }
     }
 
     @Test func hostCallsReachNativeHandlers() async throws {
@@ -108,10 +108,10 @@ struct ChannelTests {
 
     @Test func closingFailsPendingCalls() async throws {
         let channel = PxeChannel(send: { _ in }, handlers: [:])
-        async let pending = channel.call("balances")
+        let pending = Task { try await channel.call("balances") }
         try await Task.sleep(for: .milliseconds(50))
         await channel.close("web view destroyed")
-        await #expect(throws: PxeError("balances: web view destroyed")) { try await pending }
+        await #expect(throws: PxeError("balances: web view destroyed")) { try await pending.value }
         await #expect(throws: PxeError("blockNumber: web view destroyed")) { try await channel.call("blockNumber") }
     }
 

@@ -1,3 +1,4 @@
+import AzwallCoreFFI
 import AzwallKit
 import Foundation
 
@@ -7,6 +8,12 @@ public enum AzwallRuntime {
     public static let configResource = "azwall-config"
     /// Folder reference holding the CRS files (scripts/fetch-crs.sh).
     public static let crsFolder = "crs"
+
+    /// Version of the Rust core, for the About screen.
+    public static var coreVersion: String { AzwallCoreFFI.coreVersion() }
+
+    /// Barretenberg releases this build can prove with.
+    public static var proverReleases: [String] { supportedBarretenbergReleases() }
 
     public static func create(bundle: Bundle = .main, proverThreads: UInt32 = 0) throws -> any WalletBackend {
         guard let configURL = bundle.url(forResource: configResource, withExtension: "json") else {

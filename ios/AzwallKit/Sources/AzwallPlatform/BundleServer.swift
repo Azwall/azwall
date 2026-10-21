@@ -22,12 +22,15 @@ final class BundleServer: @unchecked Sendable {
 
     func start() async throws {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            var resumed = false
-            listener.stateUpdateHandler = { state in
-                guard !resumed else { return }
+            // The first ready or failed state detaches the handler, so the continuation resumes exactly once.
+            listener.stateUpdateHandler = { [listener] state in
                 switch state {
-                case .ready: resumed = true; cont.resume()
-                case .failed(let error): resumed = true; cont.resume(throwing: error)
+                case .ready:
+                    listener.stateUpdateHandler = nil
+                    cont.resume()
+                case .failed(let error):
+                    listener.stateUpdateHandler = nil
+                    cont.resume(throwing: error)
                 default: break
                 }
             }
