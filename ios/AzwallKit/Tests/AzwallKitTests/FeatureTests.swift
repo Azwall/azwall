@@ -239,3 +239,25 @@ struct HistoryAndStatusTests {
         #expect(StatusText.text(phase: .ready, task: nil, activity: [pending, pending], now: now) == "Waiting for 2 transactions to be mined…")
     }
 }
+
+struct PaymentRequestTests {
+    let me = "0x" + String(repeating: "ab", count: 32)
+    let token = "0x" + String(repeating: "cd", count: 32)
+
+    @Test func aBareAddressIsARequestWithoutDetails() {
+        #expect(PaymentRequest.parse("  \(me)\n") == PaymentRequest(address: me))
+    }
+
+    @Test func aUriCarriesNetworkTokenAndAmount() throws {
+        let request = try #require(PaymentRequest.parse("aztec:\(me)?network=testnet-v6&token=\(token)&amount=1.5"))
+        #expect(request == PaymentRequest(address: me, network: "testnet-v6", token: token, amount: "1.5"))
+        #expect(request.uri == "aztec:\(me)?network=testnet-v6&token=\(token)&amount=1.5")
+        #expect(PaymentRequest(address: me).uri == me)
+    }
+
+    @Test func anythingElseIsRejectedAndBadParametersIgnored() {
+        #expect(PaymentRequest.parse("https://example.com") == nil)
+        #expect(PaymentRequest.parse("aztec:0x12") == nil)
+        #expect(PaymentRequest.parse("aztec:\(me)?token=nope&amount=-3") == PaymentRequest(address: me))
+    }
+}

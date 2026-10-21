@@ -56,6 +56,7 @@ targets:
         CFBundleDisplayName: Azwall
         UILaunchScreen: {}
         NSFaceIDUsageDescription: Azwall uses Face ID to unlock your wallet and confirm sensitive actions.
+        NSCameraUsageDescription: Azwall uses the camera to scan the QR code of an address you send to.
         # The PXE host page is served from the app itself on 127.0.0.1 (a secure context for Web Crypto).
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

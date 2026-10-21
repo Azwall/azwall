@@ -13,6 +13,9 @@ struct TransferView: View {
     @State private var publicSide = false
     @State private var to = ""
     @State private var amountText = ""
+    @State private var scanning = false
+    @State private var scanNote: String?
+    @State private var scanned: String?
 
     private var token: TokenView? { session.tokens.indices.contains(tokenIndex) ? session.tokens[tokenIndex] : nil }
 
@@ -74,10 +77,15 @@ struct TransferView: View {
         Section {
             HStack {
                 TextField("Recipient address", text: $to).font(.mono).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    // The note is about the scanned address: editing it to another one drops the note.
+                    .onChange(of: to) { if to != scanned { scanNote = nil } }
+                Button { scanning = true } label: { Image(systemName: "qrcode.viewfinder") }.buttonStyle(.borderless).accessibilityLabel("Scan a QR code")
                 Button { to = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? to } label: { Image(systemName: "doc.on.clipboard") }
+                    .buttonStyle(.borderless)
             }
+            .fullScreenCover(isPresented: $scanning) { QrScanner(onResult: apply) }
         } footer: {
-            if let recipientError { Text(recipientError).foregroundStyle(Palette.danger) }
+            if let note = recipientError ?? scanNote { Text(note).foregroundStyle(Palette.danger) }
         }
     }
 
@@ -118,5 +126,20 @@ struct TransferView: View {
         let kind = kind, to = to
         Task { await model.run(done: "Sent. It will appear in your balance once in a block.") { try await $0.send(kind, token: token.info, to: to, amount: units) } }
         dismiss()
+    }
+
+    /// Fills the form from a scanned QR code, and says what to check about it.
+    private func apply(_ text: String) {
+        guard let request = PaymentRequest.parse(text) else { scanNote = "This QR code is not an Aztec address"; return }
+        scanned = request.address
+        to = request.address
+        let index = request.token.flatMap { t in session.tokens.firstIndex { $0.info.address.lowercased() == t.lowercased() } }
+        if let index { tokenIndex = index }
+        if let amount = request.amount { amountText = amount }
+        if let network = request.network, network != session.network.id {
+            scanNote = "This request is for \(network), not \(session.network.id): check before sending"
+        } else if request.token != nil && index == nil {
+            scanNote = "The requested token is not in your list: add it first"
+        }
     }
 }
