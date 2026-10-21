@@ -1,16 +1,15 @@
 package dev.azwall.app.ui.tokens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -33,11 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import dev.azwall.app.ui.components.CopyAddress
 import dev.azwall.app.ui.components.Panel
-import dev.azwall.app.ui.components.TokenBadge
-import dev.azwall.app.ui.sheets.ShareTokenSheet
-import dev.azwall.core.wallet.Amounts
+import dev.azwall.app.ui.home.TokenRow
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
@@ -56,15 +52,10 @@ data class TokenStudioActions(
  */
 @Composable
 fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioActions) {
-    var minting by rememberSaveable { mutableStateOf<String?>(null) }
-    val token = state.tokens.firstOrNull { it.info.address == minting }
-    if (token != null) {
-        MintScreen(token, busy, onBack = { minting = null }) { amount, private, to ->
-            actions.onMint(token, amount, private, to)
-            minting = null
-        }
-        return
-    }
+    var managing by rememberSaveable { mutableStateOf<String?>(null) }
+    var minting by rememberSaveable { mutableStateOf(false) }
+    val token = state.tokens.firstOrNull { it.info.address == managing }
+    if (token != null) return ManagedToken(token, state, busy, minting, { minting = it }, { managing = null }, actions)
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
@@ -98,7 +89,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
             CreateForm(busy, actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
-            mine.forEach { CreatedToken(it, state.network.id, state.network.label, busy) { minting = it.info.address } }
+            mine.forEach { t -> CreatedToken(t) { managing = t.info.address } }
         }
     }
 }
@@ -130,31 +121,27 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
     }
 }
 
+/** A token this account created, as on the home screen; Manage opens its balances, QR code and minting. */
 @Composable
-private fun CreatedToken(token: TokenView, network: String, networkLabel: String, busy: Boolean, onMint: () -> Unit) = Panel {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TokenBadge(token.info.symbol, token.info.address)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("${token.info.name} (${token.info.symbol})", style = MaterialTheme.typography.titleSmall)
-                val total = token.balance?.let { Amounts.display(it.privateAmount + it.publicAmount, token.info.decimals, 4) } ?: "…"
-                Text("You hold $total · ${token.info.decimals} decimals", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        CopyAddress(token.info.address)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ShareToken(token, network, networkLabel)
-            Spacer(Modifier.weight(1f))
-            Button(onClick = onMint, enabled = !busy) { Text("Mint") }
-        }
-    }
+private fun CreatedToken(token: TokenView, onManage: () -> Unit) = Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.weight(1f)) { TokenRow(token, onClick = onManage) }
+    TextButton(onClick = onManage) { Text("Manage") }
 }
 
-/** A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one. */
+/** A token opened from the list: its manage screen, or minting it. */
 @Composable
-private fun ShareToken(token: TokenView, network: String, networkLabel: String) {
-    var shown by rememberSaveable(token.info.address) { mutableStateOf(false) }
-    TextButton(onClick = { shown = true }) { Text("Share so others can add it") }
-    if (shown) ShareTokenSheet(token, network, networkLabel) { shown = false }
+private fun ManagedToken(
+    token: TokenView,
+    state: SessionState,
+    busy: Boolean,
+    minting: Boolean,
+    setMinting: (Boolean) -> Unit,
+    close: () -> Unit,
+    actions: TokenStudioActions,
+) {
+    if (!minting) return ManageTokenScreen(token, state.network.id, state.network.label, busy, onBack = close, onMint = { setMinting(true) })
+    MintScreen(token, busy, onBack = { setMinting(false) }) { amount, private, to ->
+        actions.onMint(token, amount, private, to)
+        setMinting(false)
+    }
 }

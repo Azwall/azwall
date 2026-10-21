@@ -35,6 +35,12 @@ import dev.azwall.core.wallet.TokenView
  */
 @Composable
 fun ShareTokenSheet(token: TokenView, network: String, networkLabel: String, onDismiss: () -> Unit) = Sheet("Share ${token.info.symbol}", onDismiss, fullHeight = true) {
+    TokenShareCard(token, network, networkLabel)
+}
+
+/** The token, its QR code and address, and the share button: in the share sheet and on the token's manage screen. */
+@Composable
+fun TokenShareCard(token: TokenView, network: String, networkLabel: String) {
     val context = LocalContext.current
     val link = remember(token.info.address, network) { PaymentRequest(token.info.address, network).toUri() }
     val qr = remember(link) { qrBitmap(link) }

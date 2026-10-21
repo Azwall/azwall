@@ -9,7 +9,7 @@ struct TokenStudioView: View {
     @State private var name = "Test Token"
     @State private var symbol = "TST"
     @State private var decimals = 6
-    @State private var minting: String?
+    @State private var managing: String?
 
     var body: some View {
         Form {
@@ -29,14 +29,24 @@ struct TokenStudioView: View {
                 let mine = session.tokens.filter { t in session.created.contains { $0.lowercased() == t.info.address.lowercased() } }
                 if !mine.isEmpty {
                     Section("Your tokens") {
-                        ForEach(mine) { t in CreatedTokenRow(model: model, token: t, network: session.network) { minting = t.id } }
+                        ForEach(mine) { t in
+                            // As on the home screen; the whole row opens the token, which only shows it.
+                            Button { managing = t.id } label: {
+                                HStack(spacing: 0) {
+                                    TokenRow(token: t)
+                                    Text("Manage").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.accent)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 16))
+                        }
                     }
                 }
             }
         }
         .navigationTitle("Create a token")
-        .navigationDestination(item: $minting) { address in
-            if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }
+        .navigationDestination(item: $managing) { address in
+            if let token = session.tokens.first(where: { $0.id == address }) { TokenManageView(model: model, token: token, network: session.network) }
         }
     }
 
@@ -53,37 +63,5 @@ struct TokenStudioView: View {
         } footer: {
             Text("This account becomes the minter. The token exists on this network only; creating it takes one proof.")
         }
-    }
-}
-
-/// One token this account created: its balance, its address to share, and the way to mint it.
-private struct CreatedTokenRow: View {
-    let model: AppModel
-    let token: TokenView
-    let network: NetworkInfo
-    let onMint: () -> Void
-    @State private var sharing = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                TokenBadge(symbol: token.info.symbol, address: token.info.address)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(token.info.name) (\(token.info.symbol))").font(.subheadline.weight(.semibold))
-                    Text("You hold \(token.total.map { Amounts.display($0, decimals: token.info.decimals, maxFraction: 4) } ?? "…") · \(token.info.decimals) decimals")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            CopyAddress(address: token.info.address)
-            // Borderless: in a Form, a plain button makes the whole row its tap target.
-            HStack {
-                // A wallet only sees tokens it follows: the share sheet's QR code lets another one add this one.
-                Button("Share so others can add it") { sharing = true }.buttonStyle(.borderless)
-                Spacer()
-                Button("Mint", action: onMint).buttonStyle(.borderedProminent).disabled(model.busy)
-            }
-        }
-        .padding(.vertical, 4)
-        .sheet(isPresented: $sharing) { ShareTokenSheet(token: token, network: network) }
     }
 }

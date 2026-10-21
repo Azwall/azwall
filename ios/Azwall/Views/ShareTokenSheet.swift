@@ -7,27 +7,37 @@ struct ShareTokenSheet: View {
     let token: TokenView
     let network: NetworkInfo
 
+    var body: some View {
+        NavigationStack {
+            TokenShareCard(token: token, network: network)
+                .padding(24)
+                .navigationTitle("Share \(token.info.symbol)")
+                .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+/// The token, its QR code and address, and the share button: in the share sheet and on the token's manage screen.
+struct TokenShareCard: View {
+    let token: TokenView
+    let network: NetworkInfo
+
     private var link: String { PaymentRequest(address: token.info.address, network: network.id).uri }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                HStack(spacing: 8) {
-                    TokenBadge(symbol: token.info.symbol, address: token.info.address)
-                    Text("\(token.info.name) (\(token.info.symbol))").font(.headline)
-                }
-                if let qr = ReceiveView.qrCode(link) {
-                    Image(uiImage: qr).interpolation(.none).resizable().frame(width: 220, height: 220)
-                        .padding(12).background(RoundedRectangle(cornerRadius: 16).fill(.white))
-                }
-                CopyAddress(address: token.info.address)
-                Text("Scan it in Add a token on another wallet to see its \(token.info.symbol) balances. The token exists on \(network.label) only.")
-                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                ShareLink("Share link", item: link).frame(maxWidth: .infinity, minHeight: 44)
+        VStack(spacing: 16) {
+            HStack(spacing: 8) {
+                TokenBadge(symbol: token.info.symbol, address: token.info.address)
+                Text("\(token.info.name) (\(token.info.symbol))").font(.headline)
             }
-            .padding(24)
-            .navigationTitle("Share \(token.info.symbol)")
-            .navigationBarTitleDisplayMode(.inline)
+            if let qr = ReceiveView.qrCode(link) {
+                Image(uiImage: qr).interpolation(.none).resizable().frame(width: 220, height: 220)
+                    .padding(12).background(RoundedRectangle(cornerRadius: 16).fill(.white))
+            }
+            CopyAddress(address: token.info.address)
+            Text("Scan it in Add a token on another wallet to see its \(token.info.symbol) balances. The token exists on \(network.label) only.")
+                .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            ShareLink("Share link", item: link).frame(maxWidth: .infinity, minHeight: 44)
         }
     }
 }
