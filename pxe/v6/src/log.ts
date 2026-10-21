@@ -1,5 +1,5 @@
 // Logs go to native code (the app's log) as `log` events; the console keeps a copy for web view debugging.
-// The page's own console warnings and errors, and uncaught errors, are forwarded too: on iOS nothing else gets
+// The page's own console (Aztec's loggers write there) and uncaught errors are forwarded too: on iOS nothing else gets
 // them out of the web view (Android's WebView copies the console to logcat).
 import type { Bridge } from '@azwall/pxe-shared';
 
@@ -30,9 +30,11 @@ export function describe(value: unknown): string {
 }
 
 function forwardConsole(): void {
-  for (const level of ['warn', 'error'] as const) {
-    console[level] = (...args: unknown[]) => {
-      raw[level](...args);
+  const levels = { log: 'info', info: 'info', warn: 'warn', error: 'error' } as const;
+  for (const [method, level] of Object.entries(levels) as [keyof typeof levels, LogLevel][]) {
+    const original = console[method].bind(console);
+    console[method] = (...args: unknown[]) => {
+      original(...args);
       bridge?.emit('log', { level, scope: 'console', message: args.map(describe).join(' ').slice(0, 2000) });
     };
   }

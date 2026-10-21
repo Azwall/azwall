@@ -9,6 +9,9 @@ import { attachLog, log } from './log';
 
 (globalThis as { Buffer?: typeof Buffer }).Buffer ??= Buffer;
 
+/** Version and commit of this build (vite.config.ts). */
+declare const __AZWALL_BUILD__: string;
+
 declare global {
   // eslint-disable-next-line no-var
   var azwallHost: { aztec: string; receive(json: string): void } | undefined;
@@ -29,5 +32,7 @@ document.addEventListener('visibilitychange', () => {
   bridge.invokeLocal('flush').catch(err => log('store', `flush on hide failed: ${errorMessage(err)}`, 'warn'));
 });
 
-log('host', `PXE host for Aztec ${AZTEC_VERSION} loaded`);
+// The bundle's file name carries its content hash: with the build id, the log says exactly which code runs.
+const bundle = new URL(import.meta.url).pathname.split('/').pop();
+log('host', `PXE host for Aztec ${AZTEC_VERSION} loaded (azwall ${__AZWALL_BUILD__}, ${bundle})`);
 bridge.emit('ready', { aztec: AZTEC_VERSION });
