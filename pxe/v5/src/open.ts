@@ -84,10 +84,15 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   const stores = [await CachedStore.wrap(pxeStore as never, names.pxe), await CachedStore.wrap(walletStore as never, names.wallet)];
   log('open', 'stores open; creating the PXE');
   const simulator = new WASMSimulator();
+  // Creating the PXE loads Barretenberg's WebAssembly and its workers: say so if it takes long, so a slow start
+  // and a stuck one can be told apart in the logs.
+  const t0 = performance.now();
+  const heartbeat = setInterval(() => log('open', `still creating the PXE (${Math.round((performance.now() - t0) / 1000)} s)`), 10_000);
   const wallet = await AzwallWallet.create<AzwallWallet>(node, {
     pxe: { store: pxeStore as never, simulator, proverOrOptions: new NativeKernelProver(simulator, bridge, network.id) },
     walletDb: { store: walletStore as never },
-  });
+  }).finally(() => clearInterval(heartbeat));
+  log('open', `PXE created in ${Math.round(performance.now() - t0)} ms`);
   wallet.stores = stores;
   const fpc = await sponsoredFpc();
   await wallet.registerContract(fpc.instance, fpc.artifact);
