@@ -136,11 +136,14 @@ struct TokenRow: View {
 
 struct ActivityList: View {
     let items: [ActivityItem]
+    var onOpen: (ActivityItem) -> Void = { _ in }
 
     var body: some View {
         LazyVStack(spacing: 0) {
             if items.isEmpty { EmptyHint(title: "No activity yet", text: "Transactions you make from this account, here or in dApps, appear here.") }
-            ForEach(items) { ActivityRow(item: $0) }
+            ForEach(items) { item in
+                Button { onOpen(item) } label: { ActivityRow(item: item).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityHint("Details")
+            }
         }
     }
 }

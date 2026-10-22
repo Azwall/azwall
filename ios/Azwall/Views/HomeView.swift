@@ -11,6 +11,8 @@ struct HomeView: View {
     @State private var tab = 0
     @State private var sheet: Sheet?
     @State private var shared: TokenView?
+    /// By id: the sheet follows the transaction while it moves from proving to a block.
+    @State private var opened: String?
 
     enum Route: Hashable { case send, shield, receive, settings, tokens }
     enum Sheet: Identifiable { case networks, accounts, addToken; var id: Self { self } }
@@ -25,7 +27,7 @@ struct HomeView: View {
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
                     Picker("", selection: $tab) { Text("Tokens").tag(0); Text("Activity").tag(1) }.pickerStyle(.segmented).padding(.horizontal)
-                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }, onShare: { shared = $0 }) } else { ActivityList(items: session.activity) }
+                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }, onShare: { shared = $0 }) } else { ActivityList(items: session.activity) { opened = $0.id } }
                 }
             }
             .refreshable { await session.refresh() }
@@ -34,6 +36,9 @@ struct HomeView: View {
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
             .sheet(item: $shared) { ShareTokenSheet(token: $0, network: session.network).presentationDetents([.large]) }
+            .sheet(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
+                if let item = session.activity.first(where: { $0.id == opened }) { ActivityDetailsSheet(item: item) }
+            }
             .task { await autoRefresh() }
             .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }
             .animation(.default, value: session.task)

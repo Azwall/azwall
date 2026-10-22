@@ -50,10 +50,12 @@ import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.CircleAction
 import dev.azwall.app.ui.components.CopyAddress
+import dev.azwall.app.ui.sheets.ActivityDetailsSheet
 import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.wallet.Phase
+import dev.azwall.core.wallet.ActivityItem
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
 
@@ -80,6 +82,8 @@ data class HomeActions(
 fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var shared by remember { mutableStateOf<TokenView?>(null) }
+    // By id: the sheet follows the transaction while it moves from proving to a block.
+    var opened by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         TopBar(state, nodeOk, actions)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {
@@ -93,13 +97,14 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
                     }
                 }
                 item { FoundTokens(state.found, actions.onFollowFound, actions.onDismissFound) }
-                if (tab == 0) tokenItems(state, actions) { shared = it } else activityItems(state)
+                if (tab == 0) tokenItems(state, actions) { shared = it } else activityItems(state) { opened = it.id }
                 item { Spacer(Modifier.height(32.dp)) }
             }
         }
         StatusLine(state)
     }
     shared?.let { ShareTokenSheet(it, state.network.id, state.network.label) { shared = null } }
+    state.activity.firstOrNull { it.id == opened }?.let { ActivityDetailsSheet(it) { opened = null } }
 }
 
 @Composable
@@ -163,7 +168,7 @@ private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions, 
     items(state.tokens, key = { it.info.address }) { TokenRow(it, state.stale, onClick = { onShare(it) }) }
 }
 
-private fun LazyListScope.activityItems(state: SessionState) {
+private fun LazyListScope.activityItems(state: SessionState, onOpen: (ActivityItem) -> Unit) {
     if (state.activity.isEmpty()) item { EmptyHint("No activity yet", "Transactions you make from this account, here or in dApps, appear here.") }
-    items(state.activity, key = { it.id }) { ActivityRow(it) }
+    items(state.activity, key = { it.id }) { ActivityRow(it, onClick = { onOpen(it) }) }
 }

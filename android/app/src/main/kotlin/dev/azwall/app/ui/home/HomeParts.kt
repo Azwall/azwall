@@ -155,8 +155,8 @@ internal fun TokenRow(token: TokenView, stale: Boolean = false, showsBalance: Bo
 }
 
 @Composable
-internal fun ActivityRow(item: ActivityItem) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+internal fun ActivityRow(item: ActivityItem, onClick: () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Details", onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(activityTitle(item), style = MaterialTheme.typography.titleSmall)
             val detail = listOfNotNull(
