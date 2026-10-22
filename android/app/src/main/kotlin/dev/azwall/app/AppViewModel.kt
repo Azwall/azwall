@@ -187,6 +187,17 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         done?.let { _message.value = it }
     }
 
+    /**
+     * A transaction the user confirmed: the fingerprint (or the device's credential) first, as for unlocking. Declined,
+     * nothing is proven or sent.
+     */
+    fun sign(auth: Auth, done: String? = null, block: suspend (WalletSession) -> Unit) = action {
+        if (!auth()) throw AuthCancelled()
+        val session = (_phase.value as? AppPhase.Unlocked)?.session ?: error("the wallet is locked")
+        block(session)
+        done?.let { _message.value = it }
+    }
+
     fun consumeMessage() {
         _message.value = null
     }

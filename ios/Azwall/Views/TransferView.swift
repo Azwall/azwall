@@ -132,7 +132,7 @@ struct TransferView: View {
     private func submit() {
         guard let token, let units = try? amount.get() else { return }
         let kind = kind, to = to
-        Task { await model.run(done: "Sent. It will appear in your balance once in a block.") { try await $0.send(kind, token: token.info, to: to, amount: units) } }
+        Task { await model.sign(done: "Sent. It will appear in your balance once in a block.") { try await $0.send(kind, token: token.info, to: to, amount: units) } }
         dismiss()
     }
 

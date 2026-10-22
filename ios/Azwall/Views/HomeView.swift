@@ -115,7 +115,7 @@ struct HomeView: View {
     }
 
     private func activate() {
-        Task { await model.run(done: "Account activation sent.") { try await $0.deployAccount() } }
+        Task { await model.sign(done: "Account activation sent.") { try await $0.deployAccount() } }
     }
 
     private func refresh() {

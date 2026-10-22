@@ -62,6 +62,9 @@ private enum class Sheet { NONE, NETWORKS, ACCOUNTS, ADD_TOKEN, CONNECTIONS }
 /** How often balances are refreshed while the wallet is on screen. */
 private const val REFRESH_MS = 20_000L
 
+/** What the fingerprint prompt says when a confirmed transaction is about to be proven and sent. */
+private const val CONFIRM = "Confirm the transaction"
+
 @Composable
 fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth: (String) -> Auth, dismissMessage: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf(MainTab.WALLET) }
@@ -126,7 +129,7 @@ private fun WalletRoutes(
     BackHandler(enabled = route != Route.HOME) { go(Route.HOME) }
     val home = { go(Route.HOME) }
     when (route) {
-        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, go, open, openMenu))
+        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, auth, go, open, openMenu))
         Route.SEND, Route.SHIELD -> TransferScreen(
             mode = if (route == Route.SEND) TransferMode.SEND else TransferMode.SHIELD,
             tokens = state.tokens,
@@ -137,20 +140,20 @@ private fun WalletRoutes(
             busy = busy,
             onBack = home,
         ) { kind, token, to, amount ->
-            vm.run("Sent. It will appear in your balance once in a block.") { it.transactions.send(kind, token.info, to, amount) }
+            vm.sign(auth(CONFIRM), "Sent. It will appear in your balance once in a block.") { it.transactions.send(kind, token.info, to, amount) }
             home()
         }
         Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
         Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, openMenu)
         Route.TOKENS -> TokenStudioScreen(state, busy, TokenStudioActions(
             onMenu = openMenu,
-            onCreate = { name, symbol, decimals -> vm.run("Token creation sent.") { it.transactions.deployTestToken(name, symbol, decimals) } },
-            onMint = { token, amount, private, to -> mint(vm, token, amount, private, to) },
+            onCreate = { name, symbol, decimals -> vm.sign(auth(CONFIRM), "Token creation sent.") { it.transactions.deployTestToken(name, symbol, decimals) } },
+            onMint = { token, amount, private, to -> mint(vm, auth(CONFIRM), token, amount, private, to) },
         ))
     }
 }
 
-private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) -> Unit, open: (Sheet) -> Unit, menu: () -> Unit) = HomeActions(
+private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String) -> Auth, go: (Route) -> Unit, open: (Sheet) -> Unit, menu: () -> Unit) = HomeActions(
     onMenu = menu,
     onNetworks = { open(Sheet.NETWORKS) },
     onAccounts = { open(Sheet.ACCOUNTS) },
@@ -162,7 +165,7 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, go: (Route) ->
     onFollowFound = { token -> session.followFound(token) },
     onChoosePrimary = { address -> session.choosePrimary(address) },
     onDismissFound = { token -> session.dismissFound(token) },
-    onActivate = { vm.run("Account activation sent.") { it.transactions.deployAccount() } },
+    onActivate = { vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount() } },
     onRefresh = { vm.run { it.refresh() } },
     onCopied = {},
 )
@@ -231,7 +234,7 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     revealed?.let { key -> SecretKeyDialog(key, onCopy = { copySecret(context, key) }, onDismiss = { revealed = null }) }
 }
 
-private fun mint(vm: AppViewModel, token: TokenView, amount: String, private: Boolean, to: String) = vm.run("Mint sent.") { session ->
+private fun mint(vm: AppViewModel, auth: Auth, token: TokenView, amount: String, private: Boolean, to: String) = vm.sign(auth, "Mint sent.") { session ->
     session.transactions.mint(token.info, Amounts.parse(amount, token.info.decimals), private, to)
 }
 
