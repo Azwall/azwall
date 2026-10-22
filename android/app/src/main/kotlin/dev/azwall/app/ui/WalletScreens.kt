@@ -131,6 +131,7 @@ private fun WalletRoutes(
             tokens = state.tokens,
             me = state.account?.address.orEmpty(),
             network = state.network.id,
+            networkLabel = state.network.label,
             busy = busy,
             onBack = home,
         ) { kind, token, to, amount ->

@@ -14,6 +14,7 @@ struct TransferView: View {
     @State private var to = ""
     @State private var amountText = ""
     @State private var scanNote: String?
+    @State private var reviewing = false
     @State private var scanned: String?
 
     private var token: TokenView? { session.tokens.indices.contains(tokenIndex) ? session.tokens[tokenIndex] : nil }
@@ -77,8 +78,9 @@ struct TransferView: View {
         }
         .navigationTitle(mode == .send ? "Send" : "Shield")
         .safeAreaInset(edge: .bottom) {
-            Button(actionLabel, action: submit).buttonStyle(PrimaryButtonStyle()).disabled(!valid || model.busy).padding()
+            Button(actionLabel) { reviewing = true }.buttonStyle(PrimaryButtonStyle()).disabled(!valid || model.busy).padding()
         }
+        .sheet(isPresented: $reviewing) { if let review { ReviewSheet(review: review, onConfirm: submit) } }
         .onAppear { if mode == .shield { publicSide = Amounts.isPositive(session.tokens.first?.balance?.public ?? "0") } }
     }
 
@@ -118,6 +120,13 @@ struct TransferView: View {
         case .shield: "Make private"
         case .unshield: "Make public"
         }
+    }
+
+    /// The exact amount (every decimal) and the recipient in full.
+    private var review: Review? {
+        guard let token, let units = try? amount.get() else { return nil }
+        let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
+        return Review.transfer(kind, amount: shown, to: to, network: session.network.label)
     }
 
     private func submit() {

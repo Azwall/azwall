@@ -50,7 +50,7 @@ struct TokenStudioView: View {
         .navigationTitle("Create a token")
         .menuButton(onMenu)
         .navigationDestination(item: $minting) { address in
-            if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token) }
+            if let token = session.tokens.first(where: { $0.id == address }) { MintView(model: model, token: token, network: session.network.label) }
         }
         .sheet(item: $sharing) { ShareTokenSheet(token: $0, network: session.network) }
     }

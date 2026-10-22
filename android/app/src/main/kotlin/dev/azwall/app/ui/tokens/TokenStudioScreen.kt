@@ -59,7 +59,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
     var minting by rememberSaveable { mutableStateOf<String?>(null) }
     var sharing by rememberSaveable { mutableStateOf<String?>(null) }
     state.tokens.firstOrNull { it.info.address == minting }?.let { token ->
-        return MintScreen(token, busy, onBack = { minting = null }) { amount, private, to ->
+        return MintScreen(token, state.network.label, busy, onBack = { minting = null }) { amount, private, to ->
             actions.onMint(token, amount, private, to)
             minting = null
         }

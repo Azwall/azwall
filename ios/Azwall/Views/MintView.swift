@@ -5,6 +5,8 @@ import SwiftUI
 struct MintView: View {
     let model: AppModel
     let token: TokenView
+    let network: String
+    @State private var reviewing = false
     @Environment(\.dismiss) private var dismiss
     @State private var toPrivate = true
     @State private var to = ""
@@ -46,9 +48,16 @@ struct MintView: View {
         }
         .navigationTitle("Mint \(token.info.symbol)")
         .safeAreaInset(edge: .bottom) {
-            Button(toPrivate ? "Mint privately" : "Mint publicly", action: mint).buttonStyle(PrimaryButtonStyle())
+            Button(toPrivate ? "Mint privately" : "Mint publicly") { reviewing = true }.buttonStyle(PrimaryButtonStyle())
                 .disabled(model.busy || (try? amount.get()) == nil || recipientError != nil).padding()
         }
+        .sheet(isPresented: $reviewing) { if let review { ReviewSheet(review: review, onConfirm: mint) } }
+    }
+
+    private var review: Review? {
+        guard let units = try? amount.get() else { return nil }
+        let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
+        return Review.mint(amount: shown, toPrivate: toPrivate, to: to, network: network)
     }
 
     private func mint() {

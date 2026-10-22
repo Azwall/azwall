@@ -44,10 +44,12 @@ import dev.azwall.app.ui.NO_TOKENS
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.PrivacySwitch
 import dev.azwall.app.ui.components.TokenBadge
+import dev.azwall.app.ui.sheets.ReviewSheet
 import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.wallet.Amounts
 import dev.azwall.core.wallet.PaymentRequest
+import dev.azwall.core.wallet.Review
 import dev.azwall.core.wallet.TokenView
 import java.math.BigInteger
 
@@ -61,6 +63,7 @@ fun TransferScreen(
     tokens: List<TokenView>,
     me: String,
     network: String,
+    networkLabel: String,
     busy: Boolean,
     onBack: () -> Unit,
     onSubmit: (TransferKind, TokenView, String, BigInteger) -> Unit,
@@ -74,12 +77,14 @@ fun TransferScreen(
     var amountText by rememberSaveable { mutableStateOf("") }
     var scanning by rememberSaveable { mutableStateOf(false) }
     var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
+    var reviewing by rememberSaveable { mutableStateOf(false) }
     val token = tokens.getOrNull(tokenIndex) ?: return NoTokens(mode, onBack)
     val kind = kindOf(mode, publicSide)
     val available = available(token, kind)
     val amount = runCatching { Amounts.parse(amountText, token.info.decimals) }
     val amountError = amountError(amountText, amount, available)
     val toError = if (mode == TransferMode.SEND) recipientError(to, me) else null
+    val valid = amount.isSuccess && amountError == null && toError == null && (mode == TransferMode.SHIELD || to.isNotEmpty())
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
         Header(if (mode == TransferMode.SEND) "Send" else "Shield", onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -91,17 +96,28 @@ fun TransferScreen(
             AmountField(amountText, token, available, amountError) { amountText = it }
             Text(explanation(kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val valid = amount.isSuccess && amountError == null && toError == null && (mode == TransferMode.SHIELD || to.isNotEmpty())
-        PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { onSubmit(kind, token, to, amount.getOrThrow()) }
+        PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { reviewing = true }
         Spacer(Modifier.height(16.dp))
     }
-    if (scanning) QrScanner(onDismiss = { scanning = false }, onResult = { text ->
-        scanning = false
-        val scan = readScan(text, network, tokens)
-        scan.to?.let { to = it }
-        scan.tokenIndex?.let { tokenIndex = it }
-        scan.amount?.let { amountText = it }
-        scanNote = scan.note
+    if (reviewing && valid) TransferReview(kind, token, to, amount.getOrThrow(), networkLabel, { reviewing = false }) { reviewing = false; onSubmit(kind, token, to, it) }
+    if (scanning) ScanRequest(network, tokens, onDone = { scanning = false }) { scan ->
+        scan.to?.let { to = it }; scan.tokenIndex?.let { tokenIndex = it }; scan.amount?.let { amountText = it }; scanNote = scan.note
+    }
+}
+
+/** The confirmation of a transfer, with the exact amount (every decimal) and the recipient in full. */
+@Composable
+private fun TransferReview(kind: TransferKind, token: TokenView, to: String, units: BigInteger, network: String, onDismiss: () -> Unit, onConfirm: (BigInteger) -> Unit) {
+    val shown = "${Amounts.format(units, token.info.decimals, token.info.decimals)} ${token.info.symbol}"
+    ReviewSheet(Review.transfer(kind, shown, to, network), onDismiss) { onConfirm(units) }
+}
+
+/** The camera, until a code is read: what it fills in goes to `onScan`. */
+@Composable
+private fun ScanRequest(network: String, tokens: List<TokenView>, onDone: () -> Unit, onScan: (Scan) -> Unit) {
+    QrScanner(onDismiss = onDone, onResult = { text ->
+        onDone()
+        onScan(readScan(text, network, tokens))
     })
 }
 

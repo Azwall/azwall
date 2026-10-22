@@ -33,19 +33,22 @@ import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.send.Header
 import dev.azwall.app.ui.send.QrScanner
 import dev.azwall.app.ui.send.RecipientField
+import dev.azwall.app.ui.sheets.ReviewSheet
 import dev.azwall.core.wallet.Amounts
 import dev.azwall.core.wallet.PaymentRequest
+import dev.azwall.core.wallet.Review
 import dev.azwall.core.wallet.TokenView
 
 /** Mints one of the account's tokens, laid out like Send: to this account (recipient left empty) or to anyone. */
 @Composable
-fun MintScreen(token: TokenView, busy: Boolean, onBack: () -> Unit, onMint: (amount: String, private: Boolean, to: String) -> Unit) {
+fun MintScreen(token: TokenView, network: String, busy: Boolean, onBack: () -> Unit, onMint: (amount: String, private: Boolean, to: String) -> Unit) {
     BackHandler(onBack = onBack)
     var private by rememberSaveable { mutableStateOf(true) }
     var to by rememberSaveable { mutableStateOf("") }
     var amount by rememberSaveable { mutableStateOf("1000") }
     var scanning by rememberSaveable { mutableStateOf(false) }
     var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
+    var reviewing by rememberSaveable { mutableStateOf(false) }
     val toError = if (to.isNotEmpty() && !PaymentRequest.isAddress(to)) "an Aztec address is 0x followed by 64 hexadecimal characters" else null
     val amountError = amount.takeIf { it.isNotBlank() }?.let { runCatching { Amounts.parse(it, token.info.decimals) }.exceptionOrNull()?.message }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
@@ -68,8 +71,12 @@ fun MintScreen(token: TokenView, busy: Boolean, onBack: () -> Unit, onMint: (amo
             )
         }
         val valid = amount.isNotBlank() && amountError == null && toError == null
-        PrimaryButton(if (private) "Mint privately" else "Mint publicly", enabled = valid, busy = busy) { onMint(amount, private, to) }
+        PrimaryButton(if (private) "Mint privately" else "Mint publicly", enabled = valid, busy = busy) { reviewing = true }
         Spacer(Modifier.height(16.dp))
+    }
+    if (reviewing) {
+        val shown = "${Amounts.format(Amounts.parse(amount, token.info.decimals), token.info.decimals, token.info.decimals)} ${token.info.symbol}"
+        ReviewSheet(Review.mint(shown, private, to, network), onDismiss = { reviewing = false }) { reviewing = false; onMint(amount, private, to) }
     }
     if (scanning) QrScanner(onDismiss = { scanning = false }, onResult = { text ->
         scanning = false
