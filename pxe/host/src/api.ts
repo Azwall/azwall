@@ -3,6 +3,7 @@
 import { NO_FROM } from '@aztec/aztec.js/account';
 import { NO_WAIT } from '@aztec/aztec.js/contracts';
 import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
+import { getFeeJuiceBalance } from '@aztec/aztec.js/utils';
 import { Fq } from '@aztec/aztec.js/fields';
 import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, int, object, str, strings } from '@azwall/pxe-shared';
 
@@ -35,6 +36,10 @@ function secrets(p: Params): AccountSecrets {
   return { alias: str(p, 'alias'), signingKey: hex(p, 'signingKey', 32), salt: hex(p, 'salt', 32) };
 }
 
+function fail(message: string): never {
+  throw new Error(message);
+}
+
 function hexToBytes(h: string): Uint8Array {
   return Uint8Array.from(h.slice(2).match(/../g) ?? [], b => parseInt(b, 16));
 }
@@ -44,11 +49,7 @@ export function createHandlers(bridge: Bridge): Handlers {
   let dapps: DappGateway | null = null;
   // Opening can take minutes when damaged stores were set aside and the PXE syncs again from the chain.
   let opening = false;
-  const w = () => {
-    if (opening) throw new Error('the wallet is still loading; try again in a moment');
-    if (!wallet) throw new Error('the PXE is not open');
-    return wallet;
-  };
+  const w = () => wallet ?? fail(opening ? 'the wallet is still loading; try again in a moment' : 'the PXE is not open');
   const handlers: Record<string, (p: Params) => Promise<unknown>> = {
     open: async p => {
       if (wallet || opening) throw new Error('the PXE is already open');
@@ -86,8 +87,17 @@ export function createHandlers(bridge: Bridge): Handlers {
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
     flush: async () => w().flushStores(),
     ...dappHandlers(() => dapps),
+    ...feeHandlers(w),
   };
   return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
+}
+
+/** Fees where there is no sponsor (fees.ts). */
+function feeHandlers(w: () => AzwallWallet): Record<string, (p: Params) => Promise<unknown>> {
+  return {
+    // Base units (18 decimals) of the Fee Juice an address holds: what pays its fees.
+    feeJuiceBalance: async p => ({ balance: (await getFeeJuiceBalance(addr(str(p, 'owner')), w().node)).toString() }),
+  };
 }
 
 /** Messages of the browser's pages, for the dApp gateway (none before the PXE is open). */
@@ -100,15 +110,14 @@ function dappHandlers(dapps: () => DappGateway | null): Record<string, (p: Param
   };
 }
 
-/** Deploys the account contract; the Sponsored FPC pays, since a new account holds no fee juice. */
+/**
+ * Deploys the account contract. The Sponsored FPC pays where there is one; elsewhere the account pays for its own
+ * deployment with the Fee Juice already bridged to its address (no payment method: self-paid).
+ */
 async function deployAccount(wallet: AzwallWallet, acc: AccountSecrets) {
   const manager = await wallet.addAccount(acc);
   const deploy = await manager.getDeployMethod();
-  const fpc = await sponsoredFpc();
-  const { txHash } = await deploy.send({
-    from: NO_FROM,
-    fee: { paymentMethod: new SponsoredFeePaymentMethod(fpc.instance.address) },
-    wait: NO_WAIT,
-  });
+  const sponsor = wallet.fees === 'sponsored' ? new SponsoredFeePaymentMethod((await sponsoredFpc()).instance.address) : undefined;
+  const { txHash } = await deploy.send({ from: NO_FROM, fee: sponsor && { paymentMethod: sponsor }, wait: NO_WAIT });
   return { txHash: txHash.toString() };
 }

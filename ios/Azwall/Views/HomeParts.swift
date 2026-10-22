@@ -17,7 +17,7 @@ struct BalanceHero: View {
             Notice(title: "Can't reach \(session.network.label)", text: friendlyError(session.error), action: "Retry", onAction: onRetry)
         } else if session.account?.deployed == false {
             Notice(icon: "paperplane", title: "Activate your account",
-                   text: "Your address can already receive funds. Activating publishes your account contract; fees are sponsored on testnet.",
+                   text: Fees.activation(session.check, feeJuice: session.feeJuice),
                    action: "Activate", onAction: onActivate)
         } else if let token = session.hero {
             hero(token).stalePulse(session.stale)

@@ -65,6 +65,8 @@ public final class WalletSession {
     public private(set) var error: String?
     public private(set) var proving: ActivityItem?
     public private(set) var provingSince: Date?
+    /// Where fees are paid with Fee Juice: base units the selected account holds (Fees).
+    public internal(set) var feeJuice: String?
     /// Releases the transaction being proven when the user cancels it (Transactions.swift).
     @ObservationIgnored var stopProving: (() -> Void)?
     /// A cancelled transaction still being proven in the background; the next one waits for its proof to be refused.
@@ -178,6 +180,7 @@ public final class WalletSession {
         found = []
         lastDiscovery = nil
         primary = store.primary(account: address)
+        feeJuice = nil
         await refresh()
     }
 
@@ -219,6 +222,9 @@ public final class WalletSession {
         task = nil
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if current() && self.account?.deployed == true { await discover(owner: account.address) }
+        if current() && Fees.paysWithFeeJuice(check), let balance = try? await client.feeJuiceBalance(account.address), current() {
+            feeJuice = balance
+        }
     }
 
     /// Routes the host's events for as long as it runs: dApp messages, sessions and transactions.

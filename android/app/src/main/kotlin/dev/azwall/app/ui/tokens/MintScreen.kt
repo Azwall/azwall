@@ -41,7 +41,7 @@ import dev.azwall.core.wallet.TokenView
 
 /** Mints one of the account's tokens, laid out like Send: to this account (recipient left empty) or to anyone. */
 @Composable
-fun MintScreen(token: TokenView, network: String, busy: Boolean, onBack: () -> Unit, onMint: (amount: String, private: Boolean, to: String) -> Unit) {
+fun MintScreen(token: TokenView, network: String, fee: String, busy: Boolean, onBack: () -> Unit, onMint: (amount: String, private: Boolean, to: String) -> Unit) {
     BackHandler(onBack = onBack)
     var private by rememberSaveable { mutableStateOf(true) }
     var to by rememberSaveable { mutableStateOf("") }
@@ -76,7 +76,7 @@ fun MintScreen(token: TokenView, network: String, busy: Boolean, onBack: () -> U
     }
     if (reviewing) {
         val shown = "${Amounts.format(Amounts.parse(amount, token.info.decimals), token.info.decimals, token.info.decimals)} ${token.info.symbol}"
-        ReviewSheet(Review.mint(shown, private, to, network), onDismiss = { reviewing = false }) { reviewing = false; onMint(amount, private, to) }
+        ReviewSheet(Review.mint(shown, private, to, network, fee), onDismiss = { reviewing = false }) { reviewing = false; onMint(amount, private, to) }
     }
     if (scanning) QrScanner(onDismiss = { scanning = false }, onResult = { text ->
         scanning = false

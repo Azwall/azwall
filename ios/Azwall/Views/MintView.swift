@@ -6,6 +6,8 @@ struct MintView: View {
     let model: AppModel
     let token: TokenView
     let network: String
+    /// The Fee line of the confirmation (Fees.line).
+    let fee: String
     @State private var reviewing = false
     @Environment(\.dismiss) private var dismiss
     @State private var toPrivate = true
@@ -57,7 +59,7 @@ struct MintView: View {
     private var review: Review? {
         guard let units = try? amount.get() else { return nil }
         let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
-        return Review.mint(amount: shown, toPrivate: toPrivate, to: to, network: network)
+        return Review.mint(amount: shown, toPrivate: toPrivate, to: to, network: network, fee: fee)
     }
 
     private func mint() {

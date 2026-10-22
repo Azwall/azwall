@@ -64,6 +64,8 @@ fun TransferScreen(
     me: String,
     network: String,
     networkLabel: String,
+    /** The Fee line of the confirmation (Fees.line). */
+    fee: String,
     busy: Boolean,
     onBack: () -> Unit,
     onSubmit: (TransferKind, TokenView, String, BigInteger) -> Unit,
@@ -99,7 +101,7 @@ fun TransferScreen(
         PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { reviewing = true }
         Spacer(Modifier.height(16.dp))
     }
-    if (reviewing && valid) TransferReview(kind, token, to, amount.getOrThrow(), networkLabel, { reviewing = false }) { reviewing = false; onSubmit(kind, token, to, it) }
+    if (reviewing && valid) TransferReview(kind, token, to, amount.getOrThrow(), networkLabel, fee, { reviewing = false }) { reviewing = false; onSubmit(kind, token, to, it) }
     if (scanning) ScanRequest(network, tokens, onDone = { scanning = false }) { scan ->
         scan.to?.let { to = it }; scan.tokenIndex?.let { tokenIndex = it }; scan.amount?.let { amountText = it }; scanNote = scan.note
     }
@@ -107,9 +109,11 @@ fun TransferScreen(
 
 /** The confirmation of a transfer, with the exact amount (every decimal) and the recipient in full. */
 @Composable
-private fun TransferReview(kind: TransferKind, token: TokenView, to: String, units: BigInteger, network: String, onDismiss: () -> Unit, onConfirm: (BigInteger) -> Unit) {
+private fun TransferReview(
+    kind: TransferKind, token: TokenView, to: String, units: BigInteger, network: String, fee: String, onDismiss: () -> Unit, onConfirm: (BigInteger) -> Unit,
+) {
     val shown = "${Amounts.format(units, token.info.decimals, token.info.decimals)} ${token.info.symbol}"
-    ReviewSheet(Review.transfer(kind, shown, to, network), onDismiss) { onConfirm(units) }
+    ReviewSheet(Review.transfer(kind, shown, to, network, fee), onDismiss) { onConfirm(units) }
 }
 
 /** The camera, until a code is read: what it fills in goes to `onScan`. */

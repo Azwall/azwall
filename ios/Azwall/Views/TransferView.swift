@@ -126,7 +126,7 @@ struct TransferView: View {
     private var review: Review? {
         guard let token, let units = try? amount.get() else { return nil }
         let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
-        return Review.transfer(kind, amount: shown, to: to, network: session.network.label)
+        return Review.transfer(kind, amount: shown, to: to, network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice))
     }
 
     private func submit() {

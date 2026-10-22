@@ -38,6 +38,8 @@ data class NetworkCheck(
     val vkTreeRoot: String,
     val protocolContractsHash: String,
     val blockNumber: Long,
+    /** "sponsored" (the network's Sponsored FPC pays) or "feeJuice" (the account pays with its own Fee Juice). */
+    val fees: String = "sponsored",
 )
 
 @Serializable
@@ -134,6 +136,10 @@ class PxeClient(private val caller: PxeCaller) {
     )
 
     suspend fun syncStatus(): SyncStatus = typed("syncStatus", JsonObject(emptyMap()))
+
+    /** Base units (18 decimals) of the Fee Juice `owner` holds. */
+    suspend fun feeJuiceBalance(owner: String): String =
+        caller.call("feeJuiceBalance", buildJsonObject { put("owner", owner) }).jsonObject["balance"]!!.jsonPrimitive.content
 
     /** Registers followed tokens in the PXE again (no-op for the ones it knows); failures are skipped. */
     suspend fun registerTokens(tokens: List<String>) {

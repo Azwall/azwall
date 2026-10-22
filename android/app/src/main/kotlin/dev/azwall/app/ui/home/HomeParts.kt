@@ -51,6 +51,7 @@ import dev.azwall.core.wallet.ActivityItem
 import dev.azwall.core.wallet.ActivityKind
 import dev.azwall.core.wallet.ActivityStatus
 import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
@@ -66,7 +67,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
         state.phase == Phase.FAILED -> Notice("Can't reach ${state.network.label}", friendlyError(state.error), "Retry", actions.onRefresh)
         account?.deployed == false -> Notice(
             "Activate your account",
-            "Your address can already receive funds. Activating publishes your account contract; fees are sponsored on testnet.",
+            Fees.activation(state.check, state.feeJuice),
             "Activate",
             actions.onActivate,
             Icons.Outlined.RocketLaunch,

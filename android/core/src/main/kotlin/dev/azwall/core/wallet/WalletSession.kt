@@ -78,6 +78,8 @@ data class SessionState(
     val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
     val error: String? = null,
+    /** Where fees are paid with Fee Juice: base units the selected account holds (Fees). */
+    val feeJuice: String? = null,
 ) {
     val account: AccountView? get() = accounts.firstOrNull { it.address == selected }
 
@@ -170,7 +172,7 @@ class WalletSession(
         if (_state.value.accounts.none { it.address == address }) return
         lastDiscovery = 0L
         _state.update {
-            it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList(), primary = store.primary(address))
+            it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList(), primary = store.primary(address), feeJuice = null)
         }
         scope.launch { refresh() }
     }
@@ -210,6 +212,13 @@ class WalletSession(
         }
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if (current() && _state.value.account?.deployed == true) discoverTokens(account.address)
+        if (current() && Fees.paysWithFeeJuice(_state.value.check)) refreshFeeJuice(account.address)
+    }
+
+    /** What the account holds of Fee Juice, which pays its fees, activation included, where there is no sponsor. */
+    private suspend fun refreshFeeJuice(address: String) {
+        val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
+        _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }
     }
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */

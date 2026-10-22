@@ -13,13 +13,11 @@ public struct Review: Equatable, Sendable {
     public let lines: [Line]
     public let confirm: String
 
-    /// Fees are paid by the network's Sponsored FPC (wallet.ts): the user pays none.
-    public static let fee = "None, paid by the network's sponsor"
-
     public func value(_ label: String) -> String? { lines.first { $0.label == label }?.value }
 
-    /// A transfer of `amount` (already formatted, with its symbol); `to` is ignored when shielding.
-    public static func transfer(_ kind: TransferKind, amount: String, to: String, network: String) -> Review {
+    /// A transfer of `amount` (already formatted, with its symbol); `to` is ignored when shielding. `fee` is the Fee
+    /// line (Fees.line).
+    public static func transfer(_ kind: TransferKind, amount: String, to: String, network: String, fee: String = Fees.sponsored) -> Review {
         func make(_ title: String, _ middle: [(String, String)], _ confirm: String) -> Review {
             let all = [("Amount", amount)] + middle + [("Network", network), ("Fee", fee)]
             return Review(title: title, lines: all.map { Line(label: $0.0, value: $0.1) }, confirm: confirm)
@@ -33,7 +31,7 @@ public struct Review: Equatable, Sendable {
     }
 
     /// Minting `amount` of the account's own token; an empty `to` mints to the account itself.
-    public static func mint(amount: String, toPrivate: Bool, to: String, network: String) -> Review {
+    public static func mint(amount: String, toPrivate: Bool, to: String, network: String, fee: String = Fees.sponsored) -> Review {
         let lines = [
             ("Amount", amount),
             ("To", to.isEmpty ? "This account" : to),

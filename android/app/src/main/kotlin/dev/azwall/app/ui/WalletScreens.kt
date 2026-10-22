@@ -50,6 +50,7 @@ import dev.azwall.app.ui.sheets.AccountsSheet
 import dev.azwall.app.ui.sheets.AddTokenSheet
 import dev.azwall.app.ui.sheets.NetworksSheet
 import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.WalletSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -132,6 +133,7 @@ private fun WalletRoutes(
             me = state.account?.address.orEmpty(),
             network = state.network.id,
             networkLabel = state.network.label,
+            fee = Fees.line(state.check, state.feeJuice),
             busy = busy,
             onBack = home,
         ) { kind, token, to, amount ->

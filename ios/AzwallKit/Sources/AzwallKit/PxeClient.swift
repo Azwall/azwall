@@ -30,6 +30,9 @@ public struct NetworkCheck: Codable, Equatable, Sendable {
     public let vkTreeRoot: String
     public let protocolContractsHash: String
     public let blockNumber: Int64
+    /// "sponsored" (the network's Sponsored FPC pays) or "feeJuice" (the account pays with its own Fee Juice); older
+    /// hosts send none: sponsored.
+    public var fees: String?
 }
 
 /// The node's statuses folded into what the app shows (pxe/<bundle>/src/wallet.ts `outcomeOf`).
@@ -170,6 +173,14 @@ public struct PxeClient: Sendable {
 
     public func syncStatus() async throws -> SyncStatus {
         try await typed("syncStatus", .object([:]))
+    }
+
+    /// Base units (18 decimals) of the Fee Juice `owner` holds.
+    public func feeJuiceBalance(_ owner: String) async throws -> String {
+        guard let balance = try await caller.call("feeJuiceBalance", .object(["owner": .string(owner)]))["balance"]?.stringValue else {
+            throw PxeError("malformed feeJuiceBalance reply")
+        }
+        return balance
     }
 
     /// Registers followed tokens in the PXE again (its store can start over after a crash).

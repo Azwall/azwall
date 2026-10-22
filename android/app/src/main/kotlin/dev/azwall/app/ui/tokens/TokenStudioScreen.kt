@@ -37,6 +37,7 @@ import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.home.StatusLine
 import dev.azwall.app.ui.home.TokenRow
 import dev.azwall.app.ui.sheets.ShareTokenSheet
+import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
@@ -59,7 +60,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
     var minting by rememberSaveable { mutableStateOf<String?>(null) }
     var sharing by rememberSaveable { mutableStateOf<String?>(null) }
     state.tokens.firstOrNull { it.info.address == minting }?.let { token ->
-        return MintScreen(token, state.network.label, busy, onBack = { minting = null }) { amount, private, to ->
+        return MintScreen(token, state.network.label, Fees.line(state.check, state.feeJuice), busy, onBack = { minting = null }) { amount, private, to ->
             actions.onMint(token, amount, private, to)
             minting = null
         }

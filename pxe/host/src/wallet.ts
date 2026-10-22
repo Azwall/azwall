@@ -21,6 +21,7 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embed
 
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
+import type { FeeMode } from './fees';
 import { log } from './log';
 import type { CachedStore } from './store';
 
@@ -92,6 +93,8 @@ export const toReceipt = (r: NodeReceipt): Receipt => ({
 export class AzwallWallet extends EmbeddedWallet {
   readonly gas = new GasCache();
   stores: CachedStore[] = [];
+  /** Set at open (fees.ts): without a sponsor, accounts pay with their own Fee Juice. */
+  fees: FeeMode = 'sponsored';
 
   constructor(...args: ConstructorParameters<typeof EmbeddedWallet>) {
     super(...args);
@@ -109,10 +112,13 @@ export class AzwallWallet extends EmbeddedWallet {
     return this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
   }
 
-  /** Pays every fee through the Sponsored FPC unless the caller picks a fee payer. */
+  /**
+   * Pays every fee through the Sponsored FPC unless the caller picks a fee payer. Without a sponsor (fees.ts), the
+   * default stands: the account pays with the Fee Juice it holds.
+   */
   override async completeFeeOptions(config: CompleteFeeOptionsConfig): Promise<FeeOptions> {
     const base = await super.completeFeeOptions(config);
-    if (config.feePayer) return base;
+    if (config.feePayer || this.fees !== 'sponsored') return base;
     const fpc = await sponsoredFpc();
     return {
       ...base,
