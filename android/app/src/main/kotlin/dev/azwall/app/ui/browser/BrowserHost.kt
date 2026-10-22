@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.AppViewModel
+import dev.azwall.app.Auth
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.SessionState
@@ -96,12 +97,18 @@ fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTa
 
 /** The first pending dApp request, docked under the page (its tab is brought to the front first). */
 @Composable
-fun DappRequests(vm: AppViewModel, browser: BrowserTabs, onShowPage: () -> Unit) {
+fun DappRequests(vm: AppViewModel, browser: BrowserTabs, owner: Auth, onShowPage: () -> Unit) {
     val pending by vm.approvals.pending.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val request = pending.firstOrNull() ?: return
     LaunchedEffect(request.id) {
         browser.selectPage(request.tab)
         onShowPage()
     }
-    key(request.id) { ApprovalPanel(request) { approved -> vm.approvals.decide(request.id, approved) } }
+    key(request.id) {
+        ApprovalPanel(request) { approved ->
+            // A spend is approved only once the owner confirms it; declined, the request stays to retry or reject.
+            scope.launch { if (!approved || !request.kind.signs || owner()) vm.approvals.decide(request.id, approved) }
+        }
+    }
 }

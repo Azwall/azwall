@@ -174,11 +174,16 @@ public final class AppModel {
     /// A transaction the user confirmed: Face ID, Touch ID or the passcode first, as for unlocking. Declined, nothing
     /// is proven or sent.
     public func sign(done: String? = nil, _ block: @escaping (WalletSession) async throws -> Void) async {
-        guard await deps.authenticate(reason: "Confirm the transaction") else {
+        guard await confirmOwner() else {
             message = "authentication was cancelled"
             return
         }
         await run(done: done, block)
+    }
+
+    /// Face ID, Touch ID or the passcode for a transaction about to be sent (the wallet's own, or a dApp's).
+    public func confirmOwner() async -> Bool {
+        await deps.authenticate(reason: "Confirm the transaction")
     }
 
     private func start(_ unlocked: VaultContents) async {

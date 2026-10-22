@@ -22,7 +22,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.concurrent.atomic.AtomicLong
 
-enum class ApprovalKind { CONNECT, VERIFY, CAPABILITIES, TRANSACTION, AUTHWIT }
+enum class ApprovalKind {
+    CONNECT, VERIFY, CAPABILITIES, TRANSACTION, AUTHWIT;
+
+    /** Approving it spends or lets spend from the account: the owner confirms it (fingerprint), as for the wallet's own. */
+    val signs: Boolean get() = this == TRANSACTION || this == AUTHWIT
+}
 
 /** Something a dApp asks the user, shown as a sheet over the page (pxe/<bundle>/src/dapp/gateway.ts). */
 data class ApprovalRequest(

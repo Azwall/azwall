@@ -32,4 +32,8 @@ struct SignTests {
         // Past the owner check: without an unlocked wallet, the transaction stops there.
         #expect(model.message == "the wallet is locked")
     }
+
+    @Test func onlyDappSpendsAskForTheOwner() {
+        #expect([ApprovalKind.connect, .verify, .capabilities, .transaction, .authwit].filter(\.signs) == [.transaction, .authwit])
+    }
 }

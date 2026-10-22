@@ -3,6 +3,9 @@ import Observation
 
 public enum ApprovalKind: String, Sendable {
     case connect, verify, capabilities, transaction, authwit
+
+    /// Approving it spends or lets spend from the account: the owner confirms it (Face ID), as for the wallet's own.
+    public var signs: Bool { self == .transaction || self == .authwit }
 }
 
 /// Something a dApp asks the user, shown in a panel docked under the page (pxe/<bundle>/src/dapp/gateway.ts).

@@ -105,7 +105,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
                     WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu)
                 }
             }
-            DappRequests(vm, browser, onShowPage = { tab = MainTab.EXPLORE })
+            DappRequests(vm, browser, auth(CONFIRM), onShowPage = { tab = MainTab.EXPLORE })
         }
     }
     WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }

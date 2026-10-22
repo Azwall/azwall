@@ -3,6 +3,7 @@ package dev.azwall.app
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.SecretBox
 import dev.azwall.core.vault.Vault
+import dev.azwall.core.wallet.ApprovalKind
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.PxeLauncher
 import dev.azwall.core.wallet.SearchEngine
@@ -52,5 +53,10 @@ class SignTest {
         vm.sign(auth = { false }) { sent = true }
         assertFalse(sent)
         assertEquals("authentication was cancelled", vm.message.value)
+    }
+
+    @Test
+    fun onlyDappSpendsAskForTheOwner() {
+        assertEquals(listOf(ApprovalKind.TRANSACTION, ApprovalKind.AUTHWIT), ApprovalKind.entries.filter { it.signs })
     }
 }
