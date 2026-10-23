@@ -28,16 +28,18 @@ import dev.azwall.app.Auth
 import dev.azwall.app.ui.onboarding.LockScreen
 import dev.azwall.app.ui.onboarding.OnboardingActions
 import dev.azwall.app.ui.onboarding.OnboardingFlow
+import kotlinx.coroutines.flow.filterNotNull
 
 /** Root of the UI: onboarding, lock screen, or the unlocked wallet. [auth] builds a biometric prompt. */
 @Composable
 fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
     val phase by vm.phase.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val message by vm.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(message) {
-        message?.let {
+    // Collected, not keyed on the message: consuming it changes the value, which would cancel a keyed effect and
+    // take the snackbar down before it is ever shown.
+    LaunchedEffect(Unit) {
+        vm.message.filterNotNull().collect {
             vm.consumeMessage()
             snackbar.showSnackbar(friendlyError(it))
         }
