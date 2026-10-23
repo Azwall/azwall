@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Button
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +48,10 @@ import dev.azwall.core.wallet.ApprovalRequest
 @Composable
 fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
     var expanded by rememberSaveable(request.id) { mutableStateOf(true) }
+    var showsAll by rememberSaveable(request.id) { mutableStateOf(false) }
+    if (showsAll) {
+        ApprovalDetailsSheet(request, onDecide = { showsAll = false; onDecide(it) }, onDismiss = { showsAll = false })
+    }
     Surface(
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -54,7 +60,7 @@ fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
     ) {
         Column(Modifier.animateContentSize().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Header(request, expanded) { expanded = !expanded }
-            if (expanded) Body(request)
+            if (expanded) Body(request) { showsAll = true }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { onDecide(false) }, modifier = Modifier.weight(1f).height(48.dp)) { Text(rejectLabel(request.kind)) }
                 Button(onClick = { onDecide(true) }, modifier = Modifier.weight(1f).height(48.dp)) { Text(approveLabel(request.kind)) }
@@ -78,12 +84,18 @@ private fun Header(request: ApprovalRequest, expanded: Boolean, onToggle: () -> 
 }
 
 @Composable
-private fun Body(request: ApprovalRequest) {
+private fun Body(request: ApprovalRequest, onShowAll: () -> Unit) {
     Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         request.emojis?.let { Emojis(it) }
         request.details.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
         if (request.kind == ApprovalKind.TRANSACTION) {
             Text("The proof is generated on this phone; the fee is sponsored on testnet.", style = MaterialTheme.typography.bodySmall)
+        }
+        if (request.sections.isNotEmpty()) {
+            TextButton(onClick = onShowAll) {
+                Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null)
+                Text("View all details", modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }
@@ -104,7 +116,7 @@ private fun Emojis(emojis: String) {
     }
 }
 
-private fun approveLabel(kind: ApprovalKind) = when (kind) {
+internal fun approveLabel(kind: ApprovalKind) = when (kind) {
     ApprovalKind.CONNECT -> "Connect"
     ApprovalKind.VERIFY -> "They match"
     ApprovalKind.CAPABILITIES -> "Allow"
@@ -112,4 +124,4 @@ private fun approveLabel(kind: ApprovalKind) = when (kind) {
     ApprovalKind.AUTHWIT -> "Authorize"
 }
 
-private fun rejectLabel(kind: ApprovalKind) = if (kind == ApprovalKind.VERIFY) "They differ" else "Reject"
+internal fun rejectLabel(kind: ApprovalKind) = if (kind == ApprovalKind.VERIFY) "They differ" else "Reject"

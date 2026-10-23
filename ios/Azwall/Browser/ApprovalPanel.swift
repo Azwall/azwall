@@ -8,16 +8,23 @@ struct ApprovalPanel: View {
     let request: ApprovalRequest
     let onDecide: (Bool) -> Void
     @State private var expanded = true
+    @State private var showsAll = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
             if expanded { details }
             HStack(spacing: 12) {
-                Button(rejectLabel) { onDecide(false) }.buttonStyle(.bordered).frame(maxWidth: .infinity)
-                Button(approveLabel) { onDecide(true) }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
+                Button(request.kind.rejectLabel) { onDecide(false) }.buttonStyle(.bordered).frame(maxWidth: .infinity)
+                Button(request.kind.approveLabel) { onDecide(true) }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
             }
             .controlSize(.large)
+        }
+        .sheet(isPresented: $showsAll) {
+            ApprovalDetailsSheet(request: request) { approved in
+                showsAll = false
+                onDecide(approved)
+            }
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
         .background(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24).fill(Palette.card).shadow(radius: 12))
@@ -47,6 +54,11 @@ struct ApprovalPanel: View {
                 if request.kind == .transaction {
                     Text("The proof is generated on this phone; the fee is sponsored on testnet.").font(.caption).foregroundStyle(.secondary)
                 }
+                if !request.sections.isEmpty {
+                    Button { showsAll = true } label: {
+                        Label("View all details", systemImage: "list.bullet.rectangle").font(.subheadline.weight(.semibold))
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -63,8 +75,11 @@ struct ApprovalPanel: View {
         .padding(12).background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
     }
 
-    private var approveLabel: String {
-        switch request.kind {
+}
+
+extension ApprovalKind {
+    var approveLabel: String {
+        switch self {
         case .connect: "Connect"
         case .verify: "They match"
         case .capabilities: "Allow"
@@ -73,5 +88,5 @@ struct ApprovalPanel: View {
         }
     }
 
-    private var rejectLabel: String { request.kind == .verify ? "They differ" : "Reject" }
+    var rejectLabel: String { self == .verify ? "They differ" : "Reject" }
 }

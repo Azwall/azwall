@@ -9,8 +9,11 @@ import { decodeStruct } from '../version';
 /** The artifact of the contract at an address, if the PXE knows it. */
 export type ArtifactOf = (address: string) => Promise<ContractArtifact | undefined>;
 
-/** A call as the user should read it. */
-export type ReadCall = { name: string; line: string; fee: boolean };
+/**
+ * A call as the user should read it: `line` for the summary; the contract's name, the function and its decoded
+ * arguments for the full details, when the wallet knows the contract.
+ */
+export type ReadCall = { name: string; line: string; fee: boolean; contract?: string; fn?: FunctionAbi; values?: Record<string, unknown> };
 
 /** Fee-paying contract functions (Sponsored FPC, FPC entrypoints): listed after what the transaction does. */
 export const FEE_FUNCTIONS = new Set(['sponsor_unconditionally', 'fee_entrypoint_private', 'fee_entrypoint_public']);
@@ -54,16 +57,18 @@ export async function readCall(call: unknown, artifactOf: ArtifactOf): Promise<R
   const fn = artifact && c.selector !== undefined ? await bySelector(artifact, String(c.selector)).catch(() => undefined) : undefined;
   if (!artifact || !fn) return { name: label, line: `${label} on ${short(to)} (unverified: the wallet does not know this contract)`, fee: false };
   if (c.name !== undefined && label !== fn.name) throw new Error(`the call to ${short(to)} is labelled ${label} but runs ${fn.name}`);
-  let args: string;
+  let args = '…';
+  let values: Record<string, unknown> | undefined;
   try {
     // The parameters as one struct: decodes them in order, by name.
     const type = { kind: 'struct', path: fn.name, fields: fn.parameters.map(p => ({ name: p.name, type: p.type })) } as AbiType;
-    const values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
-    args = fn.parameters.map(p => `${p.name}: ${show(values[p.name])}`).join(', ');
+    values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
+    args = fn.parameters.map(p => `${p.name}: ${show(values?.[p.name])}`).join(', ');
   } catch {
-    args = '…';
+    values = undefined;
   }
-  return { name: fn.name, line: `${fn.name}(${args}) on ${artifact.name} ${short(to)}`, fee: FEE_FUNCTIONS.has(fn.name) };
+  const line = `${fn.name}(${args}) on ${artifact.name} ${short(to)}`;
+  return { name: fn.name, line, fee: FEE_FUNCTIONS.has(fn.name), contract: artifact.name, fn, values };
 }
 
 /** The lines of a transaction: what it does first, its fee payment last, then its attached authorizations. */

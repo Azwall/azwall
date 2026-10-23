@@ -16,6 +16,7 @@ import { log } from '../log';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx } from './calls';
+import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
 import { confine, samePage } from './policy';
 import { rawCall } from './raw_call';
@@ -23,8 +24,11 @@ import { rawCall } from './raw_call';
 const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.1.0' };
 
 export type ApprovalKind = 'connect' | 'verify' | 'capabilities' | 'transaction' | 'authwit';
-/** `tab` is the page id: the app drops a page's pending approvals when it closes. */
-type Approval = { kind: ApprovalKind; tab: number; origin: string; title: string; details: string[]; emojis?: string };
+/**
+ * `tab` is the page id: the app drops a page's pending approvals when it closes. `details` is the summary the panel
+ * shows; `sections` everything else, in full, for the view the panel opens (details.ts).
+ */
+type Approval = { kind: ApprovalKind; tab: number; origin: string; title: string; details: string[]; sections?: Section[]; emojis?: string };
 type Op = { name: string; args: unknown[] };
 type ContentListener = (message: unknown, sender: { tab: { id: number; url: string } }) => void;
 type ChainLike = { chainId?: { toString(): string }; version?: { toString(): string } } | undefined;
@@ -121,6 +125,7 @@ export class DappGateway {
       origin: d.origin,
       title: 'Connect this site to your wallet?',
       details: [`It calls itself "${d.appName ?? d.appId}"`],
+      sections: connectSections(d.origin, d.appId, d.appName, d.chainInfo),
     });
     this.#connecting.delete(d.tabId);
     if (ok) this.#handler.approveDiscovery(d.requestId);
@@ -183,15 +188,29 @@ export class DappGateway {
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
     if (signing.length) {
       const details = (await Promise.all(signing.map(op => this.#describe(op)))).flat();
+      const sections = await this.#sections(signing);
       const authwit = signing.every(op => op.name === 'createAuthWit');
       const title = authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?';
-      if (!(await this.#ask({ kind: authwit ? 'authwit' : 'transaction', tab: session.tabId, origin: session.origin, title, details }))) {
+      const kind = authwit ? 'authwit' : 'transaction';
+      if (!(await this.#ask({ kind, tab: session.tabId, origin: session.origin, title, details, sections }))) {
         throw new Error('the user rejected the request');
       }
     }
     const results: unknown[] = [];
     for (const op of confined) results.push(await this.#run(session, account, op));
     return results;
+  }
+
+  /** Every signing op in full, numbered when a batch holds several, then the request as sent. */
+  async #sections(ops: Op[]): Promise<Section[]> {
+    const artifactOf = (address: string) => this.wallet.artifactAt(address);
+    const parts = await Promise.all(
+      ops.map((op, i) => {
+        const prefix = ops.length > 1 ? `${i + 1}. ` : '';
+        return op.name === 'sendTx' ? txSections(op.args, artifactOf, prefix) : authwitSections(op.args, artifactOf, prefix);
+      }),
+    );
+    return [...parts.flat(), rawSection(ops.map(op => ({ method: op.name, args: op.args })))];
   }
 
   #describe(op: Op): Promise<string[]> {
@@ -230,12 +249,14 @@ export class DappGateway {
     const asked = m.capabilities ?? [];
     const claim = m.metadata?.name ? [`It calls itself "${m.metadata.name}"`] : [];
     const account = this.#selected;
+    const nameOf = (address: string) => this.wallet.artifactAt(address).then(a => a?.name);
     const ok = await this.#ask({
       kind: 'capabilities',
       tab: session.tabId,
       origin: session.origin,
       title: 'Let this site use your account?',
       details: [...asked.map(c => c.type), ...claim],
+      sections: [...(await capabilitySections(manifest, account, nameOf)), rawSection(manifest)],
     });
     if (!ok) throw new Error('the user refused the requested capabilities');
     const caps = asked.map(c => (c.type === 'accounts' ? { ...c, accounts: [{ alias: 'main', item: account }] } : c));

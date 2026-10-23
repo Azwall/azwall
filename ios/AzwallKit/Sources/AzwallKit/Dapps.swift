@@ -20,6 +20,31 @@ public struct ApprovalRequest: Identifiable, Equatable, Sendable {
     public let details: [String]
     /// Shown by the page too once the secure channel is up: the user checks they match.
     public let emojis: String?
+    /// Everything else, in full (contracts, functions, calls, arguments, fees, the raw request), for the detail view.
+    public let sections: [ApprovalSection]
+}
+
+/// A titled group of labelled values in an approval's detail view (pxe/<bundle>/src/dapp/details.ts).
+public struct ApprovalSection: Equatable, Sendable {
+    public struct Row: Equatable, Sendable {
+        public let label: String
+        public let value: String
+    }
+
+    public let title: String
+    public let rows: [Row]
+
+    /// The sections of an `approve` call; malformed ones are skipped.
+    static func list(_ json: JSONValue?) -> [ApprovalSection] {
+        (json?.arrayValue ?? []).compactMap { section in
+            guard let title = section["title"]?.stringValue else { return nil }
+            let rows = (section["rows"]?.arrayValue ?? []).compactMap { row -> Row? in
+                guard let label = row["label"]?.stringValue, let value = row["value"]?.stringValue else { return nil }
+                return Row(label: label, value: value)
+            }
+            return ApprovalSection(title: title, rows: rows)
+        }
+    }
 }
 
 /// The user's answers to dApp requests. One queue for the app; the PXE host's `approve` calls wait on it.
@@ -45,12 +70,15 @@ public final class DappApprovals {
         guard let kind = params["kind"]?.stringValue.flatMap(ApprovalKind.init(rawValue:)) else { throw PxeError("unknown approval kind") }
         let details = params["details"]?.arrayValue?.compactMap(\.stringValue) ?? []
         let approved = await ask(kind, tab: params["tab"]?.intValue ?? 0, origin: params["origin"]?.stringValue ?? "",
-                                 title: params["title"]?.stringValue ?? "", details: details, emojis: params["emojis"]?.stringValue)
+                                 title: params["title"]?.stringValue ?? "", details: details, emojis: params["emojis"]?.stringValue,
+                                 sections: ApprovalSection.list(params["sections"]))
         return .object(["approved": .bool(approved)])
     }
 
-    public func ask(_ kind: ApprovalKind, tab: Int, origin: String, title: String, details: [String], emojis: String?) async -> Bool {
-        let request = ApprovalRequest(id: nextId, kind: kind, tab: tab, origin: origin, title: title, details: details, emojis: emojis)
+    public func ask(
+        _ kind: ApprovalKind, tab: Int, origin: String, title: String, details: [String], emojis: String?, sections: [ApprovalSection] = []
+    ) async -> Bool {
+        let request = ApprovalRequest(id: nextId, kind: kind, tab: tab, origin: origin, title: title, details: details, emojis: emojis, sections: sections)
         nextId += 1
         pending.append(request)
         return await withCheckedContinuation { waiting[request.id] = $0 }

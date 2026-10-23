@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -40,7 +41,29 @@ data class ApprovalRequest(
     val details: List<String>,
     /** Shown by the page too once the secure channel is up: the user checks they match. */
     val emojis: String?,
+    /** Everything else, in full (contracts, functions, calls, arguments, fees, the raw request), for the detail view. */
+    val sections: List<ApprovalSection> = emptyList(),
 )
+
+/** A titled group of labelled values in an approval's detail view (pxe/<bundle>/src/dapp/details.ts). */
+data class ApprovalSection(val title: String, val rows: List<Row>) {
+    data class Row(val label: String, val value: String)
+
+    companion object {
+        /** The sections of an `approve` call; malformed ones are skipped. */
+        fun list(json: JsonElement?): List<ApprovalSection> = runCatching { json?.jsonArray }.getOrNull().orEmpty().mapNotNull { section ->
+            val o = section as? JsonObject ?: return@mapNotNull null
+            val title = o["title"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val rows = runCatching { o["rows"]?.jsonArray }.getOrNull().orEmpty().mapNotNull { row ->
+                val r = row as? JsonObject ?: return@mapNotNull null
+                val label = r["label"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val value = r["value"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                Row(label, value)
+            }
+            ApprovalSection(title, rows)
+        }
+    }
+}
 
 /** The user's answers to dApp requests. One queue for the app; the PXE host's `approve` calls wait on it. */
 class DappApprovals {
@@ -54,12 +77,21 @@ class DappApprovals {
         val kind = runCatching { ApprovalKind.valueOf(params.text("kind").uppercase()) }.getOrElse { throw PxeException("unknown approval kind") }
         val details = params["details"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         val tab = params["tab"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-        val approved = ask(kind, tab, params.text("origin"), params.text("title"), details, params["emojis"]?.jsonPrimitive?.content)
+        val emojis = params["emojis"]?.jsonPrimitive?.content
+        val approved = ask(kind, tab, params.text("origin"), params.text("title"), details, emojis, ApprovalSection.list(params["sections"]))
         return buildJsonObject { put("approved", approved) }
     }
 
-    suspend fun ask(kind: ApprovalKind, tab: Int, origin: String, title: String, details: List<String>, emojis: String?): Boolean {
-        val request = ApprovalRequest(nextId.getAndIncrement(), kind, tab, origin, title, details, emojis)
+    suspend fun ask(
+        kind: ApprovalKind,
+        tab: Int,
+        origin: String,
+        title: String,
+        details: List<String>,
+        emojis: String?,
+        sections: List<ApprovalSection> = emptyList(),
+    ): Boolean {
+        val request = ApprovalRequest(nextId.getAndIncrement(), kind, tab, origin, title, details, emojis, sections)
         val answer = CompletableDeferred<Boolean>()
         synchronized(waiting) { waiting[request.id] = answer }
         _pending.update { it + request }

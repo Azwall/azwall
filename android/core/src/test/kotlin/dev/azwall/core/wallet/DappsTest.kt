@@ -48,9 +48,30 @@ class DappApprovalsTest {
         assertEquals(ApprovalKind.CAPABILITIES, request.kind)
         assertEquals(7, request.tab)
         assertEquals("🦊🌵", request.emojis)
+        assertTrue(request.sections.isEmpty())
         approvals.decide(request.id, true)
         assertTrue(reply.await().jsonObject["approved"]!!.jsonPrimitive.boolean)
         assertTrue(approvals.pending.value.isEmpty())
+    }
+
+    @Test
+    fun approvalsCarryTheirFullDetails() = runTest {
+        val approvals = DappApprovals()
+        val params = Json.parseToJsonElement(
+            """{"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Send?","details":["swap"],
+               "sections":[{"title":"Call 1: swap","rows":[{"label":"Address","value":"0x1111"},{"label":"amount · u128","value":"5"},{"bad":1}]},
+                           {"rows":[]}]}""",
+        ).jsonObject
+        val reply = async { approvals.approve(params) }
+        advanceUntilIdle()
+        val request = approvals.pending.value.single()
+        assertEquals(listOf("Call 1: swap"), request.sections.map { it.title })
+        assertEquals(
+            listOf(ApprovalSection.Row("Address", "0x1111"), ApprovalSection.Row("amount · u128", "5")),
+            request.sections.single().rows,
+        )
+        approvals.decide(request.id, false)
+        assertTrue(!reply.await().jsonObject["approved"]!!.jsonPrimitive.boolean)
     }
 
     @Test

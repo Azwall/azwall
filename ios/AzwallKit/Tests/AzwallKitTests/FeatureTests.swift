@@ -205,9 +205,26 @@ struct ApprovalTests {
         #expect(request.kind == .capabilities)
         #expect(request.emojis == "🦊🌵")
         #expect(request.tab == 7)
+        #expect(request.sections.isEmpty)
         approvals.decide(request.id, approved: true)
         #expect(try await reply.value["approved"] == .bool(true))
         #expect(approvals.pending.isEmpty)
+    }
+
+    @Test func approvalsCarryTheirFullDetails() async throws {
+        let approvals = DappApprovals()
+        let params = try JSONValue.parse(#"""
+        {"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Send?","details":["swap"],
+         "sections":[{"title":"Call 1: swap","rows":[{"label":"Address","value":"0x1111"},{"label":"amount · u128","value":"5"},{"bad":1}]},
+                     {"rows":[]}]}
+        """#)
+        let reply = Task { try await approvals.approve(params) }
+        await eventually { !approvals.pending.isEmpty }
+        let request = try #require(approvals.pending.first)
+        #expect(request.sections.map(\.title) == ["Call 1: swap"])
+        #expect(request.sections.first?.rows == [.init(label: "Address", value: "0x1111"), .init(label: "amount · u128", value: "5")])
+        approvals.decide(request.id, approved: false)
+        #expect(try await reply.value["approved"] == .bool(false))
     }
 
     @Test func rejectAllAnswersNo() async {
