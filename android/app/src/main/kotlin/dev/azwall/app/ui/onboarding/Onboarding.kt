@@ -85,8 +85,8 @@ internal fun Screen(onBack: (() -> Unit)? = null, content: @Composable ColumnSco
 @Composable
 private fun Welcome(onCreate: () -> Unit, onImport: () -> Unit) = Screen {
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(72.dp))
-        Text("Azwall", style = MaterialTheme.typography.displaySmall)
+        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(72.dp).align(Alignment.CenterHorizontally))
+        Text("Azwall", style = MaterialTheme.typography.displaySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
         Text("A private wallet for Aztec.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Feature(Icons.Outlined.Lock, "Private by default", "Balances and transfers stay encrypted. Only you can see them.")
         Feature(Icons.Outlined.Bolt, "Proven on your phone", "Every transaction is proven on this device, natively, in seconds.")
