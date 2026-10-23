@@ -116,6 +116,9 @@ struct FeatureTests {
         let call = try #require(pxe.calls.last)
         #expect(call.0 == "dappMessage")
         #expect(call.1["account"]?.stringValue == "addr-abab")
+        // An encrypted contract artifact (registerContract) weighs megabytes: it must reach the gateway.
+        await s.dapps.fromPage(1, origin: "https://vote.example", message: String(repeating: "x", count: 9_000_000))
+        #expect(pxe.calls.last?.1["message"]?.stringValue?.utf8.count == 9_000_000)
         let before = pxe.calls.count
         await s.dapps.fromPage(1, origin: "https://x.example", message: String(repeating: "x", count: DappLink.maxMessage + 1))
         #expect(pxe.calls.count == before)

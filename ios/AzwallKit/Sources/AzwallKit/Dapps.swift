@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 public enum ApprovalKind: String, Sendable {
     case connect, verify, capabilities, transaction, authwit
@@ -119,8 +120,11 @@ public final class DappLink {
     @ObservationIgnored private var started: [String: ActivityItem] = [:]
     @ObservationIgnored weak var session: WalletSession?
 
-    /// Wallet messages are small; a page sending megabytes only tries to wear the PXE down.
-    public static let maxMessage = 1_000_000
+    /// `registerContract` carries a whole contract artifact, encrypted: several megabytes for a token (Palmyr's are
+    /// 4 to 9 MB). The cap only stops a page from wearing the PXE down with far larger messages.
+    public static let maxMessage = 32_000_000
+
+    private static let logger = Logger(subsystem: "dev.azwall", category: "dapp")
 
     /// Messages for the pages' content scripts; a new call replaces the previous stream.
     public func toPages() -> AsyncStream<PageMessage> {
@@ -130,9 +134,14 @@ public final class DappLink {
         return stream
     }
 
-    /// A message from the content script of page `tabId` at `origin`; oversized ones are dropped.
+    /// A message from the content script of page `tabId` at `origin`; oversized ones are dropped (the page then waits
+    /// for a reply that never comes, so the drop is logged).
     public func fromPage(_ tabId: Int, origin: String, message: String) async {
-        guard message.utf8.count <= Self.maxMessage, let session, let account = session.account?.address, let client = try? session.client else { return }
+        guard message.utf8.count <= Self.maxMessage else {
+            Self.logger.warning("dropped a \(message.utf8.count, privacy: .public)-byte message from \(origin, privacy: .public)")
+            return
+        }
+        guard let session, let account = session.account?.address, let client = try? session.client else { return }
         let params: JSONValue = .object([
             "tabId": .number(Double(tabId)), "origin": .string(origin), "message": .string(message), "account": .string(account),
         ])

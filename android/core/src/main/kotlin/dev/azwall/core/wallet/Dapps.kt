@@ -151,8 +151,11 @@ class DappLink internal constructor(private val session: WalletSession) {
     }
 
     companion object {
-        /** Wallet messages are small; a page sending megabytes only tries to wear the PXE down. */
-        const val MAX_MESSAGE = 1_000_000
+        /**
+         * `registerContract` carries a whole contract artifact, encrypted: several megabytes for a token (Palmyr's are
+         * 4 to 9 MB). The cap only stops a page from wearing the PXE down with far larger messages.
+         */
+        const val MAX_MESSAGE = 32_000_000
     }
 }
 

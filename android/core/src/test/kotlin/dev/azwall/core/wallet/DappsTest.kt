@@ -148,6 +148,9 @@ class DappLinkTest {
     @Test
     fun oversizedMessagesAndClosedPagesAreHandled() = runTest {
         val s = session()
+        // An encrypted contract artifact (registerContract) weighs megabytes: it must reach the gateway.
+        s.dapps.fromPage(1, "https://x.example", "x".repeat(9_000_000))
+        assertEquals(9_000_000, pxe.calls.last().second["message"]!!.jsonPrimitive.content.length)
         val before = pxe.calls.size
         s.dapps.fromPage(1, "https://x.example", "x".repeat(DappLink.MAX_MESSAGE + 1))
         assertEquals(before, pxe.calls.size)
