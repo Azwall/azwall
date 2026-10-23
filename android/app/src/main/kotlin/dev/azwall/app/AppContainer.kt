@@ -1,5 +1,6 @@
 package dev.azwall.app
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -27,6 +28,9 @@ interface AppDeps {
     /** Where the browser's address bar searches. */
     var searchEngine: SearchEngine
 
+    /** A screen lock (PIN, pattern, password) is set: the vault's Keystore key cannot exist without one. */
+    val deviceSecure: Boolean get() = true
+
     /** Deletes the vault and its Keystore key. */
     fun wipe()
 }
@@ -41,6 +45,7 @@ class AppContainer(context: Context) : AppDeps {
     override val approvals = DappApprovals()
     override val launcher: PxeLauncher = AndroidPxeLauncher(app, approvals) { backend }
     override val storeDir = File(app.filesDir, "wallet")
+    override val deviceSecure: Boolean get() = app.getSystemService(KeyguardManager::class.java).isDeviceSecure
 
     override var lastNetwork: String?
         get() = prefs.getString("network", null)

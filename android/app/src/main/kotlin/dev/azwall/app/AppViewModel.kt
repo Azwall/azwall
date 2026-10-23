@@ -32,6 +32,9 @@ sealed interface AppPhase {
 
 class AuthCancelled : Exception("authentication was cancelled")
 
+/** The phone has no screen lock, so the vault's key (which requires one) cannot be created. */
+class NoScreenLock : Exception("Set a screen lock (PIN, pattern or password) in your phone's settings first: it protects your wallet's key")
+
 /**
  * The app's lifecycle: onboarding, unlocking the vault, and one [WalletSession] for the selected network
  * (switching network replaces it). Screens read [phase] and the session's own state.
@@ -86,6 +89,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     /** Creates the vault with [signingKey] (generated or imported), then opens the wallet. */
     /** Creates the wallet from [secret]: a recovery phrase (new or restored), or a signing key. */
     fun createWallet(secret: String, alias: String, auth: Auth) = action {
+        // Checked first: otherwise the Keystore refuses the key with a message the user cannot act on.
+        if (!deps.deviceSecure) throw NoScreenLock()
         val (account, phrase) = withContext(io) { Recovery.firstAccount(secret, alias, deps.backend) }
         val created = withAuth(auth) { withContext(io) { deps.vault.create(account, phrase) } }
         start(created)

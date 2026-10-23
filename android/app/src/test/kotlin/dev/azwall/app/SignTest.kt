@@ -32,7 +32,7 @@ class SignTest {
     @After
     fun reset() = Dispatchers.resetMain()
 
-    private fun model() = AppViewModel(object : AppDeps {
+    private fun model(secure: Boolean = true) = AppViewModel(object : AppDeps {
         override val backend: WalletBackend get() = error("not used")
         override val vault = Vault(tmp.root.resolve("vault"), object : SecretBox {
             override fun seal(plain: ByteArray) = plain
@@ -43,6 +43,7 @@ class SignTest {
         override val approvals = DappApprovals()
         override var lastNetwork: String? = null
         override var searchEngine = SearchEngine.entries.first()
+        override val deviceSecure = secure
         override fun wipe() {}
     })
 
@@ -53,6 +54,15 @@ class SignTest {
         vm.sign(auth = { false }) { sent = true }
         assertFalse(sent)
         assertEquals("authentication was cancelled", vm.message.value)
+    }
+
+    @Test
+    fun withoutAScreenLockTheWalletIsNotCreatedAndTheUserIsToldWhy() {
+        val vm = model(secure = false)
+        // The backend is never reached: it would throw "not used".
+        vm.createWallet("some phrase", "Account 1", auth = { true })
+        assertEquals(NoScreenLock().message, vm.message.value)
+        assertFalse(vm.busy.value)
     }
 
     @Test
