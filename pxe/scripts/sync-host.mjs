@@ -1,5 +1,5 @@
-// Copies the shared PXE host (pxe/host/src and pxe/host/test) into the version package it runs from (pxe/v5,
-// pxe/v6…), with the import names of that version's Aztec packages. The copies are generated and not committed:
+// Copies the shared PXE host (pxe/host/src and pxe/host/test) into the version package it runs from (pxe/v6,
+// pxe/v7…), with the import names of that version's Aztec packages. The copies are generated and not committed:
 // edit pxe/host, and a version's own differences in its src/version.ts.
 //
 // Import names: package.json's `azwallHost.imports` maps prefixes of `@aztec/…` (the names pxe/host is written

@@ -8,7 +8,8 @@ const ENV_EXAMPLE: &str = include_str!("../../../.env.example");
 #[test]
 fn the_shipped_registry_is_valid() {
     let registry = Registry::from_json(REGISTRY).unwrap();
-    assert!(registry.networks.len() >= 2, "the app is expected to embed several Aztec versions");
+    // One version today; the several-versions behaviour is covered by the registry's unit fixtures.
+    assert!(!registry.networks.is_empty(), "the app is expected to embed at least one Aztec version");
 }
 
 #[test]

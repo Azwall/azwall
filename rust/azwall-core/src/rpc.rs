@@ -120,7 +120,7 @@ impl Compatibility {
 }
 
 /// Compares a node with the network it is configured for. The node's major version must match
-/// the client's (minor/patch may differ: the v5 testnet runs node 5.0.0 with 5.1.0 clients).
+/// the client's (minor/patch may differ: a node can run 5.0.0 for 5.1.0 clients).
 pub fn check_compatibility(spec: &NetworkSpec, node: NodeInfo) -> Compatibility {
     let mut mismatches = Vec::new();
     if node.l1_chain_id != spec.expected.l1_chain_id {

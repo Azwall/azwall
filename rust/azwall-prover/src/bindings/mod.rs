@@ -12,16 +12,11 @@ use crate::srs::Srs;
 use crate::wire::ExecutionStep;
 use crate::{ProverError, Result};
 
-#[cfg(feature = "bb-v5")]
-mod v5;
 #[cfg(feature = "bb-v6")]
 mod v6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Binding {
-    /// `barretenberg-rs` 5.1.0: `chonk_start(num_circuits)`, `chonk_load(circuit)`.
-    #[cfg(feature = "bb-v5")]
-    V5,
     /// `barretenberg-rs` 6.0.0: `chonk_start(kinds)`, `chonk_load(circuit, kind)`.
     #[cfg(feature = "bb-v6")]
     V6,
@@ -30,8 +25,6 @@ pub enum Binding {
 /// Every Barretenberg release this build can drive. The msgpack schema is tied to the exact
 /// release, so a release is only supported with the binding generated from it.
 pub const RELEASES: &[(&str, Binding)] = &[
-    #[cfg(feature = "bb-v5")]
-    ("5.1.0", Binding::V5),
     #[cfg(feature = "bb-v6")]
     ("6.0.0", Binding::V6),
 ];
@@ -47,8 +40,6 @@ pub fn supported_releases() -> Vec<&'static str> {
 /// Wraps a loaded library in the backend for its release.
 pub fn open(release: &str, library: BbLibrary) -> Result<Box<dyn ChonkBackend>> {
     match binding_for(release) {
-        #[cfg(feature = "bb-v5")]
-        Some(Binding::V5) => Ok(Box::new(ReleaseBackend::new(release, v5::Api::new(library)))),
         #[cfg(feature = "bb-v6")]
         Some(Binding::V6) => Ok(Box::new(ReleaseBackend::new(release, v6::Api::new(library)))),
         None => {

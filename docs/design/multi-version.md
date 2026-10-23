@@ -13,9 +13,9 @@ Aztec is still evolving, and its networks do not all move together. On 18 Octobe
 | Network | Node version | Client packages | Barretenberg | Rollup version |
 |---|---|---|---|---|
 | Testnet v6 | 6.0.0 | `@aztec-labs/*` 6.0.0 | 6.0.0 | 679261766 |
-| Testnet v5 | 5.0.0 | `@aztec/*` 5.1.0 | 5.1.0 | 1821665230 |
 
-The mainnet alpha runs v5 as well. These versions are **not compatible with each other**. The protocol circuits differ (v5 proves
+Testnet v5 (node 5.0.0, `@aztec/*` 5.1.0, Barretenberg 5.1.0) ran alongside until October 2026; the
+app dropped it once testnet v6 reached 6.0.0, and mainnet moves to v6 on 26 October 2026. These versions are **not compatible with each other**. The protocol circuits differ (v5 proves
 with `private_kernel_init_3` and `private_kernel_inner`, v6 with `private_kernel_init_4`), so do
 their verification keys, the proof format and the account contract classes. A client built for v6
 cannot send a transaction to a v5 node, and the reverse is also true.
@@ -65,7 +65,7 @@ Every supported network is one entry in `networks.json`:
 - The RPC endpoint comes from `.env` (`AZWALL_RPC_TESTNET_V6=…`), falling back to `defaultRpc`.
   The build resolves both files into the configuration the apps bundle.
 
-Several networks can share one Barretenberg release: the v5 mainnet and the v5 testnet could use
+Several networks can share one Barretenberg release: the v6 mainnet and the v6 testnet could use
 the same library.
 
 ## Two Barretenberg releases in one process

@@ -7,7 +7,7 @@ A mobile wallet for [Aztec](https://aztec.network), native on both platforms:
 - **Rust core** shared by both (`rust/`), exposed through [uniffi](https://mozilla.github.io/uniffi-rs/):
   network registry, RPC configuration, node checks, and the native Chonk prover (Barretenberg).
 
-The app supports **several Aztec versions at once** (testnet v5, testnet v6, …), each with its own
+The app supports **several Aztec versions at once** (today testnet v6 only), each with its own
 Barretenberg release, side by side in one process. Documentation: https://azwall.github.io/azwall/
 (sources in [docs/](docs/)).
 
@@ -22,7 +22,7 @@ networks.json        Supported networks: Aztec version, Barretenberg release, ex
 rust/azwall-core     Registry, .env resolution, node JSON-RPC client and compatibility check
 rust/azwall-prover   Multi-release Chonk prover (dlopen per Barretenberg release)
 rust/azwall-ffi      uniffi API for Kotlin and Swift
-pxe/                 PXE hosts in JavaScript, one per Aztec version (v5, v6), run in a hidden web view
+pxe/                 PXE hosts in JavaScript, one per Aztec version (v6 today), run in a hidden web view
 android/             Gradle project: core (bindings wrapper) + app (Compose UI)
 ios/                 AzwallKit (wallet logic + platform), AzwallRust (FFI wrapper), Azwall app (XcodeGen)
 scripts/             Native builds, bindings, CRS, tests, size limits
@@ -71,8 +71,8 @@ step on every build; nothing to run by hand.
 
 Aztec proofs are made by [Barretenberg](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg),
 Aztec's C++ prover, built from source for the phone. Each network pins the release it needs
-(`barretenberg` in `networks.json`), and the app loads several releases side by side (testnet v5 and
-v6 use different ones): each release becomes one self-contained library exporting only two
+(`barretenberg` in `networks.json`), and the app can load several releases side by side (one per
+Aztec version): each release becomes one self-contained library exporting only two
 symbols, which the Rust prover opens at run time (`rust/azwall-prover/src/library.rs`).
 
 The scripts clone the release's sources (sparse checkout of `aztec-packages` at tag

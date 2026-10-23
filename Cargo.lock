@@ -115,29 +115,13 @@ name = "azwall-prover"
 version = "0.1.0"
 dependencies = [
  "azwall-core",
- "barretenberg-rs 5.1.0",
- "barretenberg-rs 6.0.0",
+ "barretenberg-rs",
  "flate2",
  "libloading",
  "log",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "barretenberg-rs"
-version = "5.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1208790a4ddaf12e2069eabfe6748ffb316f496f2f5c03f8256b1db589d7ad51"
-dependencies = [
- "hex",
- "libc",
- "rmp",
- "rmp-serde",
- "rmpv",
- "serde",
- "thiserror 1.0.69",
 ]
 
 [[package]]

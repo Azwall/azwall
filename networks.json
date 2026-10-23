@@ -33,37 +33,6 @@
           "description": "Private DeFi: swap and earn"
         }
       ]
-    },
-    {
-      "id": "testnet-v5",
-      "label": "Testnet (v5)",
-      "aztec": "5.1.0",
-      "barretenberg": "5.1.0",
-      "pxe": "v5",
-      "defaultRpc": "https://v5.testnet.rpc.aztec-labs.com",
-      "expected": {
-        "l1ChainId": 11155111,
-        "rollupVersion": 1821665230,
-        "vkTreeRoot": "0x2b3b6ea4412b9c8f6457a37f91a2870306f8641e07e16a49b68bda6f8bc02892",
-        "protocolContractsHash": "0x2c075866eafc88a1f6f9addc7e337c6e64e45d1cb7fd7c0d612ebcec72aab2ca"
-      },
-      "dapps": [
-        {
-          "name": "DuckDuckGo",
-          "url": "https://duckduckgo.com",
-          "description": "Search the web without being tracked"
-        },
-        {
-          "name": "Aztec",
-          "url": "https://aztec.network",
-          "description": "The privacy-first L2: news and ecosystem"
-        },
-        {
-          "name": "Aztecscan",
-          "url": "https://testnet.aztecscan.xyz",
-          "description": "Blocks, transactions and contracts"
-        }
-      ]
     }
   ]
 }

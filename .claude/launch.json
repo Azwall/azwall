@@ -15,21 +15,6 @@
         "--strictPort"
       ],
       "port": 5190
-    },
-    {
-      "name": "pxe-v5",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "pxe/v5",
-        "exec",
-        "vite",
-        "preview",
-        "--port",
-        "5191",
-        "--strictPort"
-      ],
-      "port": 5191
     }
   ]
 }

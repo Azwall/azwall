@@ -18,7 +18,7 @@ nav_order: 3
                  rust/azwall-core                               rust/azwall-prover
        registry · .env · node JSON-RPC · compat        engine thread · release manager · bindings
                                                                   │ dlopen (RTLD_LOCAL)
-                                               libbb_v5.1.0.so   libbb_v6.0.0.so   …
+                                               libbb_v6.0.0.so   libbb_v<next>.so   …
 ```
 
 Both apps depend on a `WalletBackend` interface, never on the generated bindings directly, so
@@ -26,7 +26,8 @@ their view logic is tested with fakes (JVM tests on Android, `swift test` on iOS
 
 ## Several Aztec versions
 
-Aztec runs incompatible versions at once (today testnet v5 and v6). Each network in
+Aztec can run incompatible versions at once (testnet v5 and v6 did until October 2026; today the
+app supports testnet v6 only). Each network in
 [`networks.json`](../networks.json) pins:
 
 | Field | Used for |
@@ -44,9 +45,9 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
   `azbb_free` (`scripts/build-bb-shared.sh`), loaded with `dlopen`/`RTLD_LOCAL`. The prototype
   proved two releases coexist in one process on a Pixel 3 (identical results, no interference).
 - The typed command API differs between releases (`chonk_start(num_circuits)` in 5.x,
-  `chonk_start(kinds)` in 6.x). `azwall-prover` depends on each `barretenberg-rs` version under
+  `chonk_start(kinds)` in 6.x; 5.x is no longer built). `azwall-prover` depends on each `barretenberg-rs` version under
   a renamed dependency and implements one small `ChonkApi` binding per version
-  (`src/bindings/v5.rs`, `v6.rs`). The Chonk sequence itself is written once
+  (`src/bindings/v6.rs` today). The Chonk sequence itself is written once
   (`ReleaseBackend`).
 - `ProverManager` keeps **one release loaded at a time**: a release costs its library plus its
   own CRS copy (≈ 200 MiB once initialised), and the wallet uses one network at a time.
@@ -72,7 +73,7 @@ Aztec runs incompatible versions at once (today testnet v5 and v6). Each network
 
 ## The PXE host
 
-`pxe/` holds one JavaScript package per Aztec version (`pxe/v5`, `pxe/v6`), each built into
+`pxe/` holds one JavaScript package per Aztec version (`pxe/v6` today), each built into
 `assets/pxe/<bundle>/` and run by the apps in a web view the user never sees. The host's code is
 written once, in `pxe/host` (with the upstream `@aztec/…` package names); each version package
 holds only its `src/version.ts` (what differs: version constant, node client options, proving step

@@ -19,7 +19,7 @@ from one release to the next.
 
 | | |
 |---|---|
-| **Every Aztec version, side by side** | Testnet v5, testnet v6, mainnet… run different, incompatible Aztec versions. Azwall embeds each one and picks the right one from the selected network. [More](design/multi-version.md) |
+| **Every Aztec version, side by side** | Aztec networks can run different, incompatible Aztec versions (testnet v6 today, the next one later). Azwall embeds each one and picks the right one from the selected network. [More](design/multi-version.md) |
 | **Native proving** | Proofs are made by Barretenberg compiled for the phone and run on every core, not by WebAssembly in a WebView. On a 2018 Pixel 3 the proof drops from 56 s to 13.5 s. [More](design/native-proving.md) |
 | **The PXE stays in JavaScript** | The Private eXecution Environment (accounts, notes, sync, simulation) is Aztec's own TypeScript code. Keeping it means following each Aztec release by bumping a package, not by porting it. [More](design/pxe.md) |
 | **dApps** | Web dApps written for an Aztec browser-extension wallet connect to Azwall unchanged, through the standard wallet-sdk protocol, with an approval for every transaction. [More](design/dapps.md) |
@@ -33,19 +33,17 @@ flowchart TB
         I["iOS: Swift + SwiftUI"]
     end
     subgraph JS["JavaScript, one bundle per Aztec version"]
-        P5["PXE v5"]
         P6["PXE v6"]
     end
     subgraph RS["Rust core (uniffi)"]
         C["Networks, RPC config, node checks"]
         M["Prover manager"]
     end
-    B5["Barretenberg 5.1.0"]
     B6["Barretenberg 6.0.0"]
     A & I --> C
     A & I --> P6
-    P5 & P6 -- "Chonk proof request" --> M
-    M -- "dlopen" --> B5 & B6
+    P6 -- "Chonk proof request" --> M
+    M -- "dlopen" --> B6
 ```
 
 - **Native apps**, one per platform, for the UI, key storage and the dApp browser.
@@ -63,7 +61,7 @@ accepted and mined on the Aztec testnet.
 | Part | State |
 |---|---|
 | Rust core: networks, `.env` RPC config, node checks | Done, tested against both testnets |
-| Multi-release prover (Barretenberg 5.1.0 and 6.0.0) | Done; proven on device in the prototype |
+| Multi-release prover (Barretenberg 6.0.0 today; 5.1.0 side by side in the prototype) | Done; proven on device in the prototype |
 | Android app (Kotlin, Compose) | Scaffold: network selection, node check, prover loading |
 | iOS app (Swift, SwiftUI) | Scaffold; Barretenberg not yet built for iOS |
 | PXE in a headless JS runtime | Next step |

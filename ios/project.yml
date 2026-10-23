@@ -38,10 +38,7 @@ targets:
       - package: AzwallRust
       # Barretenberg, one framework per release (scripts/build-bb-ios.sh). Embedded, not linked: the Rust prover
       # loads the one the network needs (rust/azwall-prover/src/library.rs).
-      - framework: ../vendor/bb-ios/AzBB_6_0_0_rc_6.xcframework
-        embed: true
-        link: false
-      - framework: ../vendor/bb-ios/AzBB_5_1_0.xcframework
+      - framework: ../vendor/bb-ios/AzBB_6_0_0.xcframework
         embed: true
         link: false
     preBuildScripts:
