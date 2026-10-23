@@ -5,17 +5,17 @@ import SwiftUI
 struct OnboardingView: View {
     let model: AppModel
     @State private var path: [Step] = []
-    @State private var phrase: [String] = []
 
-    enum Step: Hashable { case backup, verify, restore }
+    /// The words travel in the step: a destination reading the parent's state can be built with a stale copy of it.
+    enum Step: Hashable { case backup([String]), verify([String]), restore }
 
     var body: some View {
         NavigationStack(path: $path) {
             welcome
                 .navigationDestination(for: Step.self) { step in
                     switch step {
-                    case .backup: PhraseBackupView(words: phrase) { path.append(.verify) }
-                    case .verify: PhraseVerifyView(words: phrase, busy: model.busy) { create(phrase.joined(separator: " ")) }
+                    case .backup(let words): PhraseBackupView(words: words) { path.append(.verify(words)) }
+                    case .verify(let words): PhraseVerifyView(words: words, busy: model.busy) { create(words.joined(separator: " ")) }
                     case .restore: RestoreView(busy: model.busy, check: model.checkSecret) { create($0) }
                     }
                 }
@@ -29,16 +29,15 @@ struct OnboardingView: View {
     private func start() {
         Task {
             guard let words = try? await model.newRecoveryPhrase() else { return }
-            phrase = words.split(separator: " ").map(String.init)
-            path.append(.backup)
+            path.append(.backup(words.split(separator: " ").map(String.init)))
         }
     }
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 20) {
             Spacer()
-            Image("Logo").resizable().scaledToFit().frame(height: 72)
-            Text("Azwall").font(.largeTitle.bold())
+            Image("Logo").resizable().scaledToFit().frame(height: 72).frame(maxWidth: .infinity)
+            Text("Azwall").font(.largeTitle.bold()).frame(maxWidth: .infinity)
             Text("A private wallet for Aztec.").font(.title3).foregroundStyle(.secondary)
             Feature(icon: "lock", title: "Private by default", text: "Balances and transfers stay encrypted. Only you can see them.")
             Feature(icon: "bolt", title: "Proven on your phone", text: "Every transaction is proven on this device, natively, in seconds.")
