@@ -11,7 +11,9 @@ set -euo pipefail
 IN=$1 OUT=$2 ABI=${3:-arm64-v8a}
 API=${ANDROID_API:-24}
 : "${NDK_HOME:?set NDK_HOME}"
-TC="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+# The NDK ships its LLVM toolchain per host; macOS hosts (Intel and Apple Silicon) use darwin-x86_64.
+case "$(uname -s)" in Darwin) HOST_TAG=darwin-x86_64 ;; *) HOST_TAG=linux-x86_64 ;; esac
+TC="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 case "$ABI" in arm64-v8a) TRIPLE=aarch64-linux-android ;; x86_64) TRIPLE=x86_64-linux-android ;; *) echo "unsupported ABI $ABI" >&2; exit 1 ;; esac
 mkdir -p "$(dirname "$OUT")"
 TMP=$(mktemp -d)

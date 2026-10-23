@@ -14,9 +14,11 @@ bb_sources() {
       https://github.com/AztecProtocol/aztec-packages "$SRC"
     git -C "$SRC" sparse-checkout set barretenberg/cpp
   fi
-  local head_tag
-  head_tag=$(git -C "$SRC" describe --tags --exact-match 2>/dev/null || true)
-  [ "$head_tag" = "$tag" ] || { echo "error: $SRC is at '${head_tag:-?}', expected $tag; delete it to re-clone" >&2; return 1; }
+  # A final release often shares its commit with a nightly and an rc tag, so compare commits, not describe's pick.
+  if ! git -C "$SRC" tag --points-at HEAD | grep -qx "$tag"; then
+    echo "error: $SRC is at '$(git -C "$SRC" rev-parse --short HEAD)', not $tag; delete it to re-clone" >&2
+    return 1
+  fi
 
   local constants="$BB/src/barretenberg/aztec/aztec_constants.hpp"
   if [ ! -f "$constants" ]; then

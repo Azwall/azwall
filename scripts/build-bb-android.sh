@@ -25,7 +25,7 @@ fi
 
 STATIC="$ROOT/vendor/bb-static/$RELEASE"
 API=${ANDROID_API:-24}
-JOBS=${JOBS:-$(nproc)}
+JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu)}
 : "${NDK_HOME:?set NDK_HOME to your Android NDK (e.g. \$ANDROID_HOME/ndk/27.3.13750724)}"
 TOOLCHAIN="$NDK_HOME/build/cmake/android.toolchain.cmake"
 command -v cmake >/dev/null && command -v ninja >/dev/null || { echo "error: cmake and ninja are required" >&2; exit 1; }
