@@ -5,7 +5,7 @@
 # names of our own. Each library carries its own libc++ (static) and keeps every other symbol local.
 #
 # Usage: scripts/build-bb-shared.sh <static dir> <output .so> [abi]
-#   scripts/build-bb-shared.sh vendor/bb-static/6.0.0-rc.6/arm64-v8a vendor/bb-shared/arm64-v8a/libbb_v6.0.0-rc.6.so
+#   scripts/build-bb-shared.sh vendor/bb-static/6.0.0/arm64-v8a vendor/bb-shared/arm64-v8a/libbb_v6.0.0.so
 # The output name must stay libbb_v<release>.so: rust/azwall-prover/src/library.rs looks it up by that name.
 set -euo pipefail
 IN=$1 OUT=$2 ABI=${3:-arm64-v8a}

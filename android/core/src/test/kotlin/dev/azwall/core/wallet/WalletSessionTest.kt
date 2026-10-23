@@ -58,7 +58,7 @@ private class FakePxe : PxeCaller {
         calls += method
         val reply = when (method) {
             "open" -> failOpen?.let { throw PxeException("open: $it") }
-                ?: """{"nodeVersion":"6.0.0-rc.3","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"""
+                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"""
             "addAccount" -> """{"address":"addr-${p("signingKey").takeLast(4)}"}"""
             "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
             "accountState" -> """{"deployed":$deployed}"""
@@ -108,7 +108,7 @@ class WalletSessionTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0-rc.3", "6.0.0-rc.6", "node", "v6", true)
+    private val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0", "6.0.0", "node", "v6", true)
     private val pxe = FakePxe()
     private val scopes = mutableListOf<CoroutineScope>()
 

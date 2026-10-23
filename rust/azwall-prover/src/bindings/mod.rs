@@ -22,7 +22,7 @@ pub enum Binding {
     /// `barretenberg-rs` 5.1.0: `chonk_start(num_circuits)`, `chonk_load(circuit)`.
     #[cfg(feature = "bb-v5")]
     V5,
-    /// `barretenberg-rs` 6.0.0-rc.6: `chonk_start(kinds)`, `chonk_load(circuit, kind)`.
+    /// `barretenberg-rs` 6.0.0: `chonk_start(kinds)`, `chonk_load(circuit, kind)`.
     #[cfg(feature = "bb-v6")]
     V6,
 }
@@ -33,7 +33,7 @@ pub const RELEASES: &[(&str, Binding)] = &[
     #[cfg(feature = "bb-v5")]
     ("5.1.0", Binding::V5),
     #[cfg(feature = "bb-v6")]
-    ("6.0.0-rc.6", Binding::V6),
+    ("6.0.0", Binding::V6),
 ];
 
 pub fn binding_for(release: &str) -> Option<Binding> {

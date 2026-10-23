@@ -116,7 +116,7 @@ version = "0.1.0"
 dependencies = [
  "azwall-core",
  "barretenberg-rs 5.1.0",
- "barretenberg-rs 6.0.0-rc.6",
+ "barretenberg-rs 6.0.0",
  "flate2",
  "libloading",
  "log",
@@ -142,9 +142,9 @@ dependencies = [
 
 [[package]]
 name = "barretenberg-rs"
-version = "6.0.0-rc.6"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "840ce9ce9b49f311f34a3271b7993a2fd304d60f37ea22be3362b6680482a08d"
+checksum = "1b2f6b4acca79e439d3f4e6e3dfef3b7a714fffa81e7491d07c70145d24fff72"
 dependencies = [
  "hex",
  "libc",

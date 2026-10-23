@@ -27,7 +27,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
-            return try JSONValue.parse(#"{"nodeVersion":"6.0.0-rc.3","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"#)
+            return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"#)
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState": return .object(["deployed": .bool(deployed)])
         case "balances":
@@ -116,7 +116,7 @@ enum TestPhrases {
 
 @MainActor
 struct SessionTests {
-    let network = NetworkInfo(id: "testnet-v6", label: "Testnet", aztecVersion: "6.0.0-rc.3", barretenbergVersion: "6.0.0-rc.6", rpcHost: "node", pxeBundle: "v6", proverSupported: true)
+    let network = NetworkInfo(id: "testnet-v6", label: "Testnet", aztecVersion: "6.0.0", barretenbergVersion: "6.0.0", rpcHost: "node", pxeBundle: "v6", proverSupported: true)
 
     func session(_ pxe: FakePxe, dir: URL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)) throws -> WalletSession {
         let vault = Vault(storage: MemoryStorage())

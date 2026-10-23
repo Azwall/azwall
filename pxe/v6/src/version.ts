@@ -5,7 +5,7 @@ import type { Fr } from '@aztec-labs/aztec.js/fields';
 import { type AbiType, decodeFromAbi } from '@aztec-labs/stdlib/abi';
 import type { PrivateExecutionStep } from '@aztec-labs/stdlib/kernel';
 
-export const AZTEC_VERSION = '6.0.0-rc.3';
+export const AZTEC_VERSION = '6.0.0';
 
 /** The node's JSON-RPC client; 6.x can cap how many calls one batch carries. */
 export function nodeClient(url: string, maxBatchSize: number): AztecNode {

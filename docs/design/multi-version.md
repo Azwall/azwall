@@ -12,7 +12,7 @@ Aztec is still evolving, and its networks do not all move together. On 18 Octobe
 
 | Network | Node version | Client packages | Barretenberg | Rollup version |
 |---|---|---|---|---|
-| Testnet v6 | 6.0.0-rc.3 | `@aztec-labs/*` 6.0.0-rc.3 | 6.0.0-rc.6 | 3409706519 |
+| Testnet v6 | 6.0.0 | `@aztec-labs/*` 6.0.0 | 6.0.0 | 679261766 |
 | Testnet v5 | 5.0.0 | `@aztec/*` 5.1.0 | 5.1.0 | 1821665230 |
 
 The mainnet alpha runs v5 as well. These versions are **not compatible with each other**. The protocol circuits differ (v5 proves
@@ -44,14 +44,14 @@ Every supported network is one entry in `networks.json`:
 {
   "id": "testnet-v6",
   "label": "Testnet (v6)",
-  "aztec": "6.0.0-rc.3",
-  "barretenberg": "6.0.0-rc.6",
+  "aztec": "6.0.0",
+  "barretenberg": "6.0.0",
   "noir": "1.0.0-rc.3",
   "defaultRpc": "https://aztec-testnet.drpc.org",
   "expected": {
     "l1ChainId": 11155111,
-    "rollupVersion": 3409706519,
-    "vkTreeRoot": "0x13ee…",
+    "rollupVersion": 679261766,
+    "vkTreeRoot": "0x22ff…",
     "protocolContractsHash": "0x0f54…"
   }
 }

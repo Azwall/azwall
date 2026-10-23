@@ -93,7 +93,7 @@ fn release_table() {
     #[cfg(feature = "bb-v5")]
     assert_eq!(binding_for("5.1.0"), Some(Binding::V5));
     #[cfg(feature = "bb-v6")]
-    assert_eq!(binding_for("6.0.0-rc.6"), Some(Binding::V6));
+    assert_eq!(binding_for("6.0.0"), Some(Binding::V6));
     let releases = supported_releases();
     let unique: std::collections::BTreeSet<_> = releases.iter().collect();
     assert_eq!(unique.len(), releases.len(), "a release is listed twice");

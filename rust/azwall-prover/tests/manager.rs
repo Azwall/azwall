@@ -103,7 +103,7 @@ fn malformed_requests_do_not_kill_the_engine() {
 fn native_manager_reports_missing_libraries() {
     let dir = std::env::temp_dir();
     let m = ProverManager::native(dir.clone(), dir, 1).unwrap();
-    let err = m.activate("6.0.0-rc.6").unwrap_err();
+    let err = m.activate("6.0.0").unwrap_err();
     assert!(matches!(err, ProverError::Library { .. }), "{err}");
     assert!(matches!(m.activate("0.0.1").unwrap_err(), ProverError::UnsupportedRelease(_)));
 }

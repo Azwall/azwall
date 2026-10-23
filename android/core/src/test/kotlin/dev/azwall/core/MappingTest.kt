@@ -14,8 +14,8 @@ class MappingTest {
         val network = Network(
             id = "testnet-v6",
             label = "Testnet (v6)",
-            aztecVersion = "6.0.0-rc.3",
-            barretenbergVersion = "6.0.0-rc.6",
+            aztecVersion = "6.0.0",
+            barretenbergVersion = "6.0.0",
             rpcUrl = "https://lb.drpc.org/aztec-testnet/SECRET",
             pxeBundle = "v6",
             proverSupported = true,
@@ -24,7 +24,7 @@ class MappingTest {
         )
         val info = network.toInfo()
         assertEquals("lb.drpc.org", info.rpcHost)
-        assertEquals("6.0.0-rc.6", info.barretenbergVersion)
+        assertEquals("6.0.0", info.barretenbergVersion)
         assertEquals(18, info.knownTokens.single().decimals)
         assertEquals("aztec.palmyr.io", info.dapps.single().host)
     }
@@ -42,7 +42,7 @@ class MappingTest {
             l1ChainId = 11155111u,
             rollupVersion = 3409706519u,
             compatible = false,
-            mismatches = listOf("node version 5.0.0 (client 6.0.0-rc.3)"),
+            mismatches = listOf("node version 5.0.0 (client 6.0.0)"),
         )
         val check = status.toCheck()
         assertEquals(3409706519L, check.rollupVersion)

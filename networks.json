@@ -5,15 +5,15 @@
     {
       "id": "testnet-v6",
       "label": "Testnet (v6)",
-      "aztec": "6.0.0-rc.3",
-      "barretenberg": "6.0.0-rc.6",
+      "aztec": "6.0.0",
+      "barretenberg": "6.0.0",
       "noir": "1.0.0-rc.3",
       "pxe": "v6",
       "defaultRpc": "https://aztec-testnet.drpc.org",
       "expected": {
         "l1ChainId": 11155111,
-        "rollupVersion": 3409706519,
-        "vkTreeRoot": "0x13eeb174d4119b221a22721853261759f57a65a57e864ad78b840b23cde69e02",
+        "rollupVersion": 679261766,
+        "vkTreeRoot": "0x22fff5de6ce590153df4468f7f0b152188a803d91b3c9c648b91d93d5913f219",
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
       },
       "dapps": [

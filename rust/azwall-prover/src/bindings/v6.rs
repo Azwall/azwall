@@ -1,4 +1,4 @@
-//! Binding for Barretenberg 6.x (`barretenberg-rs` 6.0.0-rc.6): circuit kinds are passed to
+//! Binding for Barretenberg 6.x (`barretenberg-rs` 6.0.0): circuit kinds are passed to
 //! `ChonkStart` and `ChonkLoad`.
 
 use bb6::generated_types::{ChonkProof, CircuitInput};

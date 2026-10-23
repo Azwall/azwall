@@ -18,7 +18,7 @@ nav_order: 3
                  rust/azwall-core                               rust/azwall-prover
        registry · .env · node JSON-RPC · compat        engine thread · release manager · bindings
                                                                   │ dlopen (RTLD_LOCAL)
-                                               libbb_v5.1.0.so   libbb_v6.0.0-rc.6.so   …
+                                               libbb_v5.1.0.so   libbb_v6.0.0.so   …
 ```
 
 Both apps depend on a `WalletBackend` interface, never on the generated bindings directly, so

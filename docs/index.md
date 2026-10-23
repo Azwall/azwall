@@ -41,7 +41,7 @@ flowchart TB
         M["Prover manager"]
     end
     B5["Barretenberg 5.1.0"]
-    B6["Barretenberg 6.0.0-rc.6"]
+    B6["Barretenberg 6.0.0"]
     A & I --> C
     A & I --> P6
     P5 & P6 -- "Chonk proof request" --> M
@@ -63,7 +63,7 @@ accepted and mined on the Aztec testnet.
 | Part | State |
 |---|---|
 | Rust core: networks, `.env` RPC config, node checks | Done, tested against both testnets |
-| Multi-release prover (Barretenberg 5.1.0 and 6.0.0-rc.6) | Done; proven on device in the prototype |
+| Multi-release prover (Barretenberg 5.1.0 and 6.0.0) | Done; proven on device in the prototype |
 | Android app (Kotlin, Compose) | Scaffold: network selection, node check, prover loading |
 | iOS app (Swift, SwiftUI) | Scaffold; Barretenberg not yet built for iOS |
 | PXE in a headless JS runtime | Next step |

@@ -3,7 +3,7 @@
 # library the prover loads: vendor/bb-shared/<abi>/libbb_v<release>.so.
 #
 # Usage: scripts/build-bb-android.sh <release|all> [abi...]     abi: arm64-v8a (default), x86_64
-#   scripts/build-bb-android.sh 6.0.0-rc.6 arm64-v8a x86_64
+#   scripts/build-bb-android.sh 6.0.0 arm64-v8a x86_64
 #   scripts/build-bb-android.sh all                       # every release in networks.json
 #
 # Sources are cloned (sparse) into vendor/aztec-packages-v<release> at tag v<release>. About

@@ -30,7 +30,7 @@ pub struct ChonkOutput {
 /// One Barretenberg release, ready to prove. Implementations are not thread-safe: the engine
 /// owns each backend on a dedicated thread.
 pub trait ChonkBackend: Send {
-    /// The Barretenberg release, e.g. `6.0.0-rc.6`.
+    /// The Barretenberg release, e.g. `6.0.0`.
     fn release(&self) -> &str;
     fn init_srs(&mut self, srs: &Srs) -> Result<()>;
     fn prove(&mut self, steps: Vec<ExecutionStep>) -> Result<ChonkOutput>;

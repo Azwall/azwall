@@ -27,7 +27,7 @@ class PxeClientTest {
 
     @Test
     fun openSendsTheNetworkParamsAndKey() = runTest {
-        val rec = Recorder(mapOf("open" to """{"nodeVersion":"6.0.0-rc.3","l1ChainId":11155111,"rollupVersion":3409706519,
+        val rec = Recorder(mapOf("open" to """{"nodeVersion":"6.0.0","l1ChainId":11155111,"rollupVersion":3409706519,
             "vkTreeRoot":"0x1","protocolContractsHash":"0x2","blockNumber":7678}"""))
         val check = PxeClient(rec).open("""{"id":"testnet-v6"}""", "0xab")
         assertEquals(3409706519L, check.rollupVersion)

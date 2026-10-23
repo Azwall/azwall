@@ -25,7 +25,7 @@ describe('encodeRequest', () => {
 });
 
 describe('decodeResponse', () => {
-  const meta = new TextEncoder().encode('{"release":"6.0.0-rc.6"}');
+  const meta = new TextEncoder().encode('{"release":"6.0.0"}');
   const response = Uint8Array.from([
     ...[0x41, 0x5a, 0x50, 0x31],
     ...u32(2),
@@ -39,7 +39,7 @@ describe('decodeResponse', () => {
     const r = decodeResponse(response);
     expect(r.fields.map(f => f[0])).toEqual([1, 2]);
     expect([...r.compressed]).toEqual([7, 8, 9]);
-    expect(r.meta).toEqual({ release: '6.0.0-rc.6' });
+    expect(r.meta).toEqual({ release: '6.0.0' });
   });
 
   it('rejects bad magic, truncation and trailing bytes', () => {

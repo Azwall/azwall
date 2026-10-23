@@ -66,8 +66,8 @@ class PxeChannelTest {
         val ch = channel()
         val event = async { ch.events.first() }
         advanceUntilIdle()
-        ch.receive("""{"kind":"event","name":"ready","data":{"aztec":"6.0.0-rc.3"}}""")
-        assertEquals(PxeEvent("ready", buildJsonObject { put("aztec", "6.0.0-rc.3") }), event.await())
+        ch.receive("""{"kind":"event","name":"ready","data":{"aztec":"6.0.0"}}""")
+        assertEquals(PxeEvent("ready", buildJsonObject { put("aztec", "6.0.0") }), event.await())
     }
 
     @Test

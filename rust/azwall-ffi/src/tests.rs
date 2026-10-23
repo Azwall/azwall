@@ -42,7 +42,7 @@ fn proving_without_libraries_is_a_prover_error() {
 
 #[test]
 fn exposes_the_supported_releases() {
-    assert!(supported_barretenberg_releases().contains(&"6.0.0-rc.6".to_string()));
+    assert!(supported_barretenberg_releases().contains(&"6.0.0".to_string()));
     assert_eq!(core_version(), env!("CARGO_PKG_VERSION"));
 }
 

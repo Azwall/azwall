@@ -6,7 +6,7 @@
 # releases load side by side. macOS with Xcode, cmake and ninja only.
 #
 # Usage: scripts/build-bb-ios.sh <release|all>
-#   scripts/build-bb-ios.sh 6.0.0-rc.6
+#   scripts/build-bb-ios.sh 6.0.0
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RELEASE=${1:?usage: build-bb-ios.sh <release|all>}

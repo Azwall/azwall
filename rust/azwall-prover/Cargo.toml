@@ -23,7 +23,7 @@ flate2 = { version = "1.1", default-features = false, features = ["rust_backend"
 # Typed bbapi commands generated from each release's msgpack schema. Neither declares `links`,
 # so both coexist in one build. The `ffi` feature is off: the library is loaded with dlopen.
 bb5 = { package = "barretenberg-rs", version = "=5.1.0", default-features = false, optional = true }
-bb6 = { package = "barretenberg-rs", version = "=6.0.0-rc.6", default-features = false, optional = true }
+bb6 = { package = "barretenberg-rs", version = "=6.0.0", default-features = false, optional = true }
 
 [dev-dependencies]
 azwall-core.workspace = true

@@ -81,7 +81,7 @@ The scripts clone the release's sources (sparse checkout of `aztec-packages` at 
 ```bash
 scripts/build-bb-android.sh all arm64-v8a           # phones; add x86_64 for the emulator
 scripts/build-bb-ios.sh all                         # macOS: device + Apple Silicon simulator
-scripts/build-bb-android.sh 6.0.0-rc.6 arm64-v8a    # or a single release
+scripts/build-bb-android.sh 6.0.0 arm64-v8a    # or a single release
 ```
 
 | | Output | Packaged by |
