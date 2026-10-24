@@ -1,7 +1,7 @@
 import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/stdlib/abi';
 import { describe, expect, it } from 'vitest';
 
-import { describeAuthWit, describeTx, readCall, show, trustFeePayers } from '../src/dapp/calls';
+import { describeAuthWit, describeTx, LINE_LIMIT, readCall, show, trustFeePayers } from '../src/dapp/calls';
 
 const transfer = {
   name: 'transfer',
@@ -41,6 +41,19 @@ describe('calls', () => {
   it('shows the function the selector runs, with its decoded arguments', async () => {
     const read = await readCall(await call('transfer'), artifactOf);
     expect(read.line).toBe('transfer(to: 5, amount: 1000000) on Token 0x111111…1111');
+  });
+
+  it('sums a long call up in about two lines, its first arguments then an ellipsis', async () => {
+    const field = { kind: 'field' };
+    const names = ['pool_id', 'x_to_y', 'amount_in', 'min_out', 'deadline', 'recipient', 'nonce'];
+    const swap = { name: 'swap', functionType: FunctionType.PUBLIC, parameters: names.map(name => ({ name, type: field, visibility: 'public' })) };
+    const dex = { name: 'Palmyr', functions: [], nonDispatchPublicFunctions: [swap] } as unknown as ContractArtifact;
+    const selector = (await FunctionSelector.fromNameAndParameters(swap.name, swap.parameters as never)).toString();
+    const big = `0x${'2a'.repeat(31)}`;
+    const read = await readCall({ name: 'swap', to: token, selector, args: [big, '0x01', '0x2dc6c0', big, '0x6a', big, big] }, async () => dex);
+    expect(read.line.length).toBeLessThanOrEqual(LINE_LIMIT);
+    expect(read.line).toMatch(/^swap\(pool_id: \d{8}…\d{4}, x_to_y: 1, amount_in: 3000000, .*…\) on Palmyr 0x111111…1111$/);
+    expect(show(10n ** 40n)).toBe('10000000…0000');
   });
 
   it('refuses a call whose label names another function', async () => {

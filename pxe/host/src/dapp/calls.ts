@@ -40,10 +40,11 @@ export const short = (v: unknown) => {
   return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
 };
 
-/** A decoded argument, compact: numbers in full, addresses and fields shortened, at most 60 characters. */
+/** A decoded argument, compact: small numbers in full, long ones, addresses and fields shortened, at most 60 characters. */
 export function show(v: unknown): string {
   const text = (() => {
-    if (typeof v === 'bigint' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (typeof v === 'bigint' || typeof v === 'number') return short(String(v));
+    if (typeof v === 'boolean') return String(v);
     if (Array.isArray(v)) return `[${v.map(show).join(', ')}]`;
     if (v && typeof v === 'object' && v.constructor !== Object) return short(String(v));
     if (v && typeof v === 'object') return `{${Object.entries(v).map(([k, x]) => `${k}: ${show(x)}`).join(', ')}}`;
@@ -53,6 +54,20 @@ export function show(v: unknown): string {
 }
 
 /** The function a selector runs, private, utility or public (public ones sit outside `functions`, behind its dispatch). */
+/** A call's summary fits in about two lines of the approval panel; its details show every argument in full. */
+export const LINE_LIMIT = 90;
+
+/** `fn(args) on contract`, with as many leading arguments as fit in LINE_LIMIT, then `…`. */
+function summary(fn: string, args: string[], contract: string): string {
+  const line = (kept: string[]) => `${fn}(${[...kept, ...(kept.length < args.length ? ['…'] : [])].join(', ')}) on ${contract}`;
+  let kept: string[] = [];
+  for (const arg of args) {
+    if (line([...kept, arg]).length > LINE_LIMIT) break;
+    kept = [...kept, arg];
+  }
+  return line(kept);
+}
+
 async function bySelector(artifact: ContractArtifact, selector: string): Promise<FunctionAbi | undefined> {
   const wanted = FunctionSelector.fromString(selector);
   for (const fn of getAllFunctionAbis(artifact)) {
@@ -85,17 +100,17 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
   const fn = artifact && c.selector !== undefined ? await bySelector(artifact, String(c.selector)).catch(() => undefined) : undefined;
   if (!artifact || !fn) return { name: label, line: `${label} on ${short(to)} (unverified: the wallet does not know this contract)`, fee: false };
   if (c.name !== undefined && label !== fn.name) throw new Error(`the call to ${short(to)} is labelled ${label} but runs ${fn.name}`);
-  let args = '…';
+  let args = ['…'];
   let values: Record<string, unknown> | undefined;
   try {
     // The parameters as one struct: decodes them in order, by name.
     const type = { kind: 'struct', path: fn.name, fields: fn.parameters.map(p => ({ name: p.name, type: p.type })) } as AbiType;
     values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
-    args = fn.parameters.map(p => `${p.name}: ${show(values?.[p.name])}`).join(', ');
+    args = fn.parameters.map(p => `${p.name}: ${show(values?.[p.name])}`);
   } catch {
     values = undefined;
   }
-  const line = `${fn.name}(${args}) on ${artifact.name} ${short(to)}`;
+  const line = summary(fn.name, args, `${artifact.name} ${short(to)}`);
   const fee = FEE_FUNCTIONS.has(fn.name) && feePayers.has(to.toLowerCase());
   return { name: fn.name, line, fee, contract: artifact.name, fn, values };
 }
