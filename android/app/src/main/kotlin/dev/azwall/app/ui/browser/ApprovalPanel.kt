@@ -89,7 +89,7 @@ private fun Body(request: ApprovalRequest, onShowAll: () -> Unit) {
         request.emojis?.let { Emojis(it) }
         request.details.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
         if (request.kind == ApprovalKind.TRANSACTION) {
-            Text("The proof is generated on this phone; the fee is sponsored on testnet.", style = MaterialTheme.typography.bodySmall)
+            Text("The proof is generated on this phone. Who pays the fee is in all the details.", style = MaterialTheme.typography.bodySmall)
         }
         if (request.sections.isNotEmpty()) {
             TextButton(onClick = onShowAll) {
