@@ -5,8 +5,9 @@
 // Policy: nothing reaches the PXE before the user approved the connection, compared the emojis and approved the
 // requested capabilities. A session belongs to the page that opened it: messages from another page or origin are
 // dropped, and the app closes a page's sessions when it navigates away. A session acts as the one account selected
-// when its capabilities were granted (policy.ts). Every transaction (sendTx) and authorization (createAuthWit), also
-// inside a batch, needs its own approval, which shows the functions the calls really run (calls.ts).
+// when its capabilities were granted (policy.ts), and only within those capabilities (grants.ts). Every transaction
+// (sendTx) and authorization (createAuthWit), also inside a batch, needs its own approval, which shows the functions
+// the calls really run (calls.ts).
 import { BackgroundConnectionHandler, type ActiveSession, type PendingDiscovery } from '@aztec/wallet-sdk/extension/handlers';
 import { hashToEmoji } from '@aztec/wallet-sdk/crypto';
 import type { WalletMessage } from '@aztec/wallet-sdk/types';
@@ -18,6 +19,8 @@ import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
+import { added, addedLines, grantsOf, type Grants, merge, permit } from './grants';
+import { list, obj } from './json';
 import { confine, samePage } from './policy';
 import { rawCall } from './raw_call';
 
@@ -35,7 +38,8 @@ type ChainLike = { chainId?: { toString(): string }; version?: { toString(): str
 
 export class DappGateway {
   readonly #handler: BackgroundConnectionHandler;
-  readonly #granted = new Map<string, unknown[]>();
+  /** What each session's site may do, as the user accepted it (grants.ts). */
+  readonly #granted = new Map<string, Grants>();
   /** The account each session acts as: the one selected when its capabilities were granted. */
   readonly #accounts = new Map<string, string>();
   /** Each session's emoji check: no wallet message is served before the user confirmed it. */
@@ -184,6 +188,7 @@ export class DappGateway {
     for (const op of confined) {
       if (op.name === 'batch' || op.name === 'requestCapabilities') throw new Error(`${op.name} cannot be batched`);
       if (op.name !== 'getAccounts' && op.name !== 'getAddressBook') op.args = confine(op.name, op.args, account, others);
+      await permit(this.#granted.get(session.sessionId) ?? grantsOf([]), op.name, op.args, a => this.wallet.artifactAt(a));
     }
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
     if (signing.length) {
@@ -244,25 +249,33 @@ export class DappGateway {
     }
   }
 
+  /**
+   * A site asks for capabilities. The first request, or one made after the user selected another account, asks the
+   * user; a later one asks only when it adds something, listing what it adds, and is granted at once otherwise.
+   */
   async #capabilities(session: ActiveSession, manifest: unknown): Promise<unknown> {
-    const m = (manifest ?? {}) as { capabilities?: { type: string }[]; metadata?: { name?: string } };
-    const asked = m.capabilities ?? [];
-    const claim = m.metadata?.name ? [`It calls itself "${m.metadata.name}"`] : [];
+    const m = obj(manifest);
+    const asked = list(m.capabilities).map(obj);
     const account = this.#selected;
+    const before = this.#accounts.get(session.sessionId) === account ? this.#granted.get(session.sessionId) : undefined;
     const nameOf = (address: string) => this.wallet.artifactAt(address).then(a => a?.name);
-    const ok = await this.#ask({
-      kind: 'capabilities',
-      tab: session.tabId,
-      origin: session.origin,
-      title: 'Let this site use your account?',
-      details: [...asked.map(c => c.type), ...claim],
-      sections: [...(await capabilitySections(manifest, account, nameOf)), rawSection(manifest)],
-    });
-    if (!ok) throw new Error('the user refused the requested capabilities');
-    const caps = asked.map(c => (c.type === 'accounts' ? { ...c, accounts: [{ alias: 'main', item: account }] } : c));
-    this.#granted.set(session.sessionId, caps);
+    const more = before && added(before, grantsOf(asked));
+    if (!more || more.flags.length || more.scopes.length) {
+      const claim = obj(m.metadata).name ? [`It calls itself "${String(obj(m.metadata).name)}"`] : [];
+      const ok = await this.#ask({
+        kind: 'capabilities',
+        tab: session.tabId,
+        origin: session.origin,
+        title: more ? 'Let this site do more?' : 'Let this site use your account?',
+        details: more ? [...(await addedLines(more, nameOf)), ...claim] : [...asked.map(c => String(c.type)), ...claim],
+        sections: [...(await capabilitySections(manifest, account, nameOf)), rawSection(manifest)],
+      });
+      if (!ok) throw new Error('the user refused the requested capabilities');
+    }
+    this.#granted.set(session.sessionId, merge(before ?? grantsOf([]), grantsOf(asked)));
     this.#accounts.set(session.sessionId, account);
     this.#publishSessions();
+    const caps = asked.map(c => (c.type === 'accounts' ? { ...c, accounts: [{ alias: 'main', item: account }] } : c));
     return { version: '1.0', granted: caps, wallet: { name: WALLET.walletName, version: WALLET.walletVersion } };
   }
 
