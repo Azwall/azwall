@@ -18,6 +18,17 @@ export type ReadCall = { name: string; line: string; fee: boolean; contract?: st
 /** Fee-paying contract functions (Sponsored FPC, FPC entrypoints): listed after what the transaction does. */
 export const FEE_FUNCTIONS = new Set(['sponsor_unconditionally', 'fee_entrypoint_private', 'fee_entrypoint_public']);
 
+/**
+ * The contracts whose fee functions really pay fees: the network's Sponsored FPC (open.ts). A function name proves
+ * nothing, since a site can register its own contract with a function named like these; only these addresses count.
+ */
+const feePayers = new Set<string>();
+
+export function trustFeePayers(addresses: string[]): void {
+  feePayers.clear();
+  for (const a of addresses) feePayers.add(a.toLowerCase());
+}
+
 type Json = Record<string, unknown>;
 
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
@@ -68,7 +79,8 @@ export async function readCall(call: unknown, artifactOf: ArtifactOf): Promise<R
     values = undefined;
   }
   const line = `${fn.name}(${args}) on ${artifact.name} ${short(to)}`;
-  return { name: fn.name, line, fee: FEE_FUNCTIONS.has(fn.name), contract: artifact.name, fn, values };
+  const fee = FEE_FUNCTIONS.has(fn.name) && feePayers.has(to.toLowerCase());
+  return { name: fn.name, line, fee, contract: artifact.name, fn, values };
 }
 
 /** The lines of a transaction: what it does first, its fee payment last, then its attached authorizations. */

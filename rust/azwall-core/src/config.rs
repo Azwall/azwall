@@ -39,6 +39,7 @@ impl ResolvedNetwork {
             "rpcMaxBatch": rpc_max_batch,
             "aztec": self.spec.aztec,
             "expected": self.spec.expected,
+            "fees": self.spec.fees,
         })
     }
 }
@@ -102,7 +103,7 @@ mod tests {
       "default": "net-a",
       "networks": [
         { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0", "pxe": "v6",
-          "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 } },
+          "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 }, "fees": "sponsored" },
         { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
           "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
       ]
@@ -157,12 +158,15 @@ mod tests {
     #[test]
     fn pxe_open_params_match_the_host_api() {
         let registry = Registry::from_json(REGISTRY).unwrap();
-        let config = AppConfig::resolve(&registry, &EnvMap::new()).unwrap();
+        let config = AppConfig::resolve(&registry, &env(&[("AZWALL_RPC_NET_B", "https://b.example")])).unwrap();
         let params = config.network("net-a").unwrap().pxe_open_params(config.rpc_max_batch);
         assert_eq!(params["rpcUrl"], "https://a.example");
         assert_eq!(params["rpcMaxBatch"], 3);
         assert_eq!(params["expected"]["rollupVersion"], 10);
         assert!(params["expected"].get("vkTreeRoot").is_none());
+        assert_eq!(params["fees"], "sponsored");
+        // Undeclared, a network has no sponsor: its accounts pay with Fee Juice.
+        assert_eq!(config.network("net-b").unwrap().pxe_open_params(3)["fees"], "feeJuice");
     }
 
     #[test]

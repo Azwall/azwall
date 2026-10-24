@@ -35,6 +35,13 @@ data class Review(val title: String, val lines: List<Pair<String, String>>, val 
             )
         }
 
+        /** Activating the account: it publishes its contract, once, and pays [fee] where there is no sponsor. */
+        fun activation(network: String, fee: String = Fees.SPONSORED): Review = Review(
+            "Activate your account",
+            listOf("Publishes" to "Your account contract, so the account can send transactions", "Network" to network, "Fee" to fee),
+            "Confirm and activate",
+        )
+
         /** Minting `amount` of the account's own token; an empty `to` mints to the account itself. */
         fun mint(amount: String, private: Boolean, to: String, network: String, fee: String = Fees.SPONSORED): Review = Review(
             if (private) "Mint privately" else "Mint publicly",

@@ -58,6 +58,9 @@ sealed interface BackgroundTask {
     data object FindingTokens : BackgroundTask
 }
 
+/** A transaction being proven, or sent and waiting for a block. */
+internal val IN_FLIGHT = setOf(ActivityStatus.PROVING, ActivityStatus.PENDING)
+
 data class SessionState(
     val network: NetworkInfo,
     val phase: Phase = Phase.STARTING,
@@ -82,6 +85,10 @@ data class SessionState(
     val feeJuice: String? = null,
 ) {
     val account: AccountView? get() = accounts.firstOrNull { it.address == selected }
+
+    /** The selected account's activation is sent and not in a block yet: activating again would pay twice. */
+    val activating: Boolean
+        get() = activity.any { it.kind == ActivityKind.DEPLOY_ACCOUNT && it.account == selected && it.status in IN_FLIGHT }
 
     /**
      * The token shown at the top: the one the user chose while it is followed, else the first holding something,

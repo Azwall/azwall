@@ -1,7 +1,7 @@
 import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/stdlib/abi';
 import { describe, expect, it } from 'vitest';
 
-import { describeAuthWit, describeTx, readCall, show } from '../src/dapp/calls';
+import { describeAuthWit, describeTx, readCall, show, trustFeePayers } from '../src/dapp/calls';
 
 const transfer = {
   name: 'transfer',
@@ -19,6 +19,23 @@ async function call(name: string) {
   const selector = await FunctionSelector.fromNameAndParameters(transfer.name, transfer.parameters as never);
   return { name, to: token, selector: selector.toString(), args: ['0x05', '0x0f4240'] };
 }
+
+/** A site's own contract with a function named like the Sponsored FPC's. */
+const sponsorLike = { ...transfer, name: 'sponsor_unconditionally', parameters: [] };
+const fake = { name: 'FakeFPC', functions: [sponsorLike] } as unknown as ContractArtifact;
+const site = `0x${'22'.repeat(32)}`;
+const sponsor = `0x${'33'.repeat(32)}`;
+
+describe('fee payments', () => {
+  it('are told by the paying contract address, never by a function name', async () => {
+    const artifacts = async (a: string) => (a === site || a === sponsor ? fake : undefined);
+    const selector = (await FunctionSelector.fromNameAndParameters(sponsorLike.name, [])).toString();
+    trustFeePayers([sponsor]);
+    expect((await readCall({ to: site, selector, args: [] }, artifacts)).fee).toBe(false);
+    expect((await readCall({ to: sponsor, selector, args: [] }, artifacts)).fee).toBe(true);
+    trustFeePayers([]);
+  });
+});
 
 describe('calls', () => {
   it('shows the function the selector runs, with its decoded arguments', async () => {

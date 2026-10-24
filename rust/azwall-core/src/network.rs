@@ -1,6 +1,6 @@
 //! The registry of Aztec networks the app supports (`networks.json` at the repository root).
 //!
-//! Aztec runs several incompatible versions at once (testnet v5 and v6, mainnet alpha…). Each
+//! Aztec runs several incompatible versions at once (a testnet, mainnet alpha…). Each
 //! network entry pins the Aztec version its PXE bundle is built from and the Barretenberg
 //! release its native prover must use. Several networks may share one Barretenberg release.
 
@@ -25,6 +25,19 @@ pub struct Expected {
     pub protocol_contracts_hash: Option<String>,
 }
 
+/// Who pays a network's fees. Declared in the registry, never inferred from the chain: anyone can deploy a contract at
+/// the Sponsored FPC's deterministic address, and an unfunded one would make every transaction fail.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FeeMode {
+    /// The network's Sponsored FPC pays (test networks).
+    Sponsored,
+    /// The account pays with its own Fee Juice, bridged from Ethereum as AZTEC (mainnet). The default: a network
+    /// that does not say otherwise has no sponsor.
+    #[default]
+    FeeJuice,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkSpec {
@@ -42,6 +55,8 @@ pub struct NetworkSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_rpc: Option<String>,
     pub expected: Expected,
+    #[serde(default)]
+    pub fees: FeeMode,
     /// Tokens every wallet follows on this network from the start (it may stop following them).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tokens: Vec<KnownToken>,

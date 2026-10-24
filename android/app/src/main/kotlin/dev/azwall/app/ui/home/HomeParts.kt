@@ -65,6 +65,8 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
         // With balances from the last session, show them (stale) rather than a spinner while the PXE starts.
         state.phase == Phase.STARTING && !state.stale -> Starting(state.network.label)
         state.phase == Phase.FAILED -> Notice("Can't reach ${state.network.label}", friendlyError(state.error), "Retry", actions.onRefresh)
+        account?.deployed == false && state.activating ->
+            Notice("Activating your account", "Activation sent: your account can send transactions once it is in a block.", null, {}, Icons.Outlined.RocketLaunch)
         account?.deployed == false -> Notice(
             "Activate your account",
             Fees.activation(state.check, state.feeJuice),
@@ -117,13 +119,13 @@ private fun Split(icon: ImageVector, label: String, amount: String, color: Color
 }
 
 @Composable
-private fun Notice(title: String, body: String, action: String, onAction: () -> Unit, icon: ImageVector? = null) {
+private fun Notice(title: String, body: String, action: String?, onAction: () -> Unit, icon: ImageVector? = null) {
     Panel(Modifier.padding(horizontal = 16.dp)) {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             icon?.let { Icon(it, null, tint = MaterialTheme.colorScheme.primary) }
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            FilledTonalButton(onClick = onAction) { Text(action) }
+            action?.let { FilledTonalButton(onClick = onAction) { Text(it) } }
         }
     }
 }

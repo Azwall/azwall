@@ -97,7 +97,7 @@ fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTa
 
 /** The first pending dApp request, docked under the page (its tab is brought to the front first). */
 @Composable
-fun DappRequests(vm: AppViewModel, browser: BrowserTabs, owner: Auth, onShowPage: () -> Unit) {
+fun DappRequests(vm: AppViewModel, browser: BrowserTabs, owner: Auth, settle: suspend () -> Unit, onShowPage: () -> Unit) {
     val pending by vm.approvals.pending.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val request = pending.firstOrNull() ?: return
@@ -107,8 +107,7 @@ fun DappRequests(vm: AppViewModel, browser: BrowserTabs, owner: Auth, onShowPage
     }
     key(request.id) {
         ApprovalPanel(request) { approved ->
-            // A spend is approved only once the owner confirms it; declined, the request stays to retry or reject.
-            scope.launch { if (!approved || !request.kind.signs || owner()) vm.approvals.decide(request.id, approved) }
+            scope.launch { vm.approvals.answer(request, approved, owner, settle) }
         }
     }
 }

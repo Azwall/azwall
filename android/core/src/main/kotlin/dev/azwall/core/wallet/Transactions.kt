@@ -29,9 +29,10 @@ class Transactions internal constructor(private val session: WalletSession) {
     private val _proving = MutableStateFlow<ProvingJob?>(null)
     val proving: StateFlow<ProvingJob?> = _proving.asStateFlow()
 
-    /** Deploys the selected account's contract; fees are paid by the Sponsored FPC. */
+    /** Deploys the selected account's contract, once: a second activation would only pay a fee to fail. */
     suspend fun deployAccount(): ActivityItem {
         val account = selected()
+        check(!session.state.value.activating) { "the account's activation is already on its way" }
         return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { session.client.deployAccount(session.secretsOf(account)) }
     }
 
@@ -91,12 +92,24 @@ class Transactions internal constructor(private val session: WalletSession) {
 
     private var stop: CompletableDeferred<Unit>? = null
 
+    /**
+     * Returns once no cancelled transaction is still being proven: a dApp transaction approved now waits for it, so the
+     * cancel that refuses that proof (ProofGate) is not taken for the dApp's.
+     */
+    suspend fun settle() {
+        winding?.join()
+    }
+
     /** A cancelled transaction still being proven in the background; the next one waits for its proof to be refused. */
     private var winding: Job? = null
 
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
     private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
+        // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
+        check(session.state.value.activity.none { it.kind == ActivityKind.DAPP && it.status == ActivityStatus.PROVING }) {
+            "a dApp transaction is being proven; try again once it is sent"
+        }
         session.recordActivity(draft)
         val stop = CompletableDeferred<Unit>().also { this.stop = it }
         _proving.value = ProvingJob(draft, System.currentTimeMillis())

@@ -103,6 +103,26 @@ class DappApprovals {
         }
     }
 
+    private val answering = mutableSetOf<Long>()
+
+    /**
+     * The user's answer to [request]. A spend ([ApprovalKind.signs]) is approved only once [owner] confirms it
+     * (fingerprint) — declined, the request stays pending to retry or reject — and after [settle] (a cancelled wallet
+     * transaction winding down). A second tap while the first is being confirmed is ignored.
+     */
+    suspend fun answer(request: ApprovalRequest, approved: Boolean, owner: suspend () -> Boolean, settle: suspend () -> Unit) {
+        if (!synchronized(answering) { answering.add(request.id) }) return
+        try {
+            if (approved && request.kind.signs) {
+                if (!owner()) return
+                settle()
+            }
+            decide(request.id, approved)
+        } finally {
+            synchronized(answering) { answering.remove(request.id) }
+        }
+    }
+
     fun decide(id: Long, approved: Boolean) {
         synchronized(waiting) { waiting[id] }?.complete(approved)
     }

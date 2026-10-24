@@ -10,6 +10,7 @@ import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, i
 import { DappGateway } from './dapp/gateway';
 import { discoverTokens } from './discover';
 import { tokenHistory } from './history';
+import { declaredFees } from './fees';
 import { openWallet, type NetworkParams } from './open';
 import { addr, balances, registerTokens, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
@@ -23,6 +24,7 @@ function networkParams(p: Params): NetworkParams {
     rpcUrl: str(p, 'rpcUrl'),
     rpcMaxBatch: int(p, 'rpcMaxBatch'),
     aztec: str(p, 'aztec'),
+    fees: declaredFees(p.fees),
     expected: {
       l1ChainId: int(e, 'l1ChainId'),
       rollupVersion: int(e, 'rollupVersion'),

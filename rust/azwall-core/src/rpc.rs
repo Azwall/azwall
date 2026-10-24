@@ -167,6 +167,7 @@ mod tests {
             pxe: "v6".into(),
             default_rpc: None,
             expected: Expected { l1_chain_id: 11155111, rollup_version: 3409706519, vk_tree_root: None, protocol_contracts_hash: None },
+            fees: Default::default(),
             tokens: Vec::new(),
             dapps: Vec::new(),
         }

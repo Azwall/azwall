@@ -55,6 +55,32 @@ class DappApprovalsTest {
     }
 
     @Test
+    fun aSpendIsApprovedOnlyOnceTheOwnerConfirmsIt() = runTest {
+        val approvals = DappApprovals()
+        val params = Json.parseToJsonElement("""{"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Swap"}""").jsonObject
+        val reply = async { approvals.approve(params) }
+        advanceUntilIdle()
+        val request = approvals.pending.value.single()
+        var settled = false
+        approvals.answer(request, true, owner = { false }, settle = { settled = true })
+        advanceUntilIdle()
+        assertEquals(listOf(request), approvals.pending.value)
+        approvals.answer(request, true, owner = { true }, settle = { settled = true })
+        assertTrue(settled)
+        assertTrue(reply.await().jsonObject["approved"]!!.jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun aRejectionAsksNothing() = runTest {
+        val approvals = DappApprovals()
+        val params = Json.parseToJsonElement("""{"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Swap"}""").jsonObject
+        val reply = async { approvals.approve(params) }
+        advanceUntilIdle()
+        approvals.answer(approvals.pending.value.single(), false, owner = { error("not asked") }, settle = { error("not waited") })
+        assertFalse(reply.await().jsonObject["approved"]!!.jsonPrimitive.boolean)
+    }
+
+    @Test
     fun approvalsCarryTheirFullDetails() = runTest {
         val approvals = DappApprovals()
         val params = Json.parseToJsonElement(

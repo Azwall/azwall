@@ -51,11 +51,14 @@ import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.CircleAction
 import dev.azwall.app.ui.components.CopyAddress
 import dev.azwall.app.ui.sheets.ActivityDetailsSheet
+import dev.azwall.app.ui.sheets.ReviewSheet
 import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.pxe.FoundToken
-import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.Fees
+import dev.azwall.core.wallet.Phase
+import dev.azwall.core.wallet.Review
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.TokenView
 
@@ -146,7 +149,15 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
         }
         account?.let { CopyAddress(it.address, Modifier.padding(top = 6.dp), onCopied = actions.onCopied) }
         Spacer(Modifier.height(20.dp))
-        BalanceHero(state, actions)
+        // Activating pays a fee where there is no sponsor: confirmed like any transaction first.
+        var reviewing by rememberSaveable { mutableStateOf(false) }
+        BalanceHero(state, actions.copy(onActivate = { reviewing = true }))
+        if (reviewing) {
+            ReviewSheet(Review.activation(state.network.label, Fees.line(state.check, state.feeJuice)), onDismiss = { reviewing = false }) {
+                reviewing = false
+                actions.onActivate()
+            }
+        }
     }
 }
 

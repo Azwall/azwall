@@ -9,7 +9,8 @@ import { EmbeddedWalletEncryptionError, openEncryptedEmbeddedStores } from '@azt
 import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
-import { feeModeOf } from './fees';
+import { trustFeePayers } from './dapp/calls';
+import { type FeeMode, feeModeOf } from './fees';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
 import { AppCopies, appKeepsStores, openAppStores } from './native_store';
@@ -24,6 +25,7 @@ export type NetworkParams = {
   rpcUrl: string;
   rpcMaxBatch: number;
   aztec: string;
+  fees: FeeMode;
   expected: { l1ChainId: number; rollupVersion: number; vkTreeRoot?: string; protocolContractsHash?: string };
 };
 
@@ -187,9 +189,10 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   log('open', `PXE created in ${Math.round(performance.now() - t0)} ms`);
   wallet.stores = stores;
   const fpc = await sponsoredFpc();
-  wallet.fees = await feeModeOf(node, fpc.instance.address);
+  wallet.fees = await feeModeOf(network.fees, node, fpc.instance.address);
   if (wallet.fees === 'sponsored') await wallet.registerContract(fpc.instance, fpc.artifact);
   else log('wallet', 'no Sponsored FPC on this network: fees are paid with the account\'s Fee Juice');
+  trustFeePayers(wallet.fees === 'sponsored' ? [fpc.instance.address.toString()] : []);
   log('wallet', `PXE ready on ${network.id}: node ${check.nodeVersion}, block ${check.blockNumber}`);
   return { wallet, check: { ...check, fees: wallet.fees } };
 }

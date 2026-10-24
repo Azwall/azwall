@@ -14,6 +14,7 @@ const network: NetworkParams = {
   rpcUrl: 'https://node.example',
   rpcMaxBatch: 3,
   aztec: AZTEC_VERSION,
+  fees: 'sponsored',
   expected: { l1ChainId: 11155111, rollupVersion: 3409706519 },
 };
 

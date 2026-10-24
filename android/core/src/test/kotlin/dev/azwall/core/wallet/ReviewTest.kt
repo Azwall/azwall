@@ -30,4 +30,10 @@ class ReviewTest {
         assertEquals("This account", Review.mint("1,000 TST", true, "", "Testnet").lines.toMap()["To"])
         assertEquals(to, Review.mint("1,000 TST", false, to, "Testnet").lines.toMap()["To"])
     }
+
+    @Test
+    fun activationSaysWhoPays() {
+        assertEquals(Fees.SPONSORED, Review.activation("Testnet").lines.toMap()["Fee"])
+        assertEquals("Paid with your Fee Juice", Review.activation("Mainnet", "Paid with your Fee Juice").lines.toMap()["Fee"])
+    }
 }

@@ -14,6 +14,7 @@ import dev.azwall.core.pxe.TransferKind
 import dev.azwall.core.vault.SecretBox
 import dev.azwall.core.vault.Vault
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -29,6 +30,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -180,6 +182,43 @@ class WalletSessionTest {
         proof.complete(Unit)
         advanceUntilIdle()
         assertTrue(pxe.sent.isEmpty())
+        assertEquals(false, ProofGate.cancelled)
+    }
+
+    @Test
+    fun anAccountIsActivatedOnce() = runTest {
+        val s = session().apply { open() }
+        s.transactions.deployAccount()
+        assertTrue(s.state.value.activating)
+        val again = runCatching { s.transactions.deployAccount() }.exceptionOrNull()
+        assertTrue(again?.message!!.contains("already on its way"))
+        assertEquals(1, pxe.calls.count { it == "deployAccount" })
+    }
+
+    @Test
+    fun noWalletTransactionStartsWhileADappOneIsProven() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        s.recordActivity(ActivityItem("d", s.state.value.selected!!, ActivityKind.DAPP, ActivityStatus.PROVING, 0))
+        val token = TokenInfo("0xt", "Test", "TST", 6)
+        val error = runCatching { s.transactions.send(TransferKind.PRIVATE, token, "0x" + "cd".repeat(32), BigInteger.ONE) }.exceptionOrNull()
+        assertTrue(error?.message!!.contains("dApp transaction is being proven"))
+        assertTrue(pxe.sent.isEmpty())
+    }
+
+    @Test
+    fun anApprovedDappTransactionWaitsForACancelledOneToWindDown() = runTest {
+        pxe.deployed = true
+        val s = session().apply { open() }
+        val proof = CompletableDeferred<Unit>()
+        pxe.whileProving = { s.transactions.cancel(); proof.await() }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, TokenInfo("0xt", "Test", "TST", 6), "0x" + "cd".repeat(32), BigInteger.ONE) }
+        val settled = async { s.transactions.settle() }
+        advanceUntilIdle()
+        assertFalse(settled.isCompleted)
+        proof.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(settled.isCompleted)
         assertEquals(false, ProofGate.cancelled)
     }
 
