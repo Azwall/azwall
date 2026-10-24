@@ -19,6 +19,7 @@ import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
+import { balanceChanges, changeLines, metaOf } from './effects';
 import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
 import { confine, samePage } from './policy';
@@ -194,8 +195,10 @@ export class DappGateway {
     }
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
     if (signing.length) {
-      const details = (await Promise.all(signing.map(op => this.#describe(op)))).flat();
-      const sections = await this.#sections(signing);
+      const effects = await this.#effects(account, signing);
+      const details = [...effects, ...(await Promise.all(signing.map(op => this.#describe(op)))).flat()];
+      const effectRows = effects.map(value => ({ label: 'Simulated', value }));
+      const sections = [...(effects.length ? [{ title: 'Balance changes', rows: effectRows }] : []), ...(await this.#sections(signing))];
       const authwit = signing.every(op => op.name === 'createAuthWit');
       const title = authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?';
       const kind = authwit ? 'authwit' : 'transaction';
@@ -206,6 +209,25 @@ export class DappGateway {
     const results: unknown[] = [];
     for (const op of confined) results.push(await this.#run(session, account, op));
     return results;
+  }
+
+  /**
+   * What each transaction among `ops` takes from and gives to the account, by simulating it (effects.ts). A failed
+   * simulation is said: the transaction would most likely fail too.
+   */
+  async #effects(account: string, ops: Op[]): Promise<string[]> {
+    const lines: string[] = [];
+    for (const op of ops.filter(o => o.name === 'sendTx')) {
+      try {
+        const changes = await balanceChanges(this.wallet, account, op.args);
+        const meta = await metaOf(this.wallet, account, changes);
+        lines.push(...(changes.length ? changeLines(changes, meta) : ['No change to the balances of the tokens the wallet knows']));
+      } catch (err) {
+        log('dapp', `simulation before approval: ${errorMessage(err)}`, 'warn');
+        lines.push(`The wallet could not simulate this transaction, it may fail: ${errorMessage(err).slice(0, 120)}`);
+      }
+    }
+    return lines;
   }
 
   /** Every signing op in full, numbered when a batch holds several, then the request as sent. */

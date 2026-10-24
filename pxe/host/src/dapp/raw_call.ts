@@ -6,11 +6,16 @@ import { getSchemaParameters, getSchemaReturnType, parseWithOptionals, schemaHas
 
 import type { AzwallWallet } from '../wallet';
 
+/** A Wallet method's JSON arguments, parsed as the method takes them. */
+export async function parseArgs(method: string, args: unknown[]): Promise<unknown[]> {
+  if (!schemaHasMethod(WalletSchema, method)) throw new Error(`not a Wallet method: ${method}`);
+  return parseWithOptionals(args, getSchemaParameters(WalletSchema[method as keyof typeof WalletSchema]));
+}
+
 /** Returns the JSON result, or undefined for methods declared `void` (a dApp's schema rejects anything else). */
 export async function rawCall(wallet: AzwallWallet, method: string, args: unknown[]): Promise<unknown> {
-  if (!schemaHasMethod(WalletSchema, method)) throw new Error(`not a Wallet method: ${method}`);
+  const parsed = await parseArgs(method, args);
   const schema = WalletSchema[method as keyof typeof WalletSchema];
-  const parsed = await parseWithOptionals(args, getSchemaParameters(schema));
   const fn = (wallet as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method];
   const result = await fn.apply(wallet, parsed);
   if ((getSchemaReturnType(schema) as { def?: { type?: string } }).def?.type === 'void') return undefined;

@@ -157,6 +157,12 @@ export class AzwallWallet extends EmbeddedWallet {
     return { syncedBlock: g ? Number(g.blockNumber) : 0, syncedAt: g ? Number(g.timestamp) : 0, tip };
   }
 
+  /** `owner`'s live notes in contract `contract`, each with its storage slot, content and siloed nullifier. */
+  async notesOf(contract: string, owner: string): Promise<{ storageSlot: Fr; note: { items: Fr[] }; siloedNullifier: Fr }[]> {
+    const me = AztecAddress.fromStringUnsafe(owner);
+    return this.pxe.debug.getNotes({ contractAddress: AztecAddress.fromStringUnsafe(contract), owner: me, scopes: [me] });
+  }
+
   /** The artifact of the contract at `address` (the class it was deployed with), if this PXE has it. */
   async artifactAt(address: string): Promise<ContractArtifact | undefined> {
     const instance = await this.pxe.getContractInstance(AztecAddress.fromStringUnsafe(address));

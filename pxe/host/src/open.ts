@@ -14,6 +14,7 @@ import { type FeeMode, feeModeOf } from './fees';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
 import { AppCopies, appKeepsStores, openAppStores } from './native_store';
+import { recordNoteOwners } from './note_owners';
 import { NativeKernelProver } from './prover';
 import { CachedStore, clearBroken, forgetRows, isMarkedBroken } from './store';
 import { AzwallWallet, sponsoredFpc } from './wallet';
@@ -177,6 +178,8 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
     ? await openAppStores(names, new AppCopies(bridge, dbKey.slice()))
     : await openOpfsStores(names, dbKey);
   log('open', 'stores open; creating the PXE');
+  // Before any simulation: approvals tell the account's own new notes from those it sends away.
+  recordNoteOwners();
   const simulator = new WASMSimulator();
   // Creating the PXE loads Barretenberg's WebAssembly and its workers: say so if it takes long, so a slow start
   // and a stuck one can be told apart in the logs.

@@ -1,0 +1,126 @@
+// What a transaction does to the account's token balances, found by simulating it before the user approves it: the
+// public balances it writes, the account's private notes it spends and the notes it creates for the account. Read
+// from the transaction's own effects, never from what a site says, and shown first in its approval.
+import { AztecAddress } from '@aztec/aztec.js/addresses';
+import type { ExecutionPayload } from '@aztec/aztec.js/tx';
+import { computePublicDataTreeLeafSlot, deriveStorageSlotInMap } from '@aztec/stdlib/hash';
+
+import { log } from '../log';
+import { noteOrigin } from '../note_owners';
+import { tokenInfo } from '../token';
+import type { AzwallWallet } from '../wallet';
+import { parseArgs } from './raw_call';
+
+export type BalanceChange = { token: string; kind: 'public' | 'private'; delta: bigint };
+export type TokenMeta = { symbol: string; decimals: number };
+
+/** One call of a simulated transaction, as far as its notes go. */
+export type CallNotes = {
+  newNotes: { note: { items: { toBigInt(): bigint }[] }; storageSlot: { toBigInt(): bigint } }[];
+  noteHashNullifierCounterMap: Map<number, number>;
+  nestedExecutionResults: CallNotes[];
+};
+
+/** A token's balance slots: its public balances map, and the slots its private balance notes sit at for `me`. */
+type Slots = { publicMap?: bigint; privateSlots: Set<bigint> };
+
+const flatten = (c: CallNotes): CallNotes[] => [c, ...c.nestedExecutionResults.flatMap(flatten)];
+
+/**
+ * The notes a transaction creates for `me` in each token, net of those it spends again within itself (a note created
+ * and nullified in the same transaction never lands). Keyed by lower-case contract address.
+ */
+export function createdFor(me: string, root: CallNotes, slots: Map<string, Slots>): Map<string, bigint> {
+  const calls = flatten(root);
+  const squashed = new Set(calls.flatMap(c => [...c.noteHashNullifierCounterMap.keys()]));
+  const out = new Map<string, bigint>();
+  for (const n of calls.flatMap(c => c.newNotes)) {
+    const origin = noteOrigin(n);
+    const token = origin && slots.get(origin.contract);
+    if (!origin || !token || origin.owner !== me.toLowerCase() || squashed.has(origin.counter)) continue;
+    if (!token.privateSlots.has(n.storageSlot.toBigInt())) continue;
+    out.set(origin.contract, (out.get(origin.contract) ?? 0n) + (n.note.items[0]?.toBigInt() ?? 0n));
+  }
+  return out;
+}
+
+/** `v` in a token's units, without trailing zeros, at most 8 decimals: 2475000000000000n with 18 → "0.002475". */
+export function formatAmount(v: bigint, decimals: number): string {
+  const abs = v < 0n ? -v : v;
+  const unit = 10n ** BigInt(decimals);
+  const fraction = (abs % unit).toString().padStart(decimals, '0').slice(0, 8).replace(/0+$/, '');
+  return `${abs / unit}${fraction ? `.${fraction}` : ''}`;
+}
+
+/** The approval's lines: what leaves the account first, then what comes in. */
+export function changeLines(changes: BalanceChange[], meta: Map<string, TokenMeta>): string[] {
+  const line = (c: BalanceChange) => {
+    const m = meta.get(c.token) ?? { symbol: `token ${c.token.slice(0, 8)}…`, decimals: 0 };
+    return `${c.delta < 0n ? 'You send' : 'You receive'} ${formatAmount(c.delta, m.decimals)} ${m.symbol} (${c.kind})`;
+  };
+  return [...changes.filter(c => c.delta < 0n), ...changes.filter(c => c.delta > 0n)].map(line);
+}
+
+async function slotsOf(wallet: AzwallWallet, token: string, me: AztecAddress): Promise<Slots | undefined> {
+  const layout = (await wallet.artifactAt(token))?.storageLayout;
+  if (!layout) return undefined;
+  const base = layout.balances?.slot;
+  // Private balance notes sit at the balances slot, or at the account's entry of a balances map.
+  const privateSlots = new Set(base ? [base.toBigInt(), (await deriveStorageSlotInMap(base, me)).toBigInt()] : []);
+  return { publicMap: layout.public_balances?.slot.toBigInt(), privateSlots };
+}
+
+type Simulated = Awaited<ReturnType<AzwallWallet['simulateTx']>>;
+
+async function publicDelta(wallet: AzwallWallet, token: string, me: AztecAddress, map: bigint, sim: Simulated): Promise<bigint> {
+  const contract = AztecAddress.fromStringUnsafe(token);
+  const slot = await deriveStorageSlotInMap(map, me);
+  const leaf = await computePublicDataTreeLeafSlot(contract, slot);
+  const write = sim.publicOutput?.txEffect.publicDataWrites.find(w => w.leafSlot.equals(leaf));
+  if (!write) return 0n;
+  const before = await wallet.node.getPublicStorageAt('latest', contract, slot);
+  return write.value.toBigInt() - before.toBigInt();
+}
+
+async function spentBy(wallet: AzwallWallet, token: string, me: string, slots: Slots, nullifiers: Set<bigint>): Promise<bigint> {
+  const notes = await wallet.notesOf(token, me);
+  return notes
+    .filter(n => nullifiers.has(n.siloedNullifier.toBigInt()) && slots.privateSlots.has(n.storageSlot.toBigInt()))
+    .reduce((sum, n) => sum + (n.note.items[0]?.toBigInt() ?? 0n), 0n);
+}
+
+async function simulate(wallet: AzwallWallet, args: unknown[]): Promise<Simulated> {
+  const [payload, opts] = (await parseArgs('sendTx', args)) as [ExecutionPayload, { from: AztecAddress; fee?: unknown; additionalScopes?: AztecAddress[] }];
+  return wallet.simulateTx(payload, { from: opts.from, fee: opts.fee as never, additionalScopes: opts.additionalScopes, skipTxValidation: true });
+}
+
+/** The balance changes of the transaction `args` (a sendTx's arguments) for account `me`, over the PXE's tokens. */
+export async function balanceChanges(wallet: AzwallWallet, me: string, args: unknown[]): Promise<BalanceChange[]> {
+  const account = AztecAddress.fromStringUnsafe(me);
+  const tokens = (await wallet.registeredTokens()).map(t => t.toLowerCase());
+  const found = await Promise.all(tokens.map(async t => [t, await slotsOf(wallet, t, account)] as const));
+  const slots = new Map(found.filter((e): e is readonly [string, Slots] => e[1] !== undefined));
+  const sim = await simulate(wallet, args);
+  const nullifiers = new Set(sim.publicInputs.getNonEmptyNullifiers().map(n => n.toBigInt()));
+  const created = createdFor(me, sim.privateExecutionResult.entrypoint as unknown as CallNotes, slots);
+  const changes = await Promise.all(
+    [...slots].map(async ([token, s]): Promise<BalanceChange[]> => {
+      const pub = s.publicMap === undefined ? 0n : await publicDelta(wallet, token, account, s.publicMap, sim);
+      const priv = (created.get(token) ?? 0n) - (await spentBy(wallet, token, me, s, nullifiers));
+      return [{ token, kind: 'public' as const, delta: pub }, { token, kind: 'private' as const, delta: priv }].filter(c => c.delta !== 0n);
+    }),
+  );
+  return changes.flat();
+}
+
+const metas = new Map<string, TokenMeta>();
+
+/** Symbol and decimals of each token in `changes`, read once per token. */
+export async function metaOf(wallet: AzwallWallet, me: string, changes: BalanceChange[]): Promise<Map<string, TokenMeta>> {
+  for (const token of new Set(changes.map(c => c.token))) {
+    if (metas.has(token)) continue;
+    const info = await tokenInfo(wallet, token, me).catch(err => (log('dapp', `token ${token}: ${String(err)}`, 'warn'), undefined));
+    if (info) metas.set(token, { symbol: info.symbol, decimals: info.decimals });
+  }
+  return metas;
+}
