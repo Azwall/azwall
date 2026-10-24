@@ -76,6 +76,7 @@ data class HomeActions(
     val onChoosePrimary: (String) -> Unit,
     val onDismissFound: (FoundToken) -> Unit,
     val onActivate: () -> Unit,
+    val onAcknowledgeReset: () -> Unit,
     val onRefresh: () -> Unit,
     val onCopied: () -> Unit,
 )
@@ -91,6 +92,7 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
         TopBar(state, nodeOk, actions)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize()) {
+                if (state.chainReset) item { ChainResetNotice(state.network.label, actions.onAcknowledgeReset) }
                 item { AccountHeader(state, actions) }
                 item { ActionRow(state, actions) }
                 item {

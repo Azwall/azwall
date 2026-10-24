@@ -53,6 +53,8 @@ public final class WalletSession {
     public internal(set) var created: [String] = []
     /// True while the shown balances come from the last session (AccountSnapshot), until a refresh confirms them.
     public internal(set) var stale = false
+    /// The network runs a new chain since last time (WalletStore.move): shown until the user acknowledges it.
+    public internal(set) var chainReset = false
     /// What runs in the background right now, for the status line (nil when idle).
     public internal(set) var task: BackgroundTask?
     /// The browser's link to the PXE host's dApp gateway.
@@ -142,6 +144,7 @@ public final class WalletSession {
             await listen(running)
             let params = try await Task.detached { try backend.pxeOpenParams(networkId: id) }.value
             check = try await running.client.open(networkParamsJSON: params, dbKey: contents.dbKey)
+            if let check { adopt(check) }
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
             let known = accounts
             var views: [AccountView] = []
@@ -162,6 +165,20 @@ public final class WalletSession {
             self.error = error.localizedDescription
         }
     }
+
+    /// A network reset since last time drops what the screen shows of the old chain (WalletStore.move).
+    private func adopt(_ check: NetworkCheck) {
+        guard store.move(to: WalletStore.chain(of: check), known: network.knownTokens) else { return }
+        chainReset = true
+        stale = false
+        found = []
+        primary = nil
+        created = []
+        activity = []
+        tokens = store.tokens.map { TokenView(info: $0, balance: nil) }
+    }
+
+    public func acknowledgeChainReset() { chainReset = false }
 
     /// The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory
     /// now rather than at its next debounce.

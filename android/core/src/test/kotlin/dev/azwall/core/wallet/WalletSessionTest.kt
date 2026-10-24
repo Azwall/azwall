@@ -44,6 +44,8 @@ private class FakePxe : PxeCaller {
     var deployed = false
     /** What the network declares: "sponsored", or "feeJuice" (the account pays). */
     var fees = "sponsored"
+    /** The rollup version the node reports: a new one means the network was redeployed. */
+    var rollup = 2
     var failOpen: String? = null
     val mined = CompletableDeferred<Unit>()
     var waitError: String? = null
@@ -62,7 +64,7 @@ private class FakePxe : PxeCaller {
         calls += method
         val reply = when (method) {
             "open" -> failOpen?.let { throw PxeException("open: $it") }
-                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"$fees"}"""
+                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":$rollup,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"$fees"}"""
             "feeJuiceBalance" -> """{"balance":"1500000000000000000"}"""
             "addAccount" -> """{"address":"addr-${p("signingKey").takeLast(4)}"}"""
             "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
@@ -120,7 +122,9 @@ class WalletSessionTest {
     @After
     fun cancelSessions() = scopes.forEach { it.cancel() }
 
+    /** A session; called again, a later one of the same wallet (the vault is created once). */
     private fun TestScope.session(): WalletSession {
+        tmp.root.resolve("vault").delete()
         val vault = Vault(tmp.root.resolve("vault"), PlainBox)
         val contents = vault.create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
         val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = emptyFlow<PxeEvent>(); override fun stop() {} } }
@@ -186,6 +190,26 @@ class WalletSessionTest {
         advanceUntilIdle()
         assertTrue(pxe.sent.isEmpty())
         assertEquals(false, ProofGate.cancelled)
+    }
+
+    @Test
+    fun aNetworkResetSetsTheOldChainsTokensAndHistoryAside() = runTest {
+        session().apply { open(); addToken("0xpal"); close() }
+        pxe.rollup = 3
+        val s = session().apply { open() }
+        assertTrue(s.state.value.chainReset)
+        assertTrue(s.state.value.tokens.none { it.info.address == "0xpal" })
+        assertTrue(tmp.root.resolve("wallet-testnet-v6-1-2.json").exists())
+        s.acknowledgeChainReset()
+        assertFalse(s.state.value.chainReset)
+    }
+
+    @Test
+    fun theSameChainKeepsEverything() = runTest {
+        session().apply { open(); addToken("0xpal"); close() }
+        val s = session().apply { open() }
+        assertFalse(s.state.value.chainReset)
+        assertTrue(s.state.value.tokens.any { it.info.address == "0xpal" })
     }
 
     @Test

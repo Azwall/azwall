@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Public
@@ -117,6 +118,17 @@ private fun Split(icon: ImageVector, label: String, amount: String, color: Color
         Text("$label $amount", style = MaterialTheme.typography.bodyMedium, color = color)
     }
 }
+
+/** The network was redeployed under the same name: what the wallet knew of the old chain is set aside. */
+@Composable
+internal fun ChainResetNotice(network: String, onOk: () -> Unit) = Notice(
+    "$network was reset",
+    "It runs a new chain: the tokens, balances and history of the previous one were set aside. Your accounts are the same; " +
+        "activate them again to send transactions.",
+    "OK",
+    onOk,
+    Icons.Outlined.Info,
+)
 
 @Composable
 private fun Notice(title: String, body: String, action: String?, onAction: () -> Unit, icon: ImageVector? = null) {

@@ -23,6 +23,13 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    if session.chainReset {
+                        // The network was redeployed under the same name: what the wallet knew of the old chain is set aside.
+                        Notice(icon: "info.circle", title: "\(session.network.label) was reset",
+                               text: "It runs a new chain: the tokens, balances and history of the previous one were set aside. Your accounts are the same; activate them again to send transactions.",
+                               action: "OK", onAction: session.acknowledgeChainReset)
+                            .padding(.horizontal, 16)
+                    }
                     accountHeader
                     BalanceHero(session: session, onActivate: { reviewingActivation = true }, onAddToken: { sheet = .addToken }, onShield: { route = .shield }, onRetry: refresh)
                         .padding(.top, 20)

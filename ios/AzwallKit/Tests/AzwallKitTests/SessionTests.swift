@@ -8,6 +8,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var deployed = false
     /// What the network declares: "sponsored", or "feeJuice" (the account pays).
     var fees = "sponsored"
+    /// The rollup version the node reports: a new one means the network was redeployed.
+    var rollup = 2
     var failOpen: String?
     var sent: [JSONValue] = []
     var calls: [(String, JSONValue)] = []
@@ -29,7 +31,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
-            return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
+            return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":\#(rollup),"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
         case "feeJuiceBalance": return .object(["balance": .string("1500000000000000000")])
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState": return .object(["deployed": .bool(deployed)])
@@ -185,6 +187,36 @@ struct SessionTests {
         await s.winding?.value
         #expect(pxe.sent.isEmpty)
         #expect(!pxe.gate.cancelled)
+    }
+
+    @Test func aNetworkResetSetsTheOldChainsTokensAndHistoryAside() async throws {
+        let pxe = FakePxe()
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let first = try session(pxe, dir: dir)
+        await first.open()
+        try await first.addToken("0xpal")
+        await first.close()
+        pxe.rollup = 3
+        let s = try session(pxe, dir: dir)
+        await s.open()
+        #expect(s.chainReset)
+        #expect(!s.tokens.contains { $0.info.address == "0xpal" })
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("wallet-testnet-v6-1-2.json").path))
+        s.acknowledgeChainReset()
+        #expect(!s.chainReset)
+    }
+
+    @Test func theSameChainKeepsEverything() async throws {
+        let pxe = FakePxe()
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let first = try session(pxe, dir: dir)
+        await first.open()
+        try await first.addToken("0xpal")
+        await first.close()
+        let s = try session(pxe, dir: dir)
+        await s.open()
+        #expect(!s.chainReset)
+        #expect(s.tokens.contains { $0.info.address == "0xpal" })
     }
 
     @Test func withoutASponsorTheAccountsFeeJuiceIsRead() async throws {

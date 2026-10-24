@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.TokenInfo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -44,6 +45,8 @@ private data class StoredNetwork(
     val created: Map<String, List<String>> = emptyMap(),
     /** What the home screen last showed per account, shown at the next start until the PXE catches up. */
     val snapshots: List<AccountSnapshot> = emptyList(),
+    /** The chain all this belongs to ([WalletStore.chainOf]); null before it was first recorded. */
+    val chain: String? = null,
 )
 
 /**
@@ -125,6 +128,25 @@ class WalletStore(private val dir: File, private val networkId: String) {
         stale.forEach { upsert(it.copy(status = ActivityStatus.FAILED, error = "interrupted before the proof was sent")) }
     }
 
+    /**
+     * The chain the network runs now. Another one than the data belongs to means the network was reset (a testnet
+     * redeployed under the same name): its tokens, contracts and history went with the old chain. The old data is kept
+     * aside in `wallet-<network>-<old chain>.json` and the store starts over, following the known tokens again.
+     * Returns true when it did.
+     */
+    fun moveTo(chain: String, known: List<TokenInfo>): Boolean {
+        val before = data.chain
+        if (before == chain) return false
+        if (before == null) {
+            save(data.copy(chain = chain))
+            return false
+        }
+        if (file.exists()) file.copyTo(File(dir, "wallet-$networkId-${before.replace(':', '-')}.json"), overwrite = true)
+        save(StoredNetwork(chain = chain))
+        seed(known)
+        return true
+    }
+
     private fun load(): StoredNetwork =
         runCatching { json.decodeFromString(StoredNetwork.serializer(), file.readText()) }.getOrDefault(StoredNetwork())
 
@@ -138,5 +160,8 @@ class WalletStore(private val dir: File, private val networkId: String) {
 
     companion object {
         const val MAX_ACTIVITY = 200
+
+        /** A chain as the node reports it: its L1 and its rollup version, which a redeployment changes. */
+        fun chainOf(check: NetworkCheck): String = "${check.l1ChainId}:${check.rollupVersion}"
     }
 }

@@ -53,16 +53,20 @@ private struct StoredNetwork: Codable {
     var created: [String: [String]]?
     /// What the home screen last showed per account, shown at the next start until the PXE catches up.
     var snapshots: [AccountSnapshot]?
+    /// The chain all this belongs to (`WalletStore.chain(of:)`); nil before it was first recorded.
+    var chain: String?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
 public final class WalletStore: @unchecked Sendable {
     public static let maxActivity = 200
     private let file: URL
+    private let networkId: String
     private let lock = NSLock()
     private var data: StoredNetwork
 
     public init(directory: URL, networkId: String) {
+        self.networkId = networkId
         file = directory.appendingPathComponent("wallet-\(networkId).json")
         data = (try? JSONDecoder().decode(StoredNetwork.self, from: Data(contentsOf: file))) ?? StoredNetwork()
     }
@@ -167,6 +171,28 @@ public final class WalletStore: @unchecked Sendable {
                 return failed
             }
         }
+    }
+
+    /// A chain as the node reports it: its L1 and its rollup version, which a redeployment changes.
+    public static func chain(of check: NetworkCheck) -> String { "\(check.l1ChainId):\(check.rollupVersion)" }
+
+    /// The chain the network runs now. Another one than the data belongs to means the network was reset (a testnet
+    /// redeployed under the same name): its tokens, contracts and history went with the old chain. The old data is
+    /// kept aside in `wallet-<network>-<old chain>.json` and the store starts over, following the known tokens again.
+    /// Returns true when it did.
+    public func move(to chain: String, known: [TokenInfo]) -> Bool {
+        let previous = lock.withLock { data.chain }
+        if previous == chain { return false }
+        guard let previous else {
+            update { $0.chain = chain }
+            return false
+        }
+        let aside = file.deletingLastPathComponent().appendingPathComponent("wallet-\(networkId)-\(previous.replacingOccurrences(of: ":", with: "-")).json")
+        try? FileManager.default.removeItem(at: aside)
+        try? FileManager.default.copyItem(at: file, to: aside)
+        update { $0 = StoredNetwork(chain: chain) }
+        seed(known)
+        return true
     }
 
     private func update(_ change: (inout StoredNetwork) -> Void) {

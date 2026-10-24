@@ -83,6 +83,8 @@ data class SessionState(
     val error: String? = null,
     /** Where fees are paid with Fee Juice: base units the selected account holds (Fees). */
     val feeJuice: String? = null,
+    /** The network runs a new chain since last time (WalletStore.moveTo): shown until the user acknowledges it. */
+    val chainReset: Boolean = false,
 ) {
     val account: AccountView? get() = accounts.firstOrNull { it.address == selected }
 
@@ -145,6 +147,7 @@ class WalletSession(
             if (closed) return host.stop()
             running.value = host
             val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
+            adoptChain(check)
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
             val known = _state.value.accounts
             val accounts = contents.accounts.map { s -> register(s).let { v -> v.copy(deployed = known.firstOrNull { it.address == v.address }?.deployed) } }
@@ -159,6 +162,19 @@ class WalletSession(
             _state.update { it.copy(phase = Phase.FAILED, error = e.message ?: e.toString()) }
         }
     }
+
+    /** A network reset since last time drops what the screen shows of the old chain (WalletStore.moveTo). */
+    private fun adoptChain(check: NetworkCheck) {
+        if (!store.moveTo(WalletStore.chainOf(check), network.knownTokens)) return
+        _state.update {
+            it.copy(
+                chainReset = true, stale = false, found = emptyList(), primary = null, created = emptyList(),
+                tokens = store.tokens.map { t -> TokenView(t, null) }, activity = emptyList(),
+            )
+        }
+    }
+
+    fun acknowledgeChainReset() = _state.update { it.copy(chainReset = false) }
 
     /**
      * The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory
