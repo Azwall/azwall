@@ -19,7 +19,7 @@ import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
-import { added, addedLines, grantsOf, type Grants, merge, permit } from './grants';
+import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
 import { confine, samePage } from './policy';
 import { rawCall } from './raw_call';
@@ -40,6 +40,8 @@ export class DappGateway {
   readonly #handler: BackgroundConnectionHandler;
   /** What each session's site may do, as the user accepted it (grants.ts). */
   readonly #granted = new Map<string, Grants>();
+  /** Each session's capability requests, one at a time. */
+  readonly #capabilityQueue = oneAtATime();
   /** The account each session acts as: the one selected when its capabilities were granted. */
   readonly #accounts = new Map<string, string>();
   /** Each session's emoji check: no wallet message is served before the user confirmed it. */
@@ -169,7 +171,7 @@ export class DappGateway {
 
   async #dispatch(session: ActiveSession, m: WalletMessage): Promise<unknown> {
     const args = (m.args ?? []) as unknown[];
-    if (m.type === 'requestCapabilities') return this.#capabilities(session, args[0]);
+    if (m.type === 'requestCapabilities') return this.#capabilityQueue(session.sessionId, () => this.#capabilities(session, args[0]));
     const account = this.#accounts.get(session.sessionId);
     if (!account) throw new Error('call requestCapabilities first');
     if (m.type !== 'batch') return this.#approved(session, account, [{ name: m.type, args }]).then(([r]) => r);

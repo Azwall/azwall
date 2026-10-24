@@ -2,7 +2,7 @@ import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/st
 import { describe, expect, it } from 'vitest';
 
 import { trustFeePayers } from '../src/dapp/calls';
-import { added, addedLines, grantsOf, merge, permit } from '../src/dapp/grants';
+import { added, addedLines, grantsOf, merge, oneAtATime, permit } from '../src/dapp/grants';
 import { NotGranted } from '../src/dapp/policy';
 
 const fn = (name: string) => ({ name, functionType: FunctionType.PRIVATE, parameters: [] });
@@ -67,5 +67,26 @@ describe('grants', () => {
     expect(await addedLines(more, nameOf)).toEqual(['Ask you for authorizations', 'Simulate any function of Dex']);
     const wider = merge(g, grantsOf([{ type: 'simulation', transactions: { scope: '*' } }]));
     expect(added(wider, grantsOf([{ type: 'simulation', transactions: { scope: [{ contract: dex, function: '*' }] } }]))).toEqual({ flags: [], scopes: [] });
+  });
+});
+
+describe('oneAtATime', () => {
+  it('runs a key\'s tasks in turn, past a failure, and other keys freely', async () => {
+    const queue = oneAtATime();
+    const order: string[] = [];
+    let release = () => {};
+    const first = queue('a', () => new Promise<void>(r => (release = r)).then(() => order.push('a1')));
+    const failing = queue('a', async () => {
+      order.push('a2');
+      throw new Error('refused');
+    });
+    const third = queue('a', async () => order.push('a3'));
+    await queue('b', async () => order.push('b1'));
+    expect(order).toEqual(['b1']);
+    release();
+    await first;
+    await expect(failing).rejects.toThrow('refused');
+    await third;
+    expect(order).toEqual(['b1', 'a1', 'a2', 'a3']);
   });
 });

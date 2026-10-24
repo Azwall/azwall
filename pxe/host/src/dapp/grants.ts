@@ -143,3 +143,18 @@ export async function permit(g: Grants, method: string, args: unknown[], artifac
       return;
   }
 }
+
+/**
+ * Runs the tasks given for one key one after the other, whether the previous one succeeded or not. Capability
+ * requests go through it per session: a site sending a second request while the first awaits the user (Palmyr does
+ * on connection) has it judged against what the first granted, so it is not shown again.
+ */
+export function oneAtATime(): <T>(key: string, task: () => Promise<T>) => Promise<T> {
+  const last = new Map<string, Promise<unknown>>();
+  return <T>(key: string, task: () => Promise<T>) => {
+    const next = (last.get(key) ?? Promise.resolve()).catch(() => undefined).then(task);
+    last.set(key, next);
+    void next.catch(() => undefined).then(() => last.get(key) === next && last.delete(key));
+    return next;
+  };
+}
