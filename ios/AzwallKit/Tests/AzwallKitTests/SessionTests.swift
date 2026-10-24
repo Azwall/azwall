@@ -184,6 +184,27 @@ struct SessionTests {
         #expect(!pxe.gate.cancelled)
     }
 
+    @Test func anAccountIsActivatedOnce() async throws {
+        let pxe = FakePxe()
+        let s = try session(pxe)
+        await s.open()
+        try await s.deployAccount()
+        #expect(s.activating)
+        await #expect(throws: PxeError.self) { try await s.deployAccount() }
+        #expect(pxe.calls.filter { $0.0 == "deployAccount" }.count == 1)
+    }
+
+    @Test func noWalletTransactionStartsWhileADappOneIsProven() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try session(pxe)
+        await s.open()
+        s.record(ActivityItem(account: s.selected!, kind: .dapp, status: .proving))
+        let token = TokenInfo(address: "0xt", name: "Test", symbol: "TST", decimals: 6)
+        await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: "0x" + String(repeating: "cd", count: 32), amount: "1") }
+        #expect(pxe.sent.isEmpty)
+    }
+
     @Test func goingToTheBackgroundFlushesThePxeStore() async throws {
         let pxe = FakePxe()
         let s = try session(pxe)

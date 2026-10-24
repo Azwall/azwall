@@ -14,7 +14,17 @@ struct TransferView: View {
     @State private var to = ""
     @State private var amountText = ""
     @State private var scanNote: String?
-    @State private var reviewing = false
+    /// What the confirmation shows, fixed when it opens: a balance refreshed meanwhile must not change or close it.
+    @State private var pending: Pending?
+
+    private struct Pending: Identifiable {
+        let id = UUID()
+        let kind: TransferKind
+        let token: TokenInfo
+        let to: String
+        let units: String
+        let review: Review
+    }
     @State private var scanned: String?
 
     private var token: TokenView? { session.tokens.indices.contains(tokenIndex) ? session.tokens[tokenIndex] : nil }
@@ -78,9 +88,9 @@ struct TransferView: View {
         }
         .navigationTitle(mode == .send ? "Send" : "Shield")
         .safeAreaInset(edge: .bottom) {
-            Button(actionLabel) { reviewing = true }.buttonStyle(PrimaryButtonStyle()).disabled(!valid || model.busy).padding()
+            Button(actionLabel) { pending = makePending() }.buttonStyle(PrimaryButtonStyle()).disabled(!valid || model.busy).padding()
         }
-        .sheet(isPresented: $reviewing) { if let review { ReviewSheet(review: review, onConfirm: submit) } }
+        .sheet(item: $pending) { p in ReviewSheet(review: p.review) { submit(p) } }
         .onAppear { if mode == .shield { publicSide = Amounts.isPositive(session.tokens.first?.balance?.public ?? "0") } }
     }
 
@@ -122,18 +132,21 @@ struct TransferView: View {
         }
     }
 
-    /// The exact amount (every decimal) and the recipient in full.
-    private var review: Review? {
+    /// The exact amount (every decimal) and the recipient in full, trimmed as it is sent.
+    private func makePending() -> Pending? {
         guard let token, let units = try? amount.get() else { return nil }
+        let to = to.trimmingCharacters(in: .whitespacesAndNewlines)
         let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
-        return Review.transfer(kind, amount: shown, to: to, network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice))
+        let review = Review.transfer(kind, amount: shown, to: to, network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice))
+        return Pending(kind: kind, token: token.info, to: to, units: units, review: review)
     }
 
-    private func submit() {
-        guard let token, let units = try? amount.get() else { return }
-        let kind = kind, to = to
-        Task { await model.sign(done: "Sent. It will appear in your balance once in a block.") { try await $0.send(kind, token: token.info, to: to, amount: units) } }
-        dismiss()
+    private func submit(_ p: Pending) {
+        Task {
+            await model.sign(done: "Sent. It will appear in your balance once in a block.", onAuthorized: { dismiss() }) {
+                try await $0.send(p.kind, token: p.token, to: p.to, amount: p.units)
+            }
+        }
     }
 
     /// Fills the form from a scanned QR code, and says what to check about it.

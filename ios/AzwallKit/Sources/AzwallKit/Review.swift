@@ -30,6 +30,12 @@ public struct Review: Equatable, Sendable {
         }
     }
 
+    /// Activating the account: it publishes its contract, once, and pays `fee` where there is no sponsor.
+    public static func activation(network: String, fee: String = Fees.sponsored) -> Review {
+        let lines = [("Publishes", "Your account contract, so the account can send transactions"), ("Network", network), ("Fee", fee)]
+        return Review(title: "Activate your account", lines: lines.map { Line(label: $0.0, value: $0.1) }, confirm: "Confirm and activate")
+    }
+
     /// Minting `amount` of the account's own token; an empty `to` mints to the account itself.
     public static func mint(amount: String, toPrivate: Bool, to: String, network: String, fee: String = Fees.sponsored) -> Review {
         let lines = [

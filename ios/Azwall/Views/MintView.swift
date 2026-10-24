@@ -65,8 +65,9 @@ struct MintView: View {
     private func mint() {
         guard let units = try? amount.get() else { return }
         let info = token.info, toPrivate = toPrivate, to = to
-        Task { await model.sign(done: "Mint sent.") { try await $0.mint(token: info, amount: units, toPrivate: toPrivate, to: to) } }
-        dismiss()
+        Task {
+            await model.sign(done: "Mint sent.", onAuthorized: { dismiss() }) { try await $0.mint(token: info, amount: units, toPrivate: toPrivate, to: to) }
+        }
     }
 
     private func apply(_ text: String) {

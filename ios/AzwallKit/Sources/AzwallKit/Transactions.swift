@@ -5,7 +5,9 @@ import Foundation
 /// (15 to 30 s on a phone); mining is awaited in the background.
 extension WalletSession {
     /// Deploys the selected account's contract; fees are paid by the Sponsored FPC.
+    /// Deploys the selected account's contract, once: a second activation would only pay a fee to fail.
     public func deployAccount() async throws {
+        guard !activating else { throw PxeError("the account's activation is already on its way") }
         let me = try selectedAddress()
         let secrets = try secrets(of: me)
         try await track(ActivityItem(account: me, kind: .deployAccount)) { client in try await client.deployAccount(secrets) }
@@ -67,6 +69,12 @@ extension WalletSession {
     }
 
     /// Cancels the transaction being proven: the screen is released at once, and its proof is refused (ProofGate).
+    /// Returns once no cancelled transaction is still being proven: a dApp transaction approved now waits for it, so
+    /// the cancel that refuses that proof (ProofGate) is not taken for the dApp's.
+    public func settle() async {
+        await winding?.value
+    }
+
     public func cancelProving() {
         gate.cancel()
         stopProving?()
@@ -75,6 +83,10 @@ extension WalletSession {
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
     private func track(_ draft: ActivityItem, _ send: @escaping (PxeClient) async throws -> String) async throws {
         guard proving == nil else { throw PxeError("another transaction is being proven") }
+        // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
+        guard !activity.contains(where: { $0.kind == .dapp && $0.status == .proving }) else {
+            throw PxeError("a dApp transaction is being proven; try again once it is sent")
+        }
         let client = try self.client
         record(draft)
         setProving(draft)

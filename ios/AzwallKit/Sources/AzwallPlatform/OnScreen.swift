@@ -8,7 +8,11 @@ import WebKit
 /// point wide and nearly transparent, so it runs like the visible page it pretends to be.
 @MainActor
 enum OnScreen {
+    /// Web views attached and not detached yet: a retry still waiting for the window must not bring back a stopped one.
+    private static var wanted: Set<ObjectIdentifier> = []
+
     static func attach(_ webView: WKWebView) {
+        wanted.insert(ObjectIdentifier(webView))
         webView.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
         // Not 0 and not hidden: WebKit treats those as not visible.
         webView.alpha = 0.01
@@ -18,11 +22,13 @@ enum OnScreen {
     }
 
     static func detach(_ webView: WKWebView) {
+        wanted.remove(ObjectIdentifier(webView))
         webView.removeFromSuperview()
     }
 
     /// The window may not exist yet when the wallet opens at launch: try again for a few seconds.
     private static func place(_ webView: WKWebView, attempt: Int) {
+        guard wanted.contains(ObjectIdentifier(webView)) else { return }
         if let window = appWindow() {
             window.addSubview(webView)
             return

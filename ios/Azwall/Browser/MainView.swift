@@ -30,11 +30,7 @@ struct MainView: View {
                 }
                 if let request = model.approvals.pending.first {
                     ApprovalPanel(request: request) { approved in
-                        // A spend is approved only once the owner confirms it; declined, the request stays to retry or reject.
-                        Task {
-                            if approved && request.kind.signs, !(await model.confirmOwner()) { return }
-                            model.approvals.decide(request.id, approved: approved)
-                        }
+                        Task { await model.approvals.answer(request, approved: approved, owner: model.confirmOwner, settle: session.settle) }
                     }
                         .id(request.id)
                         .transition(.move(edge: .bottom))

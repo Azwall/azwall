@@ -15,6 +15,9 @@ struct BalanceHero: View {
             HStack(spacing: 12) { ProgressView(); Text("Connecting to \(session.network.label)…").foregroundStyle(.secondary) }
         } else if session.phase == .failed {
             Notice(title: "Can't reach \(session.network.label)", text: friendlyError(session.error), action: "Retry", onAction: onRetry)
+        } else if session.account?.deployed == false && session.activating {
+            Notice(icon: "paperplane", title: "Activating your account",
+                   text: "Activation sent: your account can send transactions once it is in a block.", action: nil, onAction: {})
         } else if session.account?.deployed == false {
             Notice(icon: "paperplane", title: "Activate your account",
                    text: Fees.activation(session.check, feeJuice: session.feeJuice),
@@ -67,7 +70,7 @@ struct Notice: View {
     var icon: String?
     let title: String
     let text: String
-    let action: String
+    let action: String?
     let onAction: () -> Void
 
     var body: some View {
@@ -75,7 +78,7 @@ struct Notice: View {
             if let icon { Image(systemName: icon).foregroundStyle(Palette.accent) }
             Text(title).font(.headline)
             Text(text).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button(action, action: onAction).buttonStyle(.borderedProminent).tint(Palette.accent)
+            if let action { Button(action, action: onAction).buttonStyle(.borderedProminent).tint(Palette.accent) }
         }
         .padding(20)
         .frame(maxWidth: .infinity)

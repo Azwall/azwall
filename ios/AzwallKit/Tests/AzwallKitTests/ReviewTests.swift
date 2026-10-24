@@ -23,4 +23,9 @@ struct ReviewTests {
         #expect(Review.mint(amount: "1,000 TST", toPrivate: true, to: "", network: "Testnet").value("To") == "This account")
         #expect(Review.mint(amount: "1,000 TST", toPrivate: false, to: to, network: "Testnet").value("To") == to)
     }
+
+    @Test func activationSaysWhoPays() {
+        #expect(Review.activation(network: "Testnet").value("Fee") == Fees.sponsored)
+        #expect(Review.activation(network: "Mainnet", fee: "Paid with your Fee Juice").value("Fee") == "Paid with your Fee Juice")
+    }
 }

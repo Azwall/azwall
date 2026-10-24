@@ -74,6 +74,11 @@ public final class WalletSession {
 
     public var account: AccountView? { accounts.first { $0.address == selected } }
 
+    /// The selected account's activation is sent and not in a block yet: activating again would pay twice.
+    public var activating: Bool {
+        activity.contains { $0.kind == .deployAccount && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
+    }
+
     /// The token shown at the top: the one the user chose while it is followed, else the first holding something,
     /// else the first. Aztec has no native token and the wallet no prices, so there is no total to show instead.
     public var hero: TokenView? {

@@ -211,6 +211,30 @@ struct ApprovalTests {
         #expect(approvals.pending.isEmpty)
     }
 
+    @Test func aSpendIsApprovedOnlyOnceTheOwnerConfirmsIt() async throws {
+        let approvals = DappApprovals()
+        let params = try JSONValue.parse(#"{"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Swap"}"#)
+        let reply = Task { try await approvals.approve(params) }
+        await eventually { !approvals.pending.isEmpty }
+        let request = try #require(approvals.pending.first)
+        var settled = false
+        await approvals.answer(request, approved: true, owner: { false }, settle: { settled = true })
+        #expect(approvals.pending == [request])
+        await approvals.answer(request, approved: true, owner: { true }, settle: { settled = true })
+        #expect(settled)
+        #expect(try await reply.value["approved"] == .bool(true))
+    }
+
+    @Test func aRejectionAsksNothing() async throws {
+        let approvals = DappApprovals()
+        let params = try JSONValue.parse(#"{"kind":"transaction","tab":1,"origin":"https://dex.example","title":"Swap"}"#)
+        let reply = Task { try await approvals.approve(params) }
+        await eventually { !approvals.pending.isEmpty }
+        let request = try #require(approvals.pending.first)
+        await approvals.answer(request, approved: false, owner: { Issue.record("asked"); return true }, settle: {})
+        #expect(try await reply.value["approved"] == .bool(false))
+    }
+
     @Test func approvalsCarryTheirFullDetails() async throws {
         let approvals = DappApprovals()
         let params = try JSONValue.parse(#"""

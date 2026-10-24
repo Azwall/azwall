@@ -13,6 +13,8 @@ struct HomeView: View {
     @State private var shared: TokenView?
     /// By id: the sheet follows the transaction while it moves from proving to a block.
     @State private var opened: String?
+    /// Activating pays a fee where there is no sponsor: confirmed like any transaction first.
+    @State private var reviewingActivation = false
 
     enum Route: Hashable { case send, shield, receive, settings, tokens }
     enum Sheet: Identifiable { case networks, accounts, addToken; var id: Self { self } }
@@ -22,7 +24,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     accountHeader
-                    BalanceHero(session: session, onActivate: activate, onAddToken: { sheet = .addToken }, onShield: { route = .shield }, onRetry: refresh)
+                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onAddToken: { sheet = .addToken }, onShield: { route = .shield }, onRetry: refresh)
                         .padding(.top, 20)
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
@@ -35,8 +37,11 @@ struct HomeView: View {
             .toolbar { toolbar }
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
+            .sheet(isPresented: $reviewingActivation) {
+                ReviewSheet(review: Review.activation(network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice)), onConfirm: activate)
+            }
             .sheet(item: $shared) { ShareTokenSheet(token: $0, network: session.network).presentationDetents([.large]) }
-            .sheet(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
+            .sheet(isPresented: Binding(get: { session.activity.contains { $0.id == opened } }, set: { if !$0 { opened = nil } })) {
                 if let item = session.activity.first(where: { $0.id == opened }) { ActivityDetailsSheet(item: item) }
             }
             .task { await autoRefresh() }

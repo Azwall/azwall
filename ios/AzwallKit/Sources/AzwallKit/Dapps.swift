@@ -84,6 +84,21 @@ public final class DappApprovals {
         return await withCheckedContinuation { waiting[request.id] = $0 }
     }
 
+    private var answering: Set<Int> = []
+
+    /// The user's answer to `request`. A spend (`ApprovalKind.signs`) is approved only once `owner` confirms it
+    /// (Face ID) — declined, the request stays pending to retry or reject — and after `settle` (a cancelled wallet
+    /// transaction winding down). A second tap while the first is being confirmed is ignored.
+    public func answer(_ request: ApprovalRequest, approved: Bool, owner: () async -> Bool, settle: () async -> Void) async {
+        guard answering.insert(request.id).inserted else { return }
+        defer { answering.remove(request.id) }
+        if approved && request.kind.signs {
+            guard await owner() else { return }
+            await settle()
+        }
+        decide(request.id, approved: approved)
+    }
+
     public func decide(_ id: Int, approved: Bool) {
         pending.removeAll { $0.id == id }
         waiting.removeValue(forKey: id)?.resume(returning: approved)
