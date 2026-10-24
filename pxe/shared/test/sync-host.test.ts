@@ -14,6 +14,7 @@ describe('sync-host', () => {
       "import { BarretenbergSync } from '@aztec/bb.js';",
       "export { x } from '@aztec/stdlib/abi';",
       "const m = await import('@aztec/pxe/client');",
+      "vi.mock('@aztec/stdlib/abi', () => ({}));",
       "import { log } from './log';",
       "// a comment about '@aztec/kv-store' stays",
     ].join('\n');
@@ -22,6 +23,7 @@ describe('sync-host', () => {
       "import { BarretenbergSync } from '@aztec-foundation/bb.js';",
       "export { x } from '@aztec-labs/stdlib/abi';",
       "const m = await import('@aztec-labs/pxe/client');",
+      "vi.mock('@aztec-labs/stdlib/abi', () => ({}));",
       "import { log } from './log';",
       "// a comment about '@aztec/kv-store' stays",
     ]);

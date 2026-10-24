@@ -13,9 +13,12 @@ const host = join(dirname(fileURLToPath(import.meta.url)), '..', 'host');
 const target = process.cwd();
 const rules = Object.entries(JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).azwallHost?.imports ?? {});
 
-/** `from '@aztec/x'`, `import '@aztec/x'` and `import('@aztec/x')`, renamed with the first matching rule. */
+/**
+ * `from '@aztec/x'`, `import '@aztec/x'`, `import('@aztec/x')` and a test's `vi.mock('@aztec/x', …)`, renamed with the
+ * first matching rule.
+ */
 export function rename(source, imports = rules) {
-  return source.replace(/((?:from|import)\s*\(?\s*)'(@aztec\/[^']+)'/g, (_m, lead, name) => {
+  return source.replace(/((?:from|import|vi\.mock)\s*\(?\s*)'(@aztec\/[^']+)'/g, (_m, lead, name) => {
     const rule = imports.find(([prefix]) => name.startsWith(prefix));
     return `${lead}'${rule ? rule[1] + name.slice(rule[0].length) : name}'`;
   });

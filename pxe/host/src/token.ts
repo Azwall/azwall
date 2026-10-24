@@ -5,7 +5,9 @@ import { NO_WAIT } from '@aztec/aztec.js/contracts';
 import { Fr } from '@aztec/aztec.js/fields';
 import { readFieldCompressedString } from '@aztec/aztec.js/utils';
 import { TokenContract, TokenContractArtifact } from '@aztec/noir-contracts.js/Token';
+import { errorMessage } from '@azwall/pxe-shared';
 
+import { log } from './log';
 import type { AzwallWallet } from './wallet';
 
 export type TokenInfo = { address: string; name: string; symbol: string; decimals: number };
@@ -55,18 +57,37 @@ export async function tokenInfo(wallet: AzwallWallet, token: string, from: strin
   return { address: contract.address.toString(), name: decodeString(name.result), symbol: decodeString(symbol.result), decimals: Number(decimals.result) };
 }
 
+/**
+ * The balances of `tokens` the PXE can read. A token it cannot (not on this chain: a followed token from before a
+ * network reset; or not registered yet) is registered and read again once, then left out: one such token must not
+ * hide every other balance, and a refresh that always failed left the wallet showing last session's numbers.
+ */
+const unreadable = new Set<string>();
+
 export async function balances(wallet: AzwallWallet, owner: string, tokens: string[]): Promise<TokenBalance[]> {
   const me = addr(owner);
-  return Promise.all(
-    tokens.map(async token => {
-      const contract = TokenContract.at(addr(token), wallet);
-      const [priv, pub] = await Promise.all([
-        contract.methods.balance_of_private(me).simulate({ from: me }),
-        contract.methods.balance_of_public(me).simulate({ from: me }),
-      ]);
-      return { token, private: BigInt(priv.result).toString(), public: BigInt(pub.result).toString() };
-    }),
+  const read = async (token: string) => {
+    const contract = TokenContract.at(addr(token), wallet);
+    const [priv, pub] = await Promise.all([
+      contract.methods.balance_of_private(me).simulate({ from: me }),
+      contract.methods.balance_of_public(me).simulate({ from: me }),
+    ]);
+    return { token, private: BigInt(priv.result).toString(), public: BigInt(pub.result).toString() };
+  };
+  const results = await Promise.all(
+    tokens.map(token =>
+      read(token).catch(async () => {
+        await registerToken(wallet, token);
+        return read(token);
+      }).catch(err => {
+        // Once per token: a refresh every 20 s would repeat it.
+        if (!unreadable.has(token)) log('tokens', `${token}: no balance, left out (${errorMessage(err)})`, 'warn');
+        unreadable.add(token);
+        return undefined;
+      }),
+    ),
   );
+  return results.filter((b): b is TokenBalance => b !== undefined);
 }
 
 /**
