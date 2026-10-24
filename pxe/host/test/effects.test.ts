@@ -48,7 +48,8 @@ describe('balance changes', () => {
   });
 
   it('says about what the fee comes to and who pays it', () => {
-    expect(feeLine(1_234_500_000_000_000n, 'sponsor')).toBe("Fee: about 0.0012345 Fee Juice, paid by the network's sponsor");
+    expect(feeLine(4_970_975_790_000_000_000n, 'sponsor')).toBe("Fee: about 4.97 Fee Juice, paid by the network's sponsor");
+    expect(feeLine(1_235_500_000_000_000n, 'sponsor')).toBe("Fee: about 0.00124 Fee Juice, paid by the network's sponsor");
     expect(feeLine(2n * 10n ** 18n, 'account')).toBe('Fee: about 2 Fee Juice, paid from your account');
     expect(feeLine(5n, `0x${'ab'.repeat(32)}`)).toBe('Fee: less than 0.00000001 Fee Juice, paid by 0xabababab…');
   });

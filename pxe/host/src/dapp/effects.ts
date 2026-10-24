@@ -100,9 +100,17 @@ async function simulate(wallet: AzwallWallet, args: unknown[]): Promise<Simulate
 
 const FEE_JUICE_DECIMALS = 18;
 
+/** An estimate in token units, to three significant digits: 4970975790000000000n with 18 → "4.97". */
+export function roughly(v: bigint, decimals: number): string {
+  const digits = v.toString().length;
+  const drop = BigInt(Math.max(0, digits - 3));
+  const rounded = ((v + (drop ? 10n ** drop / 2n : 0n)) / 10n ** drop) * 10n ** drop;
+  return formatAmount(rounded, decimals);
+}
+
 /** The fee line of an approval: about how much Fee Juice the transaction costs at today's fees, and who pays it. */
 export function feeLine(fee: bigint, payer: Payer): string {
-  const shown = formatAmount(fee, FEE_JUICE_DECIMALS);
+  const shown = roughly(fee, FEE_JUICE_DECIMALS);
   const amount = shown === '0' && fee > 0n ? 'less than 0.00000001' : `about ${shown}`;
   const by = payer === 'sponsor' ? "paid by the network's sponsor" : payer === 'account' ? 'paid from your account' : `paid by ${payer.slice(0, 10)}…`;
   return `Fee: ${amount} Fee Juice, ${by}`;
