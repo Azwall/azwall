@@ -7,6 +7,7 @@ import SwiftUI
 struct ApprovalDetailsSheet: View {
     let request: ApprovalRequest
     let onDecide: (Bool) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -32,6 +33,12 @@ struct ApprovalDetailsSheet: View {
             .background(Palette.background)
             .navigationTitle(request.title)
             .navigationBarTitleDisplayMode(.inline)
+            // Back to the request's panel, which stays open under these details.
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: { Label("Back", systemImage: "chevron.left").labelStyle(.titleAndIcon) }
+                }
+            }
             .safeAreaInset(edge: .bottom) { buttons }
         }
         .presentationDetents([.large])

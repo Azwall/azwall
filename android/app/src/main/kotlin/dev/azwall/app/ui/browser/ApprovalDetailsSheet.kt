@@ -39,7 +39,7 @@ import dev.azwall.core.wallet.ApprovalSection
  */
 @Composable
 fun ApprovalDetailsSheet(request: ApprovalRequest, onDecide: (Boolean) -> Unit, onDismiss: () -> Unit) =
-    Sheet(request.title, onDismiss, fullHeight = true) {
+    Sheet(request.title, onDismiss, fullHeight = true, back = true) {
         Column(
             Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
