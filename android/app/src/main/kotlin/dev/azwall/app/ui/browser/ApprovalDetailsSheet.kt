@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -27,9 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.ui.components.DetailRow
 import dev.azwall.app.ui.sheets.Sheet
 import dev.azwall.app.ui.siteOf
-import dev.azwall.app.ui.theme.MonoStyle
 import dev.azwall.core.wallet.ApprovalRequest
 import dev.azwall.core.wallet.ApprovalSection
 
@@ -85,12 +84,5 @@ private fun RawSection(section: ApprovalSection) {
 
 @Composable
 private fun Rows(rows: List<ApprovalSection.Row>) {
-    rows.forEach { row ->
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(row.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            // Hex values and the raw request read better in a fixed-width font.
-            val mono = row.value.startsWith("0x") || row.label == "JSON"
-            SelectionContainer { Text(row.value, style = if (mono) MonoStyle else MaterialTheme.typography.bodyLarge) }
-        }
-    }
+    rows.forEach { DetailRow(it.label, it.value) }
 }

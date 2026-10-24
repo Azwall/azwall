@@ -12,13 +12,7 @@ struct ReviewSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    ForEach(review.lines) { line in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(line.label).font(.caption).foregroundStyle(.secondary)
-                            // An address in full and in monospace: the one place to check it character by character.
-                            Text(line.value).font(line.value.hasPrefix("0x") ? .mono : .body).textSelection(.enabled)
-                        }
-                    }
+                    ForEach(review.lines) { DetailRow(label: $0.label, value: $0.value) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)

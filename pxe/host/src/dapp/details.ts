@@ -5,6 +5,7 @@
 import type { AbiType } from '@aztec/stdlib/abi';
 
 import { type ArtifactOf, defaultFeePayer, type ReadCall, readCall } from './calls';
+import { type Json, list, obj } from './json';
 
 /** One labelled value. */
 export type Row = { label: string; value: string };
@@ -13,10 +14,6 @@ export type Section = { title: string; rows: Row[] };
 /** The name of the contract at an address, if the wallet knows it. */
 export type NameOf = (address: string) => Promise<string | undefined>;
 
-type Json = Record<string, unknown>;
-
-const obj = (v: unknown): Json => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {});
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const yes = (b: unknown) => (b === true ? 'Yes' : 'No');
 /** A raw request is shown up to this many characters: past it, it is only noise on a phone. */
 export const RAW_LIMIT = 20_000;

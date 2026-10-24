@@ -9,11 +9,8 @@ struct ActivityDetailsSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    ForEach(ActivityDetails.of(item, date: item.createdAt.formatted(date: .abbreviated, time: .shortened))) { line in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(line.label).font(.caption).foregroundStyle(.secondary)
-                            Text(line.value).font(line.value.hasPrefix("0x") ? .mono : .body).textSelection(.enabled)
-                        }
+                    ForEach(ActivityDetails.of(item, date: item.createdAt.formatted(date: .abbreviated, time: .shortened))) {
+                        DetailRow(label: $0.label, value: $0.value)
                     }
                     if let hash = item.txHash {
                         Button("Copy transaction hash") { UIPasteboard.general.string = hash }.frame(maxWidth: .infinity, minHeight: 44)

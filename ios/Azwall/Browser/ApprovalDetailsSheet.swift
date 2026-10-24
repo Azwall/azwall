@@ -39,23 +39,9 @@ struct ApprovalDetailsSheet: View {
 
     private func rows(_ section: ApprovalSection) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.label).font(.caption).foregroundStyle(.secondary)
-                    Text(row.value)
-                        .font(monospaced(row) ? .mono : .body)
-                        // No hyphen where a long address wraps: it would read as part of the value.
-                        .typesettingLanguage(monospaced(row) ? .init(identifier: "zxx") : .init(identifier: Locale.current.identifier))
-                        .textSelection(.enabled)
-                }
-            }
+            ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in DetailRow(label: row.label, value: row.value) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Hex values and the raw request read better in a fixed-width font.
-    private func monospaced(_ row: ApprovalSection.Row) -> Bool {
-        row.value.hasPrefix("0x") || row.label == "JSON"
     }
 
     private var card: some View { RoundedRectangle(cornerRadius: 16).fill(Palette.card) }

@@ -5,6 +5,7 @@ import { Fr } from '@aztec/aztec.js/fields';
 import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector } from '@aztec/stdlib/abi';
 
 import { decodeStruct } from '../version';
+import { type Json, list, obj } from './json';
 
 /** The artifact of the contract at an address, if the PXE knows it. */
 export type ArtifactOf = (address: string) => Promise<ContractArtifact | undefined>;
@@ -34,11 +35,6 @@ export function defaultFeePayer(): string {
   return feePayers.size ? "The network's sponsor (no fee for you)" : 'Your account, with its Fee Juice';
 }
 
-type Json = Record<string, unknown>;
-
-const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-
 export const short = (v: unknown) => {
   const s = String(v ?? '?');
   return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
@@ -64,8 +60,23 @@ async function bySelector(artifact: ContractArtifact, selector: string): Promise
   return undefined;
 }
 
+/**
+ * Each call is read once: an approval's summary, its full details and the activity entry of the transaction all read
+ * the same call objects (an artifact lookup and a selector hash per function of the contract each time otherwise).
+ */
+const reads = new WeakMap<object, Promise<ReadCall>>();
+
 /** What one call does. Throws if its label is not the function its selector runs. */
-export async function readCall(call: unknown, artifactOf: ArtifactOf): Promise<ReadCall> {
+export function readCall(call: unknown, artifactOf: ArtifactOf): Promise<ReadCall> {
+  if (!call || typeof call !== 'object') return readFresh(call, artifactOf);
+  const known = reads.get(call);
+  if (known) return known;
+  const read = readFresh(call, artifactOf);
+  reads.set(call, read);
+  return read;
+}
+
+async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCall> {
   const c = obj(call);
   const to = String(c.to ?? '');
   const label = String(c.name ?? 'unknown function');

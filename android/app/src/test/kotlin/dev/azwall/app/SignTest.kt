@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -71,5 +72,15 @@ class SignTest {
     @Test
     fun onlyDappSpendsAskForTheOwner() {
         assertEquals(listOf(ApprovalKind.TRANSACTION, ApprovalKind.AUTHWIT), ApprovalKind.entries.filter { it.signs })
+    }
+
+    @Test
+    fun theOwnerGetsThroughToTheWallet() {
+        val vm = model()
+        var closed = false
+        vm.sign(auth = { true }, onAuthorized = { closed = true }) { }
+        // Past the owner check, the form closes; without an unlocked wallet the transaction stops there.
+        assertTrue(closed)
+        assertEquals("the wallet is locked", vm.message.value)
     }
 }

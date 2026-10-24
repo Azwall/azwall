@@ -86,7 +86,7 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var shared by remember { mutableStateOf<TokenView?>(null) }
     // By id: the sheet follows the transaction while it moves from proving to a block.
-    var opened by remember { mutableStateOf<String?>(null) }
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         TopBar(state, nodeOk, actions)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {

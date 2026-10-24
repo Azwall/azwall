@@ -17,8 +17,8 @@ struct ShareTokenSheet: View {
     }
 }
 
-/// The token, its QR code and address, and the share button: in the share sheet and on the token's manage screen.
-struct TokenShareCard: View {
+/// The sheet's content: the token, its QR code and address, and the share button.
+private struct TokenShareCard: View {
     let token: TokenView
     let network: NetworkInfo
 

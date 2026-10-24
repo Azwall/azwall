@@ -186,7 +186,9 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     /** Runs a wallet action (transaction, token…) in the view model's scope, so it survives the screen. */
-    fun run(done: String? = null, block: suspend (WalletSession) -> Unit) = action {
+    fun run(done: String? = null, block: suspend (WalletSession) -> Unit) = action { inSession(done, block) }
+
+    private suspend fun inSession(done: String?, block: suspend (WalletSession) -> Unit) {
         val session = (_phase.value as? AppPhase.Unlocked)?.session ?: error("the wallet is locked")
         block(session)
         done?.let { _message.value = it }
@@ -200,9 +202,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         if (!auth()) throw AuthCancelled()
         // The form closes only now: declined, the user is still on it, with what they typed.
         onAuthorized()
-        val session = (_phase.value as? AppPhase.Unlocked)?.session ?: error("the wallet is locked")
-        block(session)
-        done?.let { _message.value = it }
+        inSession(done, block)
     }
 
     fun consumeMessage() {

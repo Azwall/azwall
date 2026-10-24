@@ -38,9 +38,9 @@ fun ShareTokenSheet(token: TokenView, network: String, networkLabel: String, onD
     TokenShareCard(token, network, networkLabel)
 }
 
-/** The token, its QR code and address, and the share button: in the share sheet and on the token's manage screen. */
+/** The sheet's content: the token, its QR code and address, and the share button. */
 @Composable
-fun TokenShareCard(token: TokenView, network: String, networkLabel: String) {
+private fun TokenShareCard(token: TokenView, network: String, networkLabel: String) {
     val context = LocalContext.current
     val link = remember(token.info.address, network) { PaymentRequest(token.info.address, network).toUri() }
     val qr = remember(link) { qrBitmap(link) }

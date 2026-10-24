@@ -12,7 +12,7 @@ type ApiFn = unsafe extern "C" fn(*const u8, usize, *mut *mut u8, *mut usize);
 type FreeFn = unsafe extern "C" fn(*mut core::ffi::c_void);
 
 /// File name of a release's library inside the app's native library directory.
-/// Android/Linux: `libbb_v6.0.0-rc.6.so`. Apple: a framework, whose name may not hold `.`/`-`.
+/// Android/Linux: `libbb_v6.0.0.so`. Apple: a framework, whose name may not hold `.`/`-`.
 pub fn file_name(release: &str) -> String {
     if cfg!(target_vendor = "apple") {
         let name = format!("AzBB_{}", release.replace(['.', '-'], "_"));

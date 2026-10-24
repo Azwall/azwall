@@ -42,6 +42,8 @@ import java.math.BigInteger
 /** A PXE host in memory: addresses derive from keys, balances and deployment are settable. */
 private class FakePxe : PxeCaller {
     var deployed = false
+    /** What the network declares: "sponsored", or "feeJuice" (the account pays). */
+    var fees = "sponsored"
     var failOpen: String? = null
     val mined = CompletableDeferred<Unit>()
     var waitError: String? = null
@@ -60,7 +62,8 @@ private class FakePxe : PxeCaller {
         calls += method
         val reply = when (method) {
             "open" -> failOpen?.let { throw PxeException("open: $it") }
-                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"""
+                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"$fees"}"""
+            "feeJuiceBalance" -> """{"balance":"1500000000000000000"}"""
             "addAccount" -> """{"address":"addr-${p("signingKey").takeLast(4)}"}"""
             "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
             "accountState" -> """{"deployed":$deployed}"""
@@ -183,6 +186,23 @@ class WalletSessionTest {
         advanceUntilIdle()
         assertTrue(pxe.sent.isEmpty())
         assertEquals(false, ProofGate.cancelled)
+    }
+
+    @Test
+    fun withoutASponsorTheAccountsFeeJuiceIsRead() = runTest {
+        pxe.fees = "feeJuice"
+        val s = session().apply { open() }
+        s.refresh()
+        assertEquals("1500000000000000000", s.state.value.feeJuice)
+        assertEquals("Paid with your Fee Juice (you hold 1.5 FJ)", Fees.line(s.state.value.check, s.state.value.feeJuice))
+    }
+
+    @Test
+    fun aSponsoredNetworkReadsNoFeeJuice() = runTest {
+        val s = session().apply { open() }
+        s.refresh()
+        assertEquals(null, s.state.value.feeJuice)
+        assertTrue("feeJuiceBalance" !in pxe.calls)
     }
 
     @Test

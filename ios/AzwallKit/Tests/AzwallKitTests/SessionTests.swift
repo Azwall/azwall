@@ -6,6 +6,8 @@ import Testing
 /// A PXE host in memory: addresses derive from keys, balances and deployment are settable.
 final class FakePxe: PxeCaller, @unchecked Sendable {
     var deployed = false
+    /// What the network declares: "sponsored", or "feeJuice" (the account pays).
+    var fees = "sponsored"
     var failOpen: String?
     var sent: [JSONValue] = []
     var calls: [(String, JSONValue)] = []
@@ -27,7 +29,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
-            return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10}"#)
+            return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":2,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
+        case "feeJuiceBalance": return .object(["balance": .string("1500000000000000000")])
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState": return .object(["deployed": .bool(deployed)])
         case "balances":
@@ -182,6 +185,23 @@ struct SessionTests {
         await s.winding?.value
         #expect(pxe.sent.isEmpty)
         #expect(!pxe.gate.cancelled)
+    }
+
+    @Test func withoutASponsorTheAccountsFeeJuiceIsRead() async throws {
+        let pxe = FakePxe()
+        pxe.fees = "feeJuice"
+        let s = try session(pxe)
+        await s.open()
+        #expect(s.feeJuice == "1500000000000000000")
+        #expect(Fees.line(s.check, feeJuice: s.feeJuice) == "Paid with your Fee Juice (you hold 1.5 FJ)")
+    }
+
+    @Test func aSponsoredNetworkReadsNoFeeJuice() async throws {
+        let pxe = FakePxe()
+        let s = try session(pxe)
+        await s.open()
+        #expect(s.feeJuice == nil)
+        #expect(!pxe.calls.contains { $0.0 == "feeJuiceBalance" })
     }
 
     @Test func anAccountIsActivatedOnce() async throws {

@@ -47,6 +47,15 @@ describe('calls', () => {
     await expect(readCall(await call('sponsor_unconditionally'), artifactOf)).rejects.toThrow('labelled sponsor_unconditionally but runs transfer');
   });
 
+  it('reads a call once, however often an approval shows it', async () => {
+    let lookups = 0;
+    const counting = async (a: string) => (lookups++, artifactOf(a));
+    const c = await call('transfer');
+    await readCall(c, counting);
+    await readCall(c, counting);
+    expect(lookups).toBe(1);
+  });
+
   it('says when the wallet cannot verify a call', async () => {
     const read = await readCall({ name: 'claim', to: '0x99', selector: '0x01020304', args: [] }, artifactOf);
     expect(read.line).toContain('unverified');

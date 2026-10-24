@@ -2,10 +2,8 @@
 // accepted its capabilities; the PXE holds every account of the wallet, so each call is checked so that it acts as,
 // or reads for, that account only. Methods the wallet-sdk protocol does not need are refused.
 
-type Json = Record<string, unknown>;
+import { type Json, list, obj } from './json';
 
-const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const same = (a: unknown, b: string) => String(a ?? '').toLowerCase() === b.toLowerCase();
 
 /** Methods that only read the chain or register public data in the PXE. */
