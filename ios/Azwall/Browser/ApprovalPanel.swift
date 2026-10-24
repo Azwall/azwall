@@ -52,7 +52,7 @@ struct ApprovalPanel: View {
                 if let emojis = request.emojis { emojiBox(emojis) }
                 ForEach(request.details, id: \.self) { Text("• \($0)").font(.subheadline) }
                 if request.kind == .transaction {
-                    Text("The proof is generated on this phone. Who pays the fee is in all the details.").font(.caption).foregroundStyle(.secondary)
+                    Text("The proof is generated on this phone.").font(.caption).foregroundStyle(.secondary)
                 }
                 if !request.sections.isEmpty {
                     Button { showsAll = true } label: {

@@ -16,10 +16,10 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 import { log } from '../log';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
-import { describeAuthWit, describeTx } from './calls';
+import { describeAuthWit, describeTx, readCall } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
-import { balanceChanges, changeLines, metaOf } from './effects';
+import { changeLines, feeLine, metaOf, type Payer, simulateEffects } from './effects';
 import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
 import { confine, samePage } from './policy';
@@ -195,10 +195,8 @@ export class DappGateway {
     }
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
     if (signing.length) {
-      const effects = await this.#effects(account, signing);
-      const details = [...effects, ...(await Promise.all(signing.map(op => this.#describe(op)))).flat()];
-      const effectRows = effects.map(value => ({ label: 'Simulated', value }));
-      const sections = [...(effects.length ? [{ title: 'Balance changes', rows: effectRows }] : []), ...(await this.#sections(signing))];
+      const details = (await Promise.all(signing.map(op => this.#detailsOf(account, op)))).flat();
+      const sections = await this.#sections(signing);
       const authwit = signing.every(op => op.name === 'createAuthWit');
       const title = authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?';
       const kind = authwit ? 'authwit' : 'transaction';
@@ -212,22 +210,32 @@ export class DappGateway {
   }
 
   /**
-   * What each transaction among `ops` takes from and gives to the account, by simulating it (effects.ts). A failed
-   * simulation is said: the transaction would most likely fail too.
+   * The summary of a transaction: what it takes from and gives to the account and its fee, by simulating it
+   * (effects.ts). It replaces the list of calls, which stays in the details; without changes to show (or when the
+   * simulation fails, which is said: the transaction would most likely fail too) the calls are listed after it.
    */
-  async #effects(account: string, ops: Op[]): Promise<string[]> {
-    const lines: string[] = [];
-    for (const op of ops.filter(o => o.name === 'sendTx')) {
-      try {
-        const changes = await balanceChanges(this.wallet, account, op.args);
-        const meta = await metaOf(this.wallet, account, changes);
-        lines.push(...(changes.length ? changeLines(changes, meta) : ['No change to the balances of the tokens the wallet knows']));
-      } catch (err) {
-        log('dapp', `simulation before approval: ${errorMessage(err)}`, 'warn');
-        lines.push(`The wallet could not simulate this transaction, it may fail: ${errorMessage(err).slice(0, 120)}`);
-      }
+  async #summary(account: string, op: Op): Promise<{ lines: string[]; callsToo: boolean }> {
+    try {
+      const { changes, fee } = await simulateEffects(this.wallet, account, op.args);
+      const meta = await metaOf(this.wallet, account, changes);
+      const fees = feeLine(fee, await this.#payer(account, op.args));
+      if (!changes.length) return { lines: ['No change to the balances of the tokens the wallet knows', fees], callsToo: true };
+      return { lines: [...changeLines(changes, meta), fees], callsToo: false };
+    } catch (err) {
+      log('dapp', `simulation before approval: ${errorMessage(err)}`, 'warn');
+      return { lines: [`The wallet could not simulate this transaction, it may fail: ${errorMessage(err).slice(0, 120)}`], callsToo: true };
     }
-    return lines;
+  }
+
+  /** Who pays a transaction: the network's sponsor when its fee call is there or the wallet adds it, else the payer it names. */
+  async #payer(account: string, args: unknown[]): Promise<Payer> {
+    const payload = obj(args[0]);
+    const reads = await Promise.all(list(payload.calls).map(c => readCall(c, a => this.wallet.artifactAt(a)).catch(() => undefined)));
+    if (reads.some(r => r?.fee)) return 'sponsor';
+    const named = payload.feePayer === undefined ? undefined : String(payload.feePayer);
+    if (named && named.toLowerCase() !== account.toLowerCase()) return named;
+    // No payer named and no fee settings: the wallet pays through the sponsor where there is one (wallet.ts).
+    return !named && obj(args[1]).fee === undefined && this.wallet.fees === 'sponsored' ? 'sponsor' : 'account';
   }
 
   /** Every signing op in full, numbered when a batch holds several, then the request as sent. */
@@ -240,6 +248,13 @@ export class DappGateway {
       }),
     );
     return [...parts.flat(), rawSection(ops.map(op => ({ method: op.name, args: op.args })))];
+  }
+
+  /** An op's lines in the approval: a transaction's summary (and its calls when needed), an authorization's call. */
+  async #detailsOf(account: string, op: Op): Promise<string[]> {
+    if (op.name !== 'sendTx') return this.#describe(op);
+    const { lines, callsToo } = await this.#summary(account, op);
+    return callsToo ? [...lines, ...(await this.#describe(op))] : lines;
   }
 
   #describe(op: Op): Promise<string[]> {

@@ -12,6 +12,10 @@ import type { AzwallWallet } from '../wallet';
 import { parseArgs } from './raw_call';
 
 export type BalanceChange = { token: string; kind: 'public' | 'private'; delta: bigint };
+/** A transaction's effects on the account: its balance changes and about what its fee comes to, in Fee Juice units. */
+export type Effects = { changes: BalanceChange[]; fee: bigint };
+/** Who pays a transaction's fee: the network's sponsor, the account, or another contract (its address). */
+export type Payer = 'sponsor' | 'account' | string;
 export type TokenMeta = { symbol: string; decimals: number };
 
 /** One call of a simulated transaction, as far as its notes go. */
@@ -94,8 +98,21 @@ async function simulate(wallet: AzwallWallet, args: unknown[]): Promise<Simulate
   return wallet.simulateTx(payload, { from: opts.from, fee: opts.fee as never, additionalScopes: opts.additionalScopes, skipTxValidation: true });
 }
 
-/** The balance changes of the transaction `args` (a sendTx's arguments) for account `me`, over the PXE's tokens. */
-export async function balanceChanges(wallet: AzwallWallet, me: string, args: unknown[]): Promise<BalanceChange[]> {
+const FEE_JUICE_DECIMALS = 18;
+
+/** The fee line of an approval: about how much Fee Juice the transaction costs at today's fees, and who pays it. */
+export function feeLine(fee: bigint, payer: Payer): string {
+  const shown = formatAmount(fee, FEE_JUICE_DECIMALS);
+  const amount = shown === '0' && fee > 0n ? 'less than 0.00000001' : `about ${shown}`;
+  const by = payer === 'sponsor' ? "paid by the network's sponsor" : payer === 'account' ? 'paid from your account' : `paid by ${payer.slice(0, 10)}…`;
+  return `Fee: ${amount} Fee Juice, ${by}`;
+}
+
+/**
+ * The effects of the transaction `args` (a sendTx's arguments) for account `me`: its balance changes over the PXE's
+ * tokens, and its fee at the node's current minimum gas prices.
+ */
+export async function simulateEffects(wallet: AzwallWallet, me: string, args: unknown[]): Promise<Effects> {
   const account = AztecAddress.fromStringUnsafe(me);
   const tokens = (await wallet.registeredTokens()).map(t => t.toLowerCase());
   const found = await Promise.all(tokens.map(async t => [t, await slotsOf(wallet, t, account)] as const));
@@ -110,7 +127,8 @@ export async function balanceChanges(wallet: AzwallWallet, me: string, args: unk
       return [{ token, kind: 'public' as const, delta: pub }, { token, kind: 'private' as const, delta: priv }].filter(c => c.delta !== 0n);
     }),
   );
-  return changes.flat();
+  const fee = sim.gasUsed.billedGas.computeFee(await wallet.node.getCurrentMinFees()).toBigInt();
+  return { changes: changes.flat(), fee };
 }
 
 const metas = new Map<string, TokenMeta>();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type CallNotes, changeLines, createdFor, formatAmount } from '../src/dapp/effects';
+import { type CallNotes, changeLines, createdFor, feeLine, formatAmount } from '../src/dapp/effects';
 import { noteOrigin, recordNoteOwners } from '../src/note_owners';
 
 const me = '0xAA';
@@ -45,6 +45,12 @@ describe('balance changes', () => {
       meta,
     );
     expect(lines).toEqual(['You send 5 USDC (public)', 'You send 7 token 0x3… (public)', 'You receive 0.002475 WETH (private)']);
+  });
+
+  it('says about what the fee comes to and who pays it', () => {
+    expect(feeLine(1_234_500_000_000_000n, 'sponsor')).toBe("Fee: about 0.0012345 Fee Juice, paid by the network's sponsor");
+    expect(feeLine(2n * 10n ** 18n, 'account')).toBe('Fee: about 2 Fee Juice, paid from your account');
+    expect(feeLine(5n, `0x${'ab'.repeat(32)}`)).toBe('Fee: less than 0.00000001 Fee Juice, paid by 0xabababab…');
   });
 
   it('counts the notes created for the account, not those for others or at other slots', () => {
