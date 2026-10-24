@@ -81,12 +81,15 @@ public final class WalletSession {
         activity.contains { $0.kind == .deployAccount && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
     }
 
-    /// The token shown at the top: the one the user chose while it is followed, else the first holding something,
-    /// else the first. Aztec has no native token and the wallet no prices, so there is no total to show instead.
-    public var hero: TokenView? {
-        tokens.first { $0.info.address.lowercased() == primary?.lowercased() }
-            ?? tokens.first { $0.total.map(Amounts.isPositive) == true }
-            ?? tokens.first
+    /// The account's Fee Juice, as the first token of the home screen.
+    public var feeJuiceToken: TokenView { FeeJuice.token(feeJuice) }
+
+    /// What the top of the home screen can show: Fee Juice, then the followed tokens.
+    public var shown: [TokenView] { [feeJuiceToken] + tokens }
+
+    /// The token shown at the top: the one the user chose while it is followed, else Fee Juice, Aztec's fee token.
+    public var hero: TokenView {
+        shown.first { $0.info.address.lowercased() == primary?.lowercased() } ?? feeJuiceToken
     }
 
     /// Shows `address` at the top of the home screen for the selected account.
@@ -244,7 +247,8 @@ public final class WalletSession {
         task = nil
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if current() && self.account?.deployed == true { await discover(owner: account.address) }
-        if current() && Fees.paysWithFeeJuice(check), let balance = try? await client.feeJuiceBalance(account.address), current() {
+        // Read on every network: it is the first token shown, and what pays fees where there is no sponsor.
+        if current(), let balance = try? await client.feeJuiceBalance(account.address), current() {
             feeJuice = balance
         }
     }

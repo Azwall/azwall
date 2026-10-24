@@ -5,7 +5,6 @@ import SwiftUI
 struct BalanceHero: View {
     let session: WalletSession
     let onActivate: () -> Void
-    let onAddToken: () -> Void
     let onShield: () -> Void
     let onRetry: () -> Void
 
@@ -22,20 +21,29 @@ struct BalanceHero: View {
             Notice(icon: "paperplane", title: "Activate your account",
                    text: Fees.activation(session.check, feeJuice: session.feeJuice),
                    action: "Activate", onAction: onActivate)
-        } else if let token = session.hero {
-            hero(token).stalePulse(session.stale)
         } else {
-            Notice(title: "Your account is ready",
-                   text: "Add a token to see its private and public balances. On testnet, Create a token in the menu makes one for you.",
-                   action: "Add a token", onAction: onAddToken)
+            hero(session.hero).stalePulse(session.stale)
         }
     }
 
     private func hero(_ token: TokenView) -> some View {
         let d = token.info.decimals
-        let priv = token.balance?.private ?? "0", pub = token.balance?.public ?? "0"
         return VStack(spacing: 8) {
             heroAmount(token.total.map { "\(Amounts.display($0, decimals: d, maxFraction: 4)) \(token.info.symbol)" } ?? "…")
+            if FeeJuice.isIt(token) {
+                Text(feeJuiceRole).font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                split(token)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private func split(_ token: TokenView) -> some View {
+        let d = token.info.decimals
+        let priv = token.balance?.private ?? "0", pub = token.balance?.public ?? "0"
+        VStack(spacing: 8) {
             HStack(spacing: 16) {
                 Label("Private \(Amounts.display(priv, decimals: d, maxFraction: 4))", systemImage: "lock").foregroundStyle(Palette.privateFunds)
                 Label("Public \(Amounts.display(pub, decimals: d, maxFraction: 4))", systemImage: "globe").foregroundStyle(Palette.publicFunds)
@@ -45,16 +53,15 @@ struct BalanceHero: View {
                 Button("Make \(Amounts.display(pub, decimals: d, maxFraction: 4)) \(token.info.symbol) private", action: onShield).font(.subheadline.weight(.semibold))
             }
         }
-        .padding(.horizontal)
     }
 
     /// With several tokens, tapping the amount picks which one the top of the screen shows.
     @ViewBuilder
     private func heroAmount(_ text: String) -> some View {
         let label = Text(text).font(.system(size: 40, weight: .semibold)).minimumScaleFactor(0.5).lineLimit(1)
-        if session.tokens.count > 1 {
+        if session.shown.count > 1 {
             Menu {
-                ForEach(session.tokens) { t in Button("\(t.info.name) (\(t.info.symbol))") { session.choosePrimary(t.info.address) } }
+                ForEach(session.shown) { t in Button("\(t.info.name) (\(t.info.symbol))") { session.choosePrimary(t.info.address) } }
             } label: {
                 HStack(spacing: 6) { label; Image(systemName: "chevron.down").font(.title3) }
             }
@@ -87,7 +94,12 @@ struct Notice: View {
     }
 }
 
+/// What Fee Juice is for, under its balance.
+let feeJuiceRole = "Pays your transaction fees · public only"
+
 struct TokenList: View {
+    /// Shown first, and not a button: Fee Juice cannot be sent or shared.
+    var feeJuice: TokenView?
     let tokens: [TokenView]
     var stale = false
     let onAdd: () -> Void
@@ -95,6 +107,7 @@ struct TokenList: View {
 
     var body: some View {
         LazyVStack(spacing: 0) {
+            if let feeJuice { TokenRow(token: feeJuice, stale: stale) }
             if tokens.isEmpty {
                 EmptyHint(title: "No tokens yet", text: "Add a token by its address to see its private and public balances.", action: "Add a token", onAction: onAdd)
             }
@@ -125,7 +138,7 @@ struct TokenRow: View {
             } else if let balance = token.balance, let total = token.total {
                 VStack(alignment: .trailing) {
                     Text(Amounts.display(total, decimals: d, maxFraction: 4)).font(.subheadline.weight(.semibold))
-                    Text("\(Amounts.display(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.display(balance.public, decimals: d, maxFraction: 2)) public")
+                    Text(FeeJuice.isIt(token) ? "Pays your fees" : "\(Amounts.display(balance.private, decimals: d, maxFraction: 2)) private · \(Amounts.display(balance.public, decimals: d, maxFraction: 2)) public")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .stalePulse(stale)

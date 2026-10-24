@@ -52,6 +52,7 @@ import dev.azwall.core.wallet.ActivityItem
 import dev.azwall.core.wallet.ActivityKind
 import dev.azwall.core.wallet.ActivityStatus
 import dev.azwall.core.wallet.Amounts
+import dev.azwall.core.wallet.FeeJuice
 import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.SessionState
@@ -75,13 +76,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             actions.onActivate,
             Icons.Outlined.RocketLaunch,
         )
-        state.tokens.isEmpty() -> Notice(
-            "Your account is ready",
-            "Add a token to see its private and public balances. On testnet, Create a token in the menu makes one for you.",
-            "Add a token",
-            actions.onAddToken,
-        )
-        else -> TokenHero(state.hero ?: state.tokens.first(), state.tokens, state.stale, actions)
+        else -> TokenHero(state.hero, state.shown, state.stale, actions)
     }
 }
 
@@ -101,6 +96,10 @@ private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean,
     val decimals = token.info.decimals
     Column(Modifier.stalePulse(stale), horizontalAlignment = Alignment.CenterHorizontally) {
         HeroAmount(if (balance == null) "…" else "${Amounts.display(priv + pub, decimals, 4)} ${token.info.symbol}", tokens, actions.onChoosePrimary)
+        if (FeeJuice.isIt(token)) {
+            Text(FEE_JUICE_ROLE, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return@Column
+        }
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Split(Icons.Outlined.Lock, "Private", Amounts.display(priv, decimals, 4), WalletTheme.colors.private)
             Split(Icons.Outlined.Public, "Public", Amounts.display(pub, decimals, 4), WalletTheme.colors.public)
@@ -142,11 +141,15 @@ private fun Notice(title: String, body: String, action: String?, onAction: () ->
     }
 }
 
-/** `showsBalance` is off in the token studio, where the row only names the token. */
+/** What Fee Juice is for, under its balance. */
+internal const val FEE_JUICE_ROLE = "Pays your transaction fees · public only"
+
+/** `showsBalance` is off in the token studio, where the row only names the token; without `onClick` it is not a button. */
 @Composable
-internal fun TokenRow(token: TokenView, stale: Boolean = false, showsBalance: Boolean = true, onClick: () -> Unit = {}) {
+internal fun TokenRow(token: TokenView, stale: Boolean = false, showsBalance: Boolean = true, onClick: (() -> Unit)? = null) {
     val decimals = token.info.decimals
-    Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Share", onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    val tap = onClick?.let { Modifier.clickable(onClickLabel = "Share", onClick = it) } ?: Modifier
+    Row(Modifier.fillMaxWidth().then(tap).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         TokenBadge(token.info.symbol, token.info.address)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -160,7 +163,7 @@ internal fun TokenRow(token: TokenView, stale: Boolean = false, showsBalance: Bo
             } else {
                 Text(Amounts.display(balance.privateAmount + balance.publicAmount, decimals, 4), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${Amounts.display(balance.privateAmount, decimals, 2)} private · ${Amounts.display(balance.publicAmount, decimals, 2)} public",
+                    if (FeeJuice.isIt(token)) "Pays your fees" else "${Amounts.display(balance.privateAmount, decimals, 2)} private · ${Amounts.display(balance.publicAmount, decimals, 2)} public",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

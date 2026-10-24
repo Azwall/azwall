@@ -31,12 +31,12 @@ struct HomeView: View {
                             .padding(.horizontal, 16)
                     }
                     accountHeader
-                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onAddToken: { sheet = .addToken }, onShield: { route = .shield }, onRetry: refresh)
+                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onShield: { route = .shield }, onRetry: refresh)
                         .padding(.top, 20)
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
                     Picker("", selection: $tab) { Text("Tokens").tag(0); Text("Activity").tag(1) }.pickerStyle(.segmented).padding(.horizontal)
-                    if tab == 0 { TokenList(tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }, onShare: { shared = $0 }) } else { ActivityList(items: session.activity) { opened = $0.id } }
+                    if tab == 0 { TokenList(feeJuice: session.feeJuiceToken, tokens: session.tokens, stale: session.stale, onAdd: { sheet = .addToken }, onShare: { shared = $0 }) } else { ActivityList(items: session.activity) { opened = $0.id } }
                 }
             }
             .refreshable { await session.refresh() }

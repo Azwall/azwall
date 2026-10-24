@@ -1,7 +1,23 @@
 package dev.azwall.core.wallet
 
 import dev.azwall.core.pxe.NetworkCheck
+import dev.azwall.core.pxe.TokenBalance
+import dev.azwall.core.pxe.TokenInfo
 import java.math.BigInteger
+
+/**
+ * Aztec's fee token, shown first: every account has a Fee Juice balance (public only: it arrives bridged from Ethereum)
+ * and spends it on fees. It cannot be sent, so it lives beside the followed tokens, under an id that is no address.
+ */
+object FeeJuice {
+    const val ID = "fee-juice"
+    val INFO = TokenInfo(ID, "Fee Juice", "FJ", 18)
+
+    /** The account's Fee Juice as a token, its balance unknown until read. */
+    fun token(units: String?): TokenView = TokenView(INFO, units?.let { TokenBalance(ID, "0", it) })
+
+    fun isIt(token: TokenView): Boolean = token.info.address == ID
+}
 
 /**
  * What the wallet says about fees. Test networks have a Sponsored FPC that pays them all; elsewhere (mainnet) the

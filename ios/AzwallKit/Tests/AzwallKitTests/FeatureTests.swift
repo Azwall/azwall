@@ -130,16 +130,20 @@ struct FeatureTests {
 
 @MainActor
 struct HeroTests {
-    @Test func theHeroIsTheChosenTokenElseTheFirstHoldingSomething() async throws {
+    @Test func theHeroIsTheChosenTokenElseFeeJuice() async throws {
         let pxe = FakePxe()
         pxe.deployed = true
         let s = try SessionTests().session(pxe)
         await s.open()
         try await s.addToken("0xt")
-        #expect(s.hero?.info.address == "0xt")
+        #expect(s.hero.info.address == FeeJuice.id)
+        #expect(s.hero.balance?.public == "1500000000000000000")
+        #expect(s.shown.map(\.info.address) == [FeeJuice.id, "0xt"])
         s.choosePrimary("0xT")
-        #expect(s.hero?.info.address == "0xt")
+        #expect(s.hero.info.address == "0xt")
         #expect(s.store.primary(account: "addr-abab") == "0xT")
+        s.choosePrimary("0xgone")
+        #expect(s.hero.info.address == FeeJuice.id)
     }
 }
 

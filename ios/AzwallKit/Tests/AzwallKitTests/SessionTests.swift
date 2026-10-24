@@ -228,12 +228,12 @@ struct SessionTests {
         #expect(Fees.line(s.check, feeJuice: s.feeJuice) == "Paid with your Fee Juice (you hold 1.5 FJ)")
     }
 
-    @Test func aSponsoredNetworkReadsNoFeeJuice() async throws {
+    @Test func feeJuiceIsReadOnSponsoredNetworksToo() async throws {
         let pxe = FakePxe()
         let s = try session(pxe)
         await s.open()
-        #expect(s.feeJuice == nil)
-        #expect(!pxe.calls.contains { $0.0 == "feeJuiceBalance" })
+        #expect(s.feeJuice == "1500000000000000000")
+        #expect(Fees.line(s.check, feeJuice: s.feeJuice) == Fees.sponsored)
     }
 
     @Test func anAccountIsActivatedOnce() async throws {

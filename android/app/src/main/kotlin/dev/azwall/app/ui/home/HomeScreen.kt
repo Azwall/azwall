@@ -56,6 +56,7 @@ import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.FeeJuice
 import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.Review
@@ -178,6 +179,8 @@ private fun ActionRow(state: SessionState, actions: HomeActions) {
 }
 
 private fun LazyListScope.tokenItems(state: SessionState, actions: HomeActions, onShare: (TokenView) -> Unit) {
+    // Fee Juice cannot be sent or shared: its row only shows the balance.
+    item(key = FeeJuice.ID) { TokenRow(state.feeJuiceToken, state.stale) }
     if (state.tokens.isEmpty() && state.found.isEmpty()) {
         item { EmptyHint("No tokens yet", "Add a token by its address to see its private and public balances.", "Add a token", actions.onAddToken) }
     }

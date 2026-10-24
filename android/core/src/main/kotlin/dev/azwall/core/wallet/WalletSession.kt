@@ -81,7 +81,7 @@ data class SessionState(
     val task: BackgroundTask? = null,
     val refreshing: Boolean = false,
     val error: String? = null,
-    /** Where fees are paid with Fee Juice: base units the selected account holds (Fees). */
+    /** Base units of Fee Juice the selected account holds (FeeJuice), once read. */
     val feeJuice: String? = null,
     /** The network runs a new chain since last time (WalletStore.moveTo): shown until the user acknowledges it. */
     val chainReset: Boolean = false,
@@ -92,13 +92,14 @@ data class SessionState(
     val activating: Boolean
         get() = activity.any { it.kind == ActivityKind.DEPLOY_ACCOUNT && it.account == selected && it.status in IN_FLIGHT }
 
-    /**
-     * The token shown at the top: the one the user chose while it is followed, else the first holding something,
-     * else the first. Aztec has no native token and the wallet no prices, so there is no total to show instead.
-     */
-    val hero: TokenView? get() = tokens.firstOrNull { it.info.address.equals(primary, ignoreCase = true) }
-        ?: tokens.firstOrNull { b -> b.balance?.let { it.privateAmount.signum() > 0 || it.publicAmount.signum() > 0 } == true }
-        ?: tokens.firstOrNull()
+    /** The account's Fee Juice, as the first token of the home screen. */
+    val feeJuiceToken: TokenView get() = FeeJuice.token(feeJuice)
+
+    /** What the top of the home screen can show: Fee Juice, then the followed tokens. */
+    val shown: List<TokenView> get() = listOf(feeJuiceToken) + tokens
+
+    /** The token shown at the top: the one the user chose while it is followed, else Fee Juice, Aztec's fee token. */
+    val hero: TokenView get() = shown.firstOrNull { it.info.address.equals(primary, ignoreCase = true) } ?: feeJuiceToken
 }
 
 /**
@@ -235,10 +236,10 @@ class WalletSession(
         }
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if (current() && _state.value.account?.deployed == true) discoverTokens(account.address)
-        if (current() && Fees.paysWithFeeJuice(_state.value.check)) refreshFeeJuice(account.address)
+        if (current()) refreshFeeJuice(account.address)
     }
 
-    /** What the account holds of Fee Juice, which pays its fees, activation included, where there is no sponsor. */
+    /** What the account holds of Fee Juice: shown first, and what pays its fees where there is no sponsor. */
     private suspend fun refreshFeeJuice(address: String) {
         val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
         _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }

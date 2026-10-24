@@ -1,5 +1,20 @@
 import Foundation
 
+/// Aztec's fee token, shown first: every account has a Fee Juice balance (public only: it arrives bridged from
+/// Ethereum) and spends it on fees. It cannot be sent, so it lives beside the followed tokens, under an id that is no
+/// address.
+public enum FeeJuice {
+    public static let id = "fee-juice"
+    public static let info = TokenInfo(address: id, name: "Fee Juice", symbol: "FJ", decimals: 18)
+
+    /// The account's Fee Juice as a token, its balance unknown until read.
+    public static func token(_ units: String?) -> TokenView {
+        TokenView(info: info, balance: units.map { TokenBalance(token: id, private: "0", public: $0) })
+    }
+
+    public static func isIt(_ token: TokenView) -> Bool { token.info.address == id }
+}
+
 /// What the wallet says about fees. Test networks have a Sponsored FPC that pays them all; elsewhere (mainnet) the
 /// account pays with its own Fee Juice, bridged from Ethereum as AZTEC to its address, activation included.
 public enum Fees {
