@@ -51,8 +51,11 @@ class SignTest {
     fun aDeclinedFingerprintSendsNothing() {
         val vm = model()
         var sent = false
-        vm.sign(auth = { false }) { sent = true }
+        var closed = false
+        vm.sign(auth = { false }, onAuthorized = { closed = true }) { sent = true }
         assertFalse(sent)
+        // The form stays open, with what the user typed.
+        assertFalse(closed)
         assertEquals("authentication was cancelled", vm.message.value)
     }
 

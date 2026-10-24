@@ -140,15 +140,16 @@ private fun WalletRoutes(
             busy = busy,
             onBack = home,
         ) { kind, token, to, amount ->
-            vm.sign(auth(CONFIRM), "Sent. It will appear in your balance once in a block.") { it.transactions.send(kind, token.info, to, amount) }
-            home()
+            vm.sign(auth(CONFIRM), "Sent. It will appear in your balance once in a block.", onAuthorized = home) {
+                it.transactions.send(kind, token.info, to, amount)
+            }
         }
         Route.RECEIVE -> state.account?.let { ReceiveScreen(it.alias, it.address, state.network.label, home, dismissMessage) }
         Route.SETTINGS -> SettingsRoute(vm, session, busy, auth, openMenu)
         Route.TOKENS -> TokenStudioScreen(state, busy, TokenStudioActions(
             onMenu = openMenu,
             onCreate = { name, symbol, decimals -> vm.sign(auth(CONFIRM), "Token creation sent.") { it.transactions.deployTestToken(name, symbol, decimals) } },
-            onMint = { token, amount, private, to -> mint(vm, auth(CONFIRM), token, amount, private, to) },
+            onMint = { token, amount, private, to, onAuthorized -> mint(vm, auth(CONFIRM), token, amount, private, to, onAuthorized) },
         ))
     }
 }
@@ -234,9 +235,10 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     revealed?.let { key -> SecretKeyDialog(key, onCopy = { copySecret(context, key) }, onDismiss = { revealed = null }) }
 }
 
-private fun mint(vm: AppViewModel, auth: Auth, token: TokenView, amount: String, private: Boolean, to: String) = vm.sign(auth, "Mint sent.") { session ->
-    session.transactions.mint(token.info, Amounts.parse(amount, token.info.decimals), private, to)
-}
+private fun mint(vm: AppViewModel, auth: Auth, token: TokenView, amount: String, private: Boolean, to: String, onAuthorized: () -> Unit) =
+    vm.sign(auth, "Mint sent.", onAuthorized) { session ->
+        session.transactions.mint(token.info, Amounts.parse(amount, token.info.decimals), private, to)
+    }
 
 private fun coreVersion(): String = runCatching { dev.azwall.core.ffi.coreVersion() }.getOrDefault("?")
 

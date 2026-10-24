@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,7 +80,8 @@ fun TransferScreen(
     var amountText by rememberSaveable { mutableStateOf("") }
     var scanning by rememberSaveable { mutableStateOf(false) }
     var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
-    var reviewing by rememberSaveable { mutableStateOf(false) }
+    // What the confirmation shows, fixed when it opens: a balance refreshed meanwhile must not change or close it.
+    var reviewing by remember { mutableStateOf<Pending?>(null) }
     val token = tokens.getOrNull(tokenIndex) ?: return NoTokens(mode, onBack)
     val kind = kindOf(mode, publicSide)
     val available = available(token, kind)
@@ -98,10 +100,10 @@ fun TransferScreen(
             AmountField(amountText, token, available, amountError) { amountText = it }
             Text(explanation(kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { reviewing = true }
+        PrimaryButton(actionLabel(kind), enabled = valid, busy = busy) { reviewing = Pending(kind, token, to, amount.getOrThrow()) }
         Spacer(Modifier.height(16.dp))
     }
-    if (reviewing && valid) TransferReview(kind, token, to, amount.getOrThrow(), networkLabel, fee, { reviewing = false }) { reviewing = false; onSubmit(kind, token, to, it) }
+    reviewing?.let { p -> TransferReview(p, networkLabel, fee, { reviewing = null }) { reviewing = null; onSubmit(p.kind, p.token, p.to, p.units) } }
     if (scanning) ScanRequest(network, tokens, onDone = { scanning = false }) { scan ->
         scan.to?.let { to = it }; scan.tokenIndex?.let { tokenIndex = it }; scan.amount?.let { amountText = it }; scanNote = scan.note
     }
@@ -109,12 +111,13 @@ fun TransferScreen(
 
 /** The confirmation of a transfer, with the exact amount (every decimal) and the recipient in full. */
 @Composable
-private fun TransferReview(
-    kind: TransferKind, token: TokenView, to: String, units: BigInteger, network: String, fee: String, onDismiss: () -> Unit, onConfirm: (BigInteger) -> Unit,
-) {
-    val shown = "${Amounts.format(units, token.info.decimals, token.info.decimals)} ${token.info.symbol}"
-    ReviewSheet(Review.transfer(kind, shown, to, network, fee), onDismiss) { onConfirm(units) }
+private fun TransferReview(p: Pending, network: String, fee: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val shown = "${Amounts.format(p.units, p.token.info.decimals, p.token.info.decimals)} ${p.token.info.symbol}"
+    ReviewSheet(Review.transfer(p.kind, shown, p.to, network, fee), onDismiss, onConfirm)
 }
+
+/** A transfer the user asked to send, as the confirmation shows it and as it is sent. */
+private data class Pending(val kind: TransferKind, val token: TokenView, val to: String, val units: BigInteger)
 
 /** The camera, until a code is read: what it fills in goes to `onScan`. */
 @Composable

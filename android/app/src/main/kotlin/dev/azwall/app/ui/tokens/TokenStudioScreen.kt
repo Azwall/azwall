@@ -48,7 +48,8 @@ data class TokenStudioActions(
     val onMenu: () -> Unit,
     val onCreate: (name: String, symbol: String, decimals: Int) -> Unit,
     /** `to` empty: the selected account. */
-    val onMint: (token: TokenView, amount: String, private: Boolean, to: String) -> Unit,
+    /** `onAuthorized`: the owner confirmed (fingerprint); the mint screen closes then, not before. */
+    val onMint: (token: TokenView, amount: String, private: Boolean, to: String, onAuthorized: () -> Unit) -> Unit,
 )
 
 /**
@@ -61,8 +62,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
     var sharing by rememberSaveable { mutableStateOf<String?>(null) }
     state.tokens.firstOrNull { it.info.address == minting }?.let { token ->
         return MintScreen(token, state.network.label, Fees.line(state.check, state.feeJuice), busy, onBack = { minting = null }) { amount, private, to ->
-            actions.onMint(token, amount, private, to)
-            minting = null
+            actions.onMint(token, amount, private, to) { minting = null }
         }
     }
     state.tokens.firstOrNull { it.info.address == sharing }?.let { ShareTokenSheet(it, state.network.id, state.network.label) { sharing = null } }
