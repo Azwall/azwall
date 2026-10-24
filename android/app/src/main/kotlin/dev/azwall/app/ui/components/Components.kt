@@ -62,10 +62,16 @@ fun AccountAvatar(address: String, size: Dp = 36.dp) {
     }
 }
 
+/** A token badge's hue from its address; an id that is no address (Fee Juice's) gets a stable one too. */
+fun badgeHue(address: String): Float {
+    val tail = address.removePrefix("0x").takeLast(6)
+    return ((tail.toLongOrNull(16) ?: tail.hashCode().toLong()).mod(360L)).toFloat()
+}
+
 /** Token badge: the symbol's first letters on a color derived from the token address. */
 @Composable
 fun TokenBadge(symbol: String, address: String, size: Dp = 40.dp) {
-    val hue = (address.removePrefix("0x").takeLast(6).ifEmpty { "0" }.toLong(16) % 360).toFloat()
+    val hue = badgeHue(address)
     Box(Modifier.size(size).clip(CircleShape).background(Color.hsv(hue, 0.45f, 0.85f)), contentAlignment = Alignment.Center) {
         Text(symbol.take(3).uppercase(), color = Color(0xFF16131F), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
     }
