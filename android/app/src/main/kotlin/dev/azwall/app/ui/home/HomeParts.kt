@@ -16,7 +16,6 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.RocketLaunch
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -63,9 +62,9 @@ import java.math.BigInteger
 @Composable
 internal fun BalanceHero(state: SessionState, actions: HomeActions) {
     val account = state.account
+    // While the PXE starts, the hero already shows (Fee Juice at 0, or last session's balances): the status line says
+    // what loads.
     when {
-        // With balances from the last session, show them (stale) rather than a spinner while the PXE starts.
-        state.phase == Phase.STARTING && !state.stale -> Starting(state.network.label)
         state.phase == Phase.FAILED -> Notice("Can't reach ${state.network.label}", friendlyError(state.error), "Retry", actions.onRefresh)
         account?.deployed == false && state.activating ->
             Notice("Activating your account", "Activation sent: your account can send transactions once it is in a block.", null, {}, Icons.Outlined.RocketLaunch)
@@ -77,14 +76,6 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             Icons.Outlined.RocketLaunch,
         )
         else -> TokenHero(state.hero, state.shown, state.stale, actions)
-    }
-}
-
-@Composable
-private fun Starting(label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        Text("Connecting to $label…", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -138,6 +138,9 @@ struct HeroTests {
         try await s.addToken("0xt")
         #expect(s.hero.info.address == FeeJuice.id)
         #expect(s.hero.balance?.public == "1500000000000000000")
+        s.feeJuice = nil
+        // Before it is read, as for a new account: 0, never a spinner.
+        #expect(s.hero.balance?.public == "0")
         #expect(s.shown.map(\.info.address) == [FeeJuice.id, "0xt"])
         s.choosePrimary("0xT")
         #expect(s.hero.info.address == "0xt")

@@ -92,8 +92,8 @@ data class SessionState(
     val activating: Boolean
         get() = activity.any { it.kind == ActivityKind.DEPLOY_ACCOUNT && it.account == selected && it.status in IN_FLIGHT }
 
-    /** The account's Fee Juice, as the first token of the home screen. */
-    val feeJuiceToken: TokenView get() = FeeJuice.token(feeJuice)
+    /** The account's Fee Juice, as the first token of the home screen: 0 until read, as a new account holds. */
+    val feeJuiceToken: TokenView get() = FeeJuice.token(feeJuice ?: "0")
 
     /** What the top of the home screen can show: Fee Juice, then the followed tokens. */
     val shown: List<TokenView> get() = listOf(feeJuiceToken) + tokens

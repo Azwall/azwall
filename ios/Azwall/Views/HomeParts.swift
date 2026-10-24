@@ -9,10 +9,9 @@ struct BalanceHero: View {
     let onRetry: () -> Void
 
     var body: some View {
-        // With balances from the last session, show them (stale) rather than a spinner while the PXE starts.
-        if session.phase == .starting && !session.stale {
-            HStack(spacing: 12) { ProgressView(); Text("Connecting to \(session.network.label)…").foregroundStyle(.secondary) }
-        } else if session.phase == .failed {
+        // While the PXE starts, the hero already shows (Fee Juice at 0, or last session's balances): the status
+        // line says what loads.
+        if session.phase == .failed {
             Notice(title: "Can't reach \(session.network.label)", text: friendlyError(session.error), action: "Retry", onAction: onRetry)
         } else if session.account?.deployed == false && session.activating {
             Notice(icon: "paperplane", title: "Activating your account",

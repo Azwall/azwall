@@ -407,7 +407,8 @@ class WalletSessionTest {
         assertEquals("0xa", state.copy(primary = "0xA").hero.info.address)
         assertEquals(FeeJuice.ID, state.copy(primary = "0xgone").hero.info.address)
         assertEquals(listOf(FeeJuice.ID, "0xa", "0xb"), state.shown.map { it.info.address })
-        assertNull(SessionState(network).hero.balance)
+        // Before it is read, as for a new account: 0, never a spinner.
+        assertEquals("0", SessionState(network).hero.balance?.public)
     }
 
     @Test

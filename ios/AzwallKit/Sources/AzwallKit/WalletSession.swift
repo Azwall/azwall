@@ -81,8 +81,8 @@ public final class WalletSession {
         activity.contains { $0.kind == .deployAccount && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
     }
 
-    /// The account's Fee Juice, as the first token of the home screen.
-    public var feeJuiceToken: TokenView { FeeJuice.token(feeJuice) }
+    /// The account's Fee Juice, as the first token of the home screen: 0 until read, as a new account holds.
+    public var feeJuiceToken: TokenView { FeeJuice.token(feeJuice ?? "0") }
 
     /// What the top of the home screen can show: Fee Juice, then the followed tokens.
     public var shown: [TokenView] { [feeJuiceToken] + tokens }
