@@ -4,7 +4,7 @@
 // request itself. Values are never shortened here: the app wraps and lets them be copied.
 import type { AbiType } from '@aztec/stdlib/abi';
 
-import { type ArtifactOf, type ReadCall, readCall } from './calls';
+import { type ArtifactOf, defaultFeePayer, type ReadCall, readCall } from './calls';
 
 /** One labelled value. */
 export type Row = { label: string; value: string };
@@ -169,7 +169,8 @@ export function callSection(call: unknown, read: ReadCall, title: string): Secti
   const head = rowsOf([
     ['Contract', read.contract ?? 'Unknown: the wallet does not know this contract'],
     ['Address', c.to],
-    ['Function', read.fn?.name ?? c.name],
+    // Without the contract's artifact, the name is only the site's label for the call.
+    ['Function', read.fn?.name ?? (c.name === undefined ? undefined : `${String(c.name)} (as the site names it, unverified)`)],
     ['Selector', c.selector],
     ['Kind', kind],
     ['Hides the sender', c.hideMsgSender === true ? 'Yes' : undefined],
@@ -179,7 +180,7 @@ export function callSection(call: unknown, read: ReadCall, title: string): Secti
     read.values && params.length
       ? params.map(p => ({ label: `${p.name} · ${typeLabel(p.type)}`, value: full(read.values?.[p.name]) }))
       : list(c.args).map((a, i) => ({ label: `Argument ${i + 1} (raw field)`, value: full(a) }));
-  return { title: `${title}: ${read.fee ? 'fee payment, ' : ''}${read.name}`, rows: [...head, ...args] };
+  return { title: `${title}: ${read.fee ? 'fee payment, ' : ''}${read.name}${read.fn ? '' : ' (unverified)'}`, rows: [...head, ...args] };
 }
 
 /** Who sends a transaction, how its fee is paid, and what is attached to it. */
@@ -189,8 +190,9 @@ function attachmentsSection(payload: Json, opts: Json, title: string): Section {
     ['Capsules', list(payload.capsules).length || undefined],
     ['Extra hashed arguments', list(payload.extraHashedArgs).length || undefined],
   ]);
-  const rows = [...rowsOf([['Sent as', opts.from], ['Fee paid by', payload.feePayer]]), ...flatten(opts.fee, 'Fee'), ...witnesses, ...counts];
-  return { title, rows: rows.length ? rows : [{ label: 'Fee', value: 'Default settings of the wallet' }] };
+  const payer = payload.feePayer ?? (opts.fee === undefined ? defaultFeePayer() : undefined);
+  const rows = [...rowsOf([['Sent as', opts.from], ['Fee paid by', payer]]), ...flatten(opts.fee, 'Fee'), ...witnesses, ...counts];
+  return { title, rows };
 }
 
 /** A transaction (sendTx): each call in order, then sender, fee and attachments. `prefix` numbers it in a batch. */

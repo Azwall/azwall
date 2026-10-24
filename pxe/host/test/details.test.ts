@@ -86,7 +86,11 @@ describe('approval details', () => {
   it('shows raw fields when the wallet does not know the contract', async () => {
     const sections = await txSections([{ calls: [{ name: 'claim', to: unknown, selector: '0x01020304', args: ['0x07'] }] }, {}], artifactOf);
     expect(value(sections, 'Contract')).toContain('does not know');
+    expect(value(sections, 'Function')).toBe('claim (as the site names it, unverified)');
+    expect(sections[0].title).toBe('Call 1: claim (unverified)');
     expect(value(sections, 'Argument 1 (raw field)')).toBe('0x07');
+    // No fee settings: the wallet's default payer is named (here no sponsor is trusted, so the account pays).
+    expect(value(sections, 'Fee paid by')).toBe('Your account, with its Fee Juice');
   });
 
   it('describes authorizations and connections', async () => {

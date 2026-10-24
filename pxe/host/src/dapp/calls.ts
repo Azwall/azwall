@@ -29,6 +29,11 @@ export function trustFeePayers(addresses: string[]): void {
   for (const a of addresses) feePayers.add(a.toLowerCase());
 }
 
+/** Who pays a transaction that names no fee payer: the network's sponsor where there is one, else the account. */
+export function defaultFeePayer(): string {
+  return feePayers.size ? "The network's sponsor (no fee for you)" : 'Your account, with its Fee Juice';
+}
+
 type Json = Record<string, unknown>;
 
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
@@ -95,7 +100,10 @@ export async function describeTx(payload: unknown, artifactOf: ArtifactOf): Prom
 /** What an authorization lets another contract do: the call it covers, or an opaque hash the wallet cannot read. */
 export async function describeAuthWit(intent: unknown, artifactOf: ArtifactOf): Promise<string[]> {
   const i = obj(intent);
-  if (i.call === undefined) return [`An action the wallet cannot read (hash ${short(intent)}): approve only if you trust this site`];
+  if (i.call === undefined) {
+    const who = i.consumer === undefined ? '' : `Lets ${short(i.consumer)} use `;
+    return [`${who}an action the wallet cannot read (hash ${short(i.innerHash ?? intent)}): approve only if you trust this site`];
+  }
   const call = await readCall(i.call, artifactOf);
   return [`Lets ${short(i.caller)} run, as you:`, call.line];
 }

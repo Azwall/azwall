@@ -59,6 +59,8 @@ describe('calls', () => {
     ]);
     expect((await describeAuthWit({ caller: '0x77', call: await call('transfer') }, artifactOf))[1]).toContain('transfer(');
     expect((await describeAuthWit('0xdead', artifactOf))[0]).toContain('cannot read');
+    const hashed = (await describeAuthWit({ consumer: '0x77', innerHash: '0xbeef' }, artifactOf))[0];
+    expect(hashed).toBe('Lets 0x77 use an action the wallet cannot read (hash 0xbeef): approve only if you trust this site');
   });
 
   it('keeps arguments short', () => {
