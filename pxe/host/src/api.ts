@@ -65,6 +65,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     close: async () => {
       await wallet?.shutdown();
       wallet = null;
+      dapps = null;
     },
     newSigningKey: async () => ({ signingKey: Fq.random().toString() }),
     addAccount: async p => ({ address: (await w().addAccount(secrets(p))).address.toString() }),

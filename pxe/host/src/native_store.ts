@@ -55,7 +55,9 @@ export class AppCopies {
     try {
       return await through(await unseal(this.key, Buffer.from(data, 'base64')), new DecompressionStream('gzip'));
     } catch (err) {
-      log('store', `${name}: the app's copy cannot be opened with this wallet's key (${errorMessage(err)}): starting empty`, 'warn');
+      // Another wallet's key, or a damaged file: the next save replaces it, so it is set aside first, never lost.
+      await this.bridge.callNative('storeSave', { name: `${name}-unreadable`, data });
+      log('store', `${name}: the app's copy cannot be opened (${errorMessage(err)}): set aside, starting empty`, 'warn');
       return null;
     }
   }

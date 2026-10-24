@@ -47,4 +47,15 @@ describe('stores the app keeps a copy of', () => {
     const rows = await (again.allAsync as (sql: string) => Promise<unknown[][]>)('SELECT value FROM data WHERE slot = \'s1\'');
     expect(Array.from(rows[0]![0] as Uint8Array)).toEqual([42]);
   });
+
+  it('stop saving once closed', async () => {
+    let saves = 0;
+    const store = storeObject();
+    const cache = await CachedStore.wrap(store as never, 'pxe-closed', { snapshot: null, save: async () => void saves++ });
+    await (store.close as () => Promise<void>)();
+    await (store.transactionAsync as (cb: () => Promise<void>) => Promise<void>)(async () => {}).catch(() => {});
+    await cache.flush();
+    expect(saves).toBe(0);
+  });
 });
+

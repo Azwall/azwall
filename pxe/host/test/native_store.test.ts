@@ -33,7 +33,10 @@ describe('the app keeps sealed copies of the stores', () => {
     await new AppCopies(bridge, key).save('pxe-1-ab', bytes);
     expect(files.get('pxe-1-ab')!.length).toBeLessThan(2_000);
     expect(await new AppCopies(bridge, key).load('pxe-1-ab')).toEqual(bytes);
+    const sealed = files.get('pxe-1-ab');
     expect(await new AppCopies(bridge, new Uint8Array(32).fill(9)).load('pxe-1-ab')).toBeNull();
+    // Unreadable with this key: kept aside before anything replaces it.
+    expect(files.get('pxe-1-ab-unreadable')).toBe(sealed);
     expect(await new AppCopies(bridge, key).load('wallet-1-ab')).toBeNull();
   });
 });

@@ -142,6 +142,8 @@ export class CachedStore {
       await cache.flush();
       if (cache.#pending.length) log('store', `${name}: closing with ${cache.stats.pendingStatements} statements not written`, 'error');
       cache.#closed = true;
+      // A failed flush's retry must not run on the closed databases.
+      clearTimeout(cache.#timer);
       cache.mem.close();
       return cache.diskClose();
     };
@@ -218,6 +220,7 @@ export class CachedStore {
 
   /** Writes every committed group to disk in one transaction. Resolves when the disk is caught up. */
   flush(): Promise<void> {
+    if (this.#closed) return Promise.resolve();
     if (this.#flushing) return this.#flushing.then(() => (this.#pending.length ? this.flush() : undefined));
     if (!this.#pending.length) return Promise.resolve();
     if (this.native) return (this.#flushing = this.#saveCopy(this.native).finally(() => (this.#flushing = null)));
@@ -276,7 +279,10 @@ export class CachedStore {
 
   /** Hands the app a copy of the whole database, once no transaction is half done in it. */
   async #saveCopy(native: NativeCopy): Promise<void> {
+    const sqlite = await sqlitePromise!;
     while (this.#group) await this.#txChain;
+    // Exported right after the check, with no await between: a transaction starting meanwhile would be half in it.
+    const bytes: Uint8Array = sqlite.capi.sqlite3_js_db_export(this.mem);
     const groups = this.#pending;
     const count = this.stats.pendingStatements;
     this.#pending = [];
@@ -285,7 +291,6 @@ export class CachedStore {
     this.stats.pendingStatements = 0;
     const t0 = performance.now();
     try {
-      const bytes: Uint8Array = (await sqlitePromise!).capi.sqlite3_js_db_export(this.mem);
       await native.save(bytes);
       this.stats.flushes++;
       this.stats.lastFlushMs = performance.now() - t0;
