@@ -2,7 +2,7 @@
 // dApp chooses, and `selector`, what runs. The wallet looks the selector up in the contract's artifact (registered in
 // the PXE), shows that function with its decoded arguments, and refuses a call whose label names another function.
 import { Fr } from '@aztec/aztec.js/fields';
-import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector } from '@aztec/stdlib/abi';
+import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector, getAllFunctionAbis } from '@aztec/stdlib/abi';
 
 import { decodeStruct } from '../version';
 import { type Json, list, obj } from './json';
@@ -52,9 +52,10 @@ export function show(v: unknown): string {
   return text.length > 60 ? `${text.slice(0, 59)}…` : text;
 }
 
+/** The function a selector runs, private, utility or public (public ones sit outside `functions`, behind its dispatch). */
 async function bySelector(artifact: ContractArtifact, selector: string): Promise<FunctionAbi | undefined> {
   const wanted = FunctionSelector.fromString(selector);
-  for (const fn of artifact.functions) {
+  for (const fn of getAllFunctionAbis(artifact)) {
     if ((await FunctionSelector.fromNameAndParameters(fn.name, fn.parameters)).equals(wanted)) return fn;
   }
   return undefined;

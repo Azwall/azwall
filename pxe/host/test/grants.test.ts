@@ -12,7 +12,8 @@ const sponsor = `0x${'33'.repeat(32)}`;
 const unknown = `0x${'99'.repeat(32)}`;
 const artifacts: Record<string, ContractArtifact> = {
   [token]: { name: 'Token', functions: [fn('balance_of_private'), fn('transfer')] } as unknown as ContractArtifact,
-  [dex]: { name: 'Dex', functions: [fn('swap'), fn('get_pool')] } as unknown as ContractArtifact,
+  // A public function sits outside `functions`, behind the contract's dispatch, and must still be found.
+  [dex]: { name: 'Dex', functions: [fn('public_dispatch'), fn('get_pool')], nonDispatchPublicFunctions: [fn('swap')] } as unknown as ContractArtifact,
   [sponsor]: { name: 'SponsoredFPC', functions: [fn('sponsor_unconditionally')] } as unknown as ContractArtifact,
 };
 const artifactOf = async (a: string) => artifacts[a];
