@@ -77,6 +77,7 @@ data class HomeActions(
     val onDismissFound: (FoundToken) -> Unit,
     val onActivate: () -> Unit,
     val onAcknowledgeReset: () -> Unit,
+    val onRemoveToken: (address: String) -> Unit,
     val onRefresh: () -> Unit,
     val onCopied: () -> Unit,
 )
@@ -108,7 +109,9 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
         }
         StatusLine(state)
     }
-    shared?.let { ShareTokenSheet(it, state.network.id, state.network.label) { shared = null } }
+    shared?.let { token ->
+        ShareTokenSheet(token, state.network.id, state.network.label, onRemove = { actions.onRemoveToken(token.info.address) }) { shared = null }
+    }
     state.activity.firstOrNull { it.id == opened }?.let { ActivityDetailsSheet(it) { opened = null } }
 }
 

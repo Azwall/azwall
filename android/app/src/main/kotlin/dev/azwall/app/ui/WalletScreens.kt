@@ -169,6 +169,7 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String)
     onActivate = { vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount() } },
     onRefresh = { vm.run { it.refresh() } },
     onAcknowledgeReset = session::acknowledgeChainReset,
+    onRemoveToken = session::removeToken,
     onCopied = {},
 )
 

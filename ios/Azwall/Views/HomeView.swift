@@ -47,7 +47,9 @@ struct HomeView: View {
             .sheet(isPresented: $reviewingActivation) {
                 ReviewSheet(review: Review.activation(network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice)), onConfirm: activate)
             }
-            .sheet(item: $shared) { ShareTokenSheet(token: $0, network: session.network).presentationDetents([.large]) }
+            .sheet(item: $shared) { token in
+                ShareTokenSheet(token: token, network: session.network) { session.removeToken(token.info.address) }.presentationDetents([.large])
+            }
             .sheet(isPresented: Binding(get: { session.activity.contains { $0.id == opened } }, set: { if !$0 { opened = nil } })) {
                 if let item = session.activity.first(where: { $0.id == opened }) { ActivityDetailsSheet(item: item) }
             }

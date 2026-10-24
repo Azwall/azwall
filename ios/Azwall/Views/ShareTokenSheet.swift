@@ -6,13 +6,31 @@ import SwiftUI
 struct ShareTokenSheet: View {
     let token: TokenView
     let network: NetworkInfo
+    /// Stops following the token (the home screen's list); nil where it cannot be removed.
+    var onRemove: (() -> Void)?
+    @Environment(\.dismiss) private var dismiss
+    @State private var asking = false
 
     var body: some View {
         NavigationStack {
-            TokenShareCard(token: token, network: network)
-                .padding(24)
-                .navigationTitle("Share \(token.info.symbol)")
-                .navigationBarTitleDisplayMode(.inline)
+            VStack(spacing: 8) {
+                TokenShareCard(token: token, network: network)
+                if onRemove != nil {
+                    Button("Remove \(token.info.symbol) from my list", role: .destructive) { asking = true }.frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .padding(24)
+            // Removing only hides the token here: its balance stays on chain, and adding it again shows it.
+            .confirmationDialog("Remove \(token.info.symbol)?", isPresented: $asking, titleVisibility: .visible) {
+                Button("Remove", role: .destructive) {
+                    onRemove?()
+                    dismiss()
+                }
+            } message: {
+                Text("It leaves your list only: what you hold stays on chain, and adding the token again shows it.")
+            }
+            .navigationTitle("Share \(token.info.symbol)")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

@@ -10,10 +10,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +31,7 @@ import dev.azwall.app.ui.components.CopyAddress
 import dev.azwall.app.ui.components.SecondaryButton
 import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.receive.qrBitmap
+import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.wallet.PaymentRequest
 import dev.azwall.core.wallet.TokenView
 
@@ -34,8 +40,34 @@ import dev.azwall.core.wallet.TokenView
  * receives one it does not know adds it first (Add a token, scan or paste).
  */
 @Composable
-fun ShareTokenSheet(token: TokenView, network: String, networkLabel: String, onDismiss: () -> Unit) = Sheet("Share ${token.info.symbol}", onDismiss, fullHeight = true) {
+fun ShareTokenSheet(
+    token: TokenView,
+    network: String,
+    networkLabel: String,
+    /** Stops following the token (the home screen's list); null where it cannot be removed. */
+    onRemove: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+) = Sheet("Share ${token.info.symbol}", onDismiss, fullHeight = true) {
     TokenShareCard(token, network, networkLabel)
+    onRemove?.let { RemoveToken(token.info.symbol) { it(); onDismiss() } }
+}
+
+/** Removing only hides the token here: its balance stays on chain, and adding it again shows it. Asked first. */
+@Composable
+private fun RemoveToken(symbol: String, onRemove: () -> Unit) {
+    var asking by remember { mutableStateOf(false) }
+    TextButton(onClick = { asking = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text("Remove $symbol from my list", color = WalletTheme.colors.danger)
+    }
+    if (asking) {
+        AlertDialog(
+            onDismissRequest = { asking = false },
+            title = { Text("Remove $symbol?") },
+            text = { Text("It leaves your list only: what you hold stays on chain, and adding the token again shows it.") },
+            confirmButton = { TextButton(onClick = { asking = false; onRemove() }) { Text("Remove", color = WalletTheme.colors.danger) } },
+            dismissButton = { TextButton(onClick = { asking = false }) { Text("Cancel") } },
+        )
+    }
 }
 
 /** The sheet's content: the token, its QR code and address, and the share button. */
