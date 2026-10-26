@@ -42,6 +42,18 @@ data class Review(val title: String, val lines: List<Pair<String, String>>, val 
             "Confirm and activate",
         )
 
+        /** Claiming Fee Juice bridged from Ethereum: the transaction pays its fee out of what it claims. */
+        fun claimFeeJuice(amount: String, network: String): Review = Review(
+            "Claim your Fee Juice",
+            listOf(
+                "Amount" to amount,
+                "From" to "Your deposit on the Fee Juice portal, on Ethereum",
+                "Network" to network,
+                "Fee" to "Paid out of the Fee Juice this transaction claims",
+            ),
+            "Confirm and claim",
+        )
+
         /** Minting `amount` of the account's own token; an empty `to` mints to the account itself. */
         fun mint(amount: String, private: Boolean, to: String, network: String, fee: String = Fees.SPONSORED): Review = Review(
             if (private) "Mint privately" else "Mint publicly",

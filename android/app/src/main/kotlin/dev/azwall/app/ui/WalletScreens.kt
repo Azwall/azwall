@@ -167,6 +167,9 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String)
     onChoosePrimary = { address -> session.choosePrimary(address) },
     onDismissFound = { token -> session.dismissFound(token) },
     onActivate = { vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount() } },
+    onClaimFeeJuice = {
+        session.state.value.claimable?.let { deposit -> vm.sign(auth(CONFIRM), "Fee Juice claim sent.") { it.transactions.claimFeeJuice(deposit) } }
+    },
     onRefresh = { vm.run { it.refresh() } },
     onAcknowledgeReset = session::acknowledgeChainReset,
     onRemoveToken = session::removeToken,

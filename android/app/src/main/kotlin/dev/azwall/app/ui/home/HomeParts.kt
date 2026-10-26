@@ -70,17 +70,30 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             Notice("Activating your account", "Activation sent: your account can send transactions once it is in a block.", null, {}, Icons.Outlined.RocketLaunch)
         account?.deployed == false -> Notice(
             "Activate your account",
-            Fees.activation(state.check, state.feeJuice),
+            Fees.activation(state.check, state.feeJuice, state.claimable, state.arriving),
             "Activate",
             actions.onActivate,
             Icons.Outlined.RocketLaunch,
         )
-        else -> TokenHero(state.hero, state.shown, state.stale, actions)
+        else -> TokenHero(state.hero, state.shown, state.stale, actions, bridged(state))
+    }
+}
+
+/** Fee Juice bridged to the account from Ethereum, under its amount; [claim] when it can be claimed now. */
+internal data class Bridged(val text: String, val claim: Boolean)
+
+/** Ready to claim (by an active account: activation claims it otherwise), or on its way. */
+internal fun bridged(state: SessionState): Bridged? {
+    val ready = state.claimable
+    return when {
+        ready != null -> Bridged("${Amounts.display(ready.units, FeeJuice.INFO.decimals, 4)} FJ bridged from Ethereum", claim = state.account?.deployed == true)
+        state.arriving.signum() > 0 -> Bridged("${Amounts.display(state.arriving, FeeJuice.INFO.decimals, 4)} FJ arriving from Ethereum", claim = false)
+        else -> null
     }
 }
 
 @Composable
-private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean, actions: HomeActions) {
+private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean, actions: HomeActions, bridged: Bridged? = null) {
     val balance = token.balance
     val priv = balance?.privateAmount ?: BigInteger.ZERO
     val pub = balance?.publicAmount ?: BigInteger.ZERO
@@ -89,6 +102,7 @@ private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean,
         HeroAmount(if (balance == null) "…" else "${Amounts.display(priv + pub, decimals, 4)} ${token.info.symbol}", tokens, actions.onChoosePrimary)
         if (FeeJuice.isIt(token)) {
             Text(FEE_JUICE_ROLE, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            bridged?.let { BridgedLine(it, actions.onClaimFeeJuice) }
             return@Column
         }
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -130,6 +144,13 @@ private fun Notice(title: String, body: String, action: String?, onAction: () ->
             action?.let { FilledTonalButton(onClick = onAction) { Text(it) } }
         }
     }
+}
+
+/** Bridged Fee Juice: a button when it can be claimed now, else a line. */
+@Composable
+private fun BridgedLine(bridged: Bridged, onClaim: () -> Unit) {
+    if (bridged.claim) TextButton(onClick = onClaim) { Text("Claim ${bridged.text}") }
+    else Text(bridged.text, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** What Fee Juice is for, under its balance. */

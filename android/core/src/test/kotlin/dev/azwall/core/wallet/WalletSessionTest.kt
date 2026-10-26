@@ -28,6 +28,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +49,8 @@ private class FakePxe : PxeCaller {
     var rollup = 2
     /** Balance reads fail, as with an unreachable node. */
     var failBalances = false
+    /** What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list). */
+    var deposits = "[]"
     /** Base units of Fee Juice every account holds. */
     val feeJuice = "1500000000000000000"
     var failOpen: String? = null
@@ -81,7 +84,8 @@ private class FakePxe : PxeCaller {
             }
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
-            "deployAccount", "transfer" -> {
+            "feeJuiceDeposits" -> """{"deposits":$deposits}"""
+            "deployAccount", "transfer", "claimFeeJuice" -> {
                 whileProving()
                 ProofGate.check()
                 sent += params
@@ -234,6 +238,46 @@ class WalletSessionTest {
         val again = runCatching { s.transactions.deployAccount() }.exceptionOrNull()
         assertTrue(again?.message!!.contains("already on its way"))
         assertEquals(1, pxe.calls.count { it == "deployAccount" })
+    }
+
+    @Test
+    fun bridgedFeeJuiceIsClaimedByTheActivationItself() = runTest {
+        pxe.deposits = """[{"amount":"5000000000000000000","messageHash":"0xm1","leafIndex":"7","ours":true,"ready":true,"claimed":false},
+            {"amount":"3","messageHash":"0xm2","leafIndex":"8","ours":true,"ready":false,"claimed":false},
+            {"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":false,"ready":true,"claimed":false}]"""
+        val s = session().apply { open() }
+        val state = s.state.value
+        assertEquals("7", state.claimable?.leafIndex)
+        assertEquals(BigInteger("3"), state.arriving)
+        assertTrue(Fees.activation(state.check, state.feeJuice, state.claimable).contains("5 FJ bridged from Ethereum are ready"))
+        s.transactions.deployAccount()
+        val claim = pxe.sent.single()["claim"]!!.jsonObject
+        assertEquals("5000000000000000000", claim["amount"]!!.jsonPrimitive.content)
+        assertEquals("7", claim["leafIndex"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun withoutABridgeDepositTheActivationPaysAsBefore() = runTest {
+        val s = session().apply { open() }
+        assertNull(s.state.value.claimable)
+        s.transactions.deployAccount()
+        assertNull(pxe.sent.single()["claim"])
+    }
+
+    @Test
+    fun anActiveAccountClaimsItsBridgedFeeJuice() = runTest {
+        pxe.deposits = """[{"amount":"2000000000000000000","messageHash":"0xm1","leafIndex":"4","ours":true,"ready":true,"claimed":false}]"""
+        val s = session().apply { open() }
+        val deposit = s.state.value.claimable!!
+        // Not active yet: activation is what claims it.
+        assertTrue(runCatching { s.transactions.claimFeeJuice(deposit) }.exceptionOrNull()!!.message!!.contains("activate the account first"))
+        pxe.deployed = true
+        s.refresh()
+        val item = s.transactions.claimFeeJuice(deposit)
+        assertEquals(ActivityKind.CLAIM_FEE_JUICE, item.kind)
+        assertEquals("FJ", item.symbol)
+        assertEquals("4", pxe.sent.single()["claim"]!!.jsonObject["leafIndex"]!!.jsonPrimitive.content)
+        assertEquals("addr-abab", pxe.sent.single()["owner"]!!.jsonPrimitive.content)
     }
 
     @Test

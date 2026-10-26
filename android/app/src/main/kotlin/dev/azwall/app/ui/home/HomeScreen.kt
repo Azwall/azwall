@@ -56,6 +56,7 @@ import dev.azwall.app.ui.sheets.ShareTokenSheet
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.Amounts
 import dev.azwall.core.wallet.FeeJuice
 import dev.azwall.core.wallet.Fees
 import dev.azwall.core.wallet.Phase
@@ -81,6 +82,8 @@ data class HomeActions(
     val onRemoveToken: (address: String) -> Unit,
     val onRefresh: () -> Unit,
     val onCopied: () -> Unit,
+    /** Claims Fee Juice bridged to the active account (SessionState.claimable). */
+    val onClaimFeeJuice: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -157,9 +160,19 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
         Spacer(Modifier.height(20.dp))
         // Activating pays a fee where there is no sponsor: confirmed like any transaction first.
         var reviewing by rememberSaveable { mutableStateOf(false) }
-        BalanceHero(state, actions.copy(onActivate = { reviewing = true }))
+        var claiming by rememberSaveable { mutableStateOf(false) }
+        BalanceHero(state, actions.copy(onActivate = { reviewing = true }, onClaimFeeJuice = { claiming = true }))
+        val claim = state.claimable
+        if (claiming && claim != null) {
+            val amount = "${Amounts.display(claim.units, FeeJuice.INFO.decimals, 4)} FJ"
+            ReviewSheet(Review.claimFeeJuice(amount, state.network.label), onDismiss = { claiming = false }) {
+                claiming = false
+                actions.onClaimFeeJuice()
+            }
+        }
         if (reviewing) {
-            ReviewSheet(Review.activation(state.network.label, Fees.line(state.check, state.feeJuice)), onDismiss = { reviewing = false }) {
+            val fee = state.claimable?.let(Fees::claimLine) ?: Fees.line(state.check, state.feeJuice)
+            ReviewSheet(Review.activation(state.network.label, fee), onDismiss = { reviewing = false }) {
                 reviewing = false
                 actions.onActivate()
             }

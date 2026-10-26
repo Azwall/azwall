@@ -40,6 +40,7 @@ fun activityTitle(item: ActivityItem): String = when (item.kind) {
     ActivityKind.DEPLOY_TOKEN -> "Token created" + (item.symbol?.let { " ($it)" } ?: "")
     ActivityKind.DAPP -> item.summary ?: "App transaction"
     ActivityKind.RECEIVE -> "Received privately"
+    ActivityKind.CLAIM_FEE_JUICE -> "Fee Juice claimed"
 }
 
 /** What the proving screen says while [kind] is being proven. */
@@ -53,6 +54,7 @@ fun provingTitle(kind: ActivityKind): String = when (kind) {
     ActivityKind.DEPLOY_TOKEN -> "Creating the token"
     ActivityKind.DAPP -> "Proving the app's transaction"
     ActivityKind.RECEIVE -> "Receiving"
+    ActivityKind.CLAIM_FEE_JUICE -> "Claiming your Fee Juice"
 }
 
 /** "−1.5 TST", "+10 TST" or null for transactions without an amount. */
@@ -62,7 +64,7 @@ fun activityAmount(item: ActivityItem): String? {
     val text = "${Amounts.format(amount, item.decimals ?: 0)} ${item.symbol.orEmpty()}".trim()
     return when (item.kind) {
         ActivityKind.SEND_PRIVATE, ActivityKind.SEND_PUBLIC -> "−$text"
-        ActivityKind.MINT, ActivityKind.RECEIVE -> "+$text"
+        ActivityKind.MINT, ActivityKind.RECEIVE, ActivityKind.CLAIM_FEE_JUICE -> "+$text"
         else -> text
     }
 }

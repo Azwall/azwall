@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.pxe.FeeJuiceDeposit
 import dev.azwall.core.pxe.Receipt
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TransferKind
@@ -29,11 +30,22 @@ class Transactions internal constructor(private val session: WalletSession) {
     private val _proving = MutableStateFlow<ProvingJob?>(null)
     val proving: StateFlow<ProvingJob?> = _proving.asStateFlow()
 
-    /** Deploys the selected account's contract, once: a second activation would only pay a fee to fail. */
+    /**
+     * Deploys the selected account's contract, once: a second activation would only pay a fee to fail. With Fee Juice
+     * bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction.
+     */
     suspend fun deployAccount(): ActivityItem {
         val account = selected()
         check(!session.state.value.activating) { "the account's activation is already on its way" }
-        return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { session.client.deployAccount(session.secretsOf(account)) }
+        val claim = session.state.value.claimable
+        return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { session.client.deployAccount(session.secretsOf(account), claim) }
+    }
+
+    /** Claims Fee Juice bridged to the selected, active account; the transaction pays its fee with what it claims. */
+    suspend fun claimFeeJuice(deposit: FeeJuiceDeposit): ActivityItem {
+        val account = selected()
+        check(session.state.value.account?.deployed == true) { "activate the account first: activation claims it too" }
+        return track(draft(ActivityKind.CLAIM_FEE_JUICE, account, FeeJuice.INFO, deposit.units)) { session.client.claimFeeJuice(account, deposit) }
     }
 
     /** Sends [amount] base units of [token]. For SHIELD and UNSHIELD the recipient is the sender. */

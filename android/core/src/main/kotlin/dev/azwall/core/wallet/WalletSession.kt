@@ -3,6 +3,7 @@ package dev.azwall.core.wallet
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.AccountSecrets
+import dev.azwall.core.pxe.FeeJuiceDeposit
 import dev.azwall.core.pxe.FoundToken
 import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.PxeClient
@@ -14,6 +15,7 @@ import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
 import java.io.File
+import java.math.BigInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -83,6 +85,8 @@ data class SessionState(
     val error: String? = null,
     /** Base units of Fee Juice the selected account holds (FeeJuice), once read. */
     val feeJuice: String? = null,
+    /** Fee Juice bridged to the selected account from Ethereum, claimed or not (FeeJuiceDeposit). */
+    val deposits: List<FeeJuiceDeposit> = emptyList(),
     /** The network runs a new chain since last time (WalletStore.moveTo): shown until the user acknowledges it. */
     val chainReset: Boolean = false,
 ) {
@@ -91,6 +95,12 @@ data class SessionState(
     /** The selected account's activation is sent and not in a block yet: activating again would pay twice. */
     val activating: Boolean
         get() = activity.any { it.kind == ActivityKind.DEPLOY_ACCOUNT && it.account == selected && it.status in IN_FLIGHT }
+
+    /** The first deposit the wallet can claim now, if any: activation claims it in the same transaction. */
+    val claimable: FeeJuiceDeposit? get() = deposits.firstOrNull { it.claimable }
+
+    /** Base units bridged to the account and not on Aztec yet. */
+    val arriving: BigInteger get() = deposits.filter { it.arriving }.fold(BigInteger.ZERO) { sum, d -> sum + d.units }
 
     /** The account's Fee Juice, as the first token of the home screen: 0 until read, as a new account holds. */
     val feeJuiceToken: TokenView get() = FeeJuice.token(feeJuice ?: "0")
@@ -197,7 +207,7 @@ class WalletSession(
         if (_state.value.accounts.none { it.address == address }) return
         lastDiscovery = 0L
         _state.update {
-            it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList(), primary = store.primary(address), feeJuice = null)
+            it.copy(selected = address, tokens = it.tokens.map { t -> t.copy(balance = null) }, found = emptyList(), primary = store.primary(address), feeJuice = null, deposits = emptyList())
         }
         scope.launch { refresh() }
     }
@@ -240,8 +250,11 @@ class WalletSession(
         if (current()) refreshFeeJuice(account.address)
     }
 
-    /** What the account holds of Fee Juice: shown first, and what pays its fees where there is no sponsor. */
+    /** What the account holds of Fee Juice (shown first, and what pays its fees where there is no sponsor), and what was bridged to it. */
     private suspend fun refreshFeeJuice(address: String) {
+        runCatching { client.feeJuiceDeposits(address) }.onSuccess { found ->
+            _state.update { if (it.selected == address) it.copy(deposits = found) else it }
+        }
         val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
         _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }
         _state.value.account?.takeIf { it.address == address }?.let { Snapshots.saveFeeJuice(it, balance, store) }

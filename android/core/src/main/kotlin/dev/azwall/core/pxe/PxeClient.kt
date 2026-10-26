@@ -57,6 +57,29 @@ enum class TxOutcome {
 @Serializable
 data class TokenInfo(val address: String, val name: String, val symbol: String, val decimals: Int)
 
+/**
+ * AZTEC deposited for an account on the network's Fee Juice portal, on Ethereum: it becomes Fee Juice once claimed.
+ * [ours] when deposited with the secret the wallet derives (it can claim it), [ready] once the message is on Aztec.
+ */
+@Serializable
+data class FeeJuiceDeposit(
+    val amount: String,
+    val messageHash: String,
+    val leafIndex: String,
+    val l1Tx: String = "",
+    val ours: Boolean,
+    val ready: Boolean,
+    val claimed: Boolean,
+) {
+    val units: BigInteger get() = BigInteger(amount)
+
+    /** The wallet can claim it now. */
+    val claimable: Boolean get() = ours && ready && !claimed
+
+    /** Deposited, its message not on Aztec yet. */
+    val arriving: Boolean get() = ours && !ready && !claimed
+}
+
 /** Balances in base units, as decimal strings (they exceed 64 bits). */
 @Serializable
 data class TokenBalance(val token: String, val private: String, val public: String) {
@@ -113,7 +136,21 @@ class PxeClient(private val caller: PxeCaller) {
         caller.call("accountState", params("address" to address)).jsonObject["deployed"]!!.jsonPrimitive.content == "true"
 
     /** Proves and sends the account deployment; returns the transaction hash. */
-    suspend fun deployAccount(account: AccountSecrets): String = field("deployAccount", secrets(account), "txHash")
+    /** Deploys the account; with [claim], the transaction claims that deposit and pays its fee with it. */
+    suspend fun deployAccount(account: AccountSecrets, claim: FeeJuiceDeposit? = null): String {
+        val p = JsonObject(secrets(account) + listOfNotNull(claim?.let { "claim" to claimJson(it) }))
+        return field("deployAccount", p, "txHash")
+    }
+
+    /** Fee Juice bridged to [owner] from Ethereum, claimed or not (none where the network has no Ethereum side). */
+    suspend fun feeJuiceDeposits(owner: String): List<FeeJuiceDeposit> =
+        json.decodeFromJsonElement(caller.call("feeJuiceDeposits", buildJsonObject { put("owner", owner) }).jsonObject["deposits"]!!)
+
+    /** Claims [deposit] for an active [owner]; the transaction pays its fee with the Fee Juice it claims. */
+    suspend fun claimFeeJuice(owner: String, deposit: FeeJuiceDeposit): String =
+        field("claimFeeJuice", buildJsonObject { put("owner", owner); put("claim", claimJson(deposit)) }, "txHash")
+
+    private fun claimJson(d: FeeJuiceDeposit) = buildJsonObject { put("amount", d.amount); put("leafIndex", d.leafIndex) }
 
     suspend fun waitForTx(txHash: String): Receipt = typed("waitForTx", params("txHash" to txHash))
 
