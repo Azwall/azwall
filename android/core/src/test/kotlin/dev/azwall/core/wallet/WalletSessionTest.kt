@@ -46,6 +46,8 @@ private class FakePxe : PxeCaller {
     var fees = "sponsored"
     /** The rollup version the node reports: a new one means the network was redeployed. */
     var rollup = 2
+    /** Balance reads fail, as with an unreachable node. */
+    var failBalances = false
     /** Base units of Fee Juice every account holds. */
     val feeJuice = "1500000000000000000"
     var failOpen: String? = null
@@ -72,6 +74,7 @@ private class FakePxe : PxeCaller {
             "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
             "accountState" -> """{"deployed":$deployed}"""
             "balances" -> {
+                if (failBalances) error("node unreachable")
                 val first = p("owner") == "addr-abab"
                 if (first) hold?.await()
                 """[{"token":"0xt","private":"${if (first) "2500000" else "7000000"}","public":"0"}]"""
@@ -455,6 +458,18 @@ class WalletSessionTest {
         assertEquals("addr-abab", restored.selected)
         assertEquals(true, restored.account?.deployed)
         assertEquals(BigInteger("2500000"), restored.tokens.single().balance?.privateAmount)
+        assertEquals(pxe.feeJuice, restored.feeJuice)
         assertEquals(false, first.state.value.stale)
+    }
+
+    @Test
+    fun anAccountShowsAtTheNextStartEvenBeforeItsFirstRefresh() = runTest {
+        // A first start: the PXE gives the account's address, and the refresh fails before any balance is read.
+        pxe.failBalances = true
+        session().apply { open() }
+        val contents = Vault(tmp.root.resolve("vault"), PlainBox).unlock()
+        val restored = Snapshots.restore(SessionState(network), contents, WalletStore(tmp.root, network.id))!!
+        assertEquals("addr-abab", restored.account?.address)
+        assertTrue(restored.stale)
     }
 }

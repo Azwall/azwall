@@ -152,6 +152,7 @@ class WalletSession(
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
             val known = _state.value.accounts
             val accounts = contents.accounts.map { s -> register(s).let { v -> v.copy(deployed = known.firstOrNull { it.address == v.address }?.deployed) } }
+            Snapshots.remember(accounts, store)
             runCatching { host.client.registerTokens(store.tokens.map { it.address }) }
             _state.update { s ->
                 val selected = s.selected?.takeIf { sel -> accounts.any { it.address == sel } } ?: accounts.firstOrNull()?.address
@@ -243,6 +244,7 @@ class WalletSession(
     private suspend fun refreshFeeJuice(address: String) {
         val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
         _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }
+        _state.value.account?.takeIf { it.address == address }?.let { Snapshots.saveFeeJuice(it, balance, store) }
     }
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
