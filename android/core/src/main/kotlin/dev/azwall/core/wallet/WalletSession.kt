@@ -99,6 +99,9 @@ data class SessionState(
     /** The first deposit the wallet can claim now, if any: activation claims it in the same transaction. */
     val claimable: FeeJuiceDeposit? get() = deposits.firstOrNull { it.claimable }
 
+    /** Deposits made with a secret the wallet does not know: the user can enter it (WalletSession.addClaimSecret). */
+    val locked: List<FeeJuiceDeposit> get() = deposits.filter { it.locked }
+
     /** Base units bridged to the account and not on Aztec yet. */
     val arriving: BigInteger get() = deposits.filter { it.arriving }.fold(BigInteger.ZERO) { sum, d -> sum + d.units }
 
@@ -252,7 +255,7 @@ class WalletSession(
 
     /** What the account holds of Fee Juice (shown first, and what pays its fees where there is no sponsor), and what was bridged to it. */
     private suspend fun refreshFeeJuice(address: String) {
-        runCatching { client.feeJuiceDeposits(address) }.onSuccess { found ->
+        runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.onSuccess { found ->
             _state.update { if (it.selected == address) it.copy(deposits = found) else it }
         }
         val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
@@ -284,6 +287,16 @@ class WalletSession(
         store.addToken(info)
         refresh()
         return info
+    }
+
+    /**
+     * Remembers a claim secret the user entered for the selected account's bridge deposits (hex or decimal), and reads
+     * the deposits again: the one made with it becomes claimable. Throws on a value that is no field element.
+     */
+    suspend fun addClaimSecret(text: String) {
+        val account = _state.value.selected ?: error("no account")
+        store.addClaimSecret(account, ClaimSecrets.normalize(text))
+        refreshFeeJuice(account)
     }
 
     /** Shows [address] at the top of the home screen for the selected account. */

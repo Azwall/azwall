@@ -49,6 +49,8 @@ private class FakePxe : PxeCaller {
     var rollup = 2
     /** Balance reads fail, as with an unreachable node. */
     var failBalances = false
+    /** The user's claim secrets each feeJuiceDeposits call carried. */
+    val depositQueries = mutableListOf<List<String>>()
     /** What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list). */
     var deposits = "[]"
     /** Base units of Fee Juice every account holds. */
@@ -84,7 +86,10 @@ private class FakePxe : PxeCaller {
             }
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
-            "feeJuiceDeposits" -> """{"deposits":$deposits}"""
+            "feeJuiceDeposits" -> {
+                depositQueries += params["secrets"]!!.jsonArray.map { it.jsonPrimitive.content }
+                """{"deposits":$deposits}"""
+            }
             "deployAccount", "transfer", "claimFeeJuice" -> {
                 whileProving()
                 ProofGate.check()
@@ -242,7 +247,7 @@ class WalletSessionTest {
 
     @Test
     fun bridgedFeeJuiceIsClaimedByTheActivationItself() = runTest {
-        pxe.deposits = """[{"amount":"5000000000000000000","messageHash":"0xm1","leafIndex":"7","ours":true,"ready":true,"claimed":false},
+        pxe.deposits = """[{"amount":"5000000000000000000","messageHash":"0xm1","leafIndex":"7","ours":true,"ready":true,"claimed":false,"secret":"0x0000000000000000000000000000000000000000000000000000000000000000"},
             {"amount":"3","messageHash":"0xm2","leafIndex":"8","ours":true,"ready":false,"claimed":false},
             {"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":false,"ready":true,"claimed":false}]"""
         val s = session().apply { open() }
@@ -254,6 +259,21 @@ class WalletSessionTest {
         val claim = pxe.sent.single()["claim"]!!.jsonObject
         assertEquals("5000000000000000000", claim["amount"]!!.jsonPrimitive.content)
         assertEquals("7", claim["leafIndex"]!!.jsonPrimitive.content)
+        assertEquals("0x" + "0".repeat(64), claim["secret"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun aClaimSecretTheUserEntersIsKeptAndTriedOnTheDeposits() = runTest {
+        pxe.deposits = """[{"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":false,"ready":false,"claimed":false}]"""
+        val s = session().apply { open() }
+        assertEquals(1, s.state.value.locked.size)
+        s.addClaimSecret(" 0x2A \n")
+        val sent = pxe.depositQueries.last()
+        assertEquals(listOf("0x" + "0".repeat(62) + "2a"), sent)
+        assertTrue(runCatching { s.addClaimSecret("hello") }.isFailure)
+        // Kept: the next start tries it again.
+        s.refresh()
+        assertEquals(sent, pxe.depositQueries.last())
     }
 
     @Test
@@ -266,7 +286,7 @@ class WalletSessionTest {
 
     @Test
     fun anActiveAccountClaimsItsBridgedFeeJuice() = runTest {
-        pxe.deposits = """[{"amount":"2000000000000000000","messageHash":"0xm1","leafIndex":"4","ours":true,"ready":true,"claimed":false}]"""
+        pxe.deposits = """[{"amount":"2000000000000000000","messageHash":"0xm1","leafIndex":"4","ours":true,"ready":true,"claimed":false,"secret":"0x0000000000000000000000000000000000000000000000000000000000000000"}]"""
         val s = session().apply { open() }
         val deposit = s.state.value.claimable!!
         // Not active yet: activation is what claims it.

@@ -84,6 +84,10 @@ data class HomeActions(
     val onCopied: () -> Unit,
     /** Claims Fee Juice bridged to the active account (SessionState.claimable). */
     val onClaimFeeJuice: () -> Unit = {},
+    /** Opens the field for a bridge deposit's claim secret (SessionState.locked). */
+    val onEnterClaimSecret: () -> Unit = {},
+    /** Keeps the claim secret the user entered and reads the deposits again. */
+    val onClaimSecret: (String) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -161,7 +165,9 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
         // Activating pays a fee where there is no sponsor: confirmed like any transaction first.
         var reviewing by rememberSaveable { mutableStateOf(false) }
         var claiming by rememberSaveable { mutableStateOf(false) }
-        BalanceHero(state, actions.copy(onActivate = { reviewing = true }, onClaimFeeJuice = { claiming = true }))
+        var askingSecret by rememberSaveable { mutableStateOf(false) }
+        BalanceHero(state, actions.copy(onActivate = { reviewing = true }, onClaimFeeJuice = { claiming = true }, onEnterClaimSecret = { askingSecret = true }))
+        if (askingSecret) ClaimSecretDialog(onDismiss = { askingSecret = false }) { askingSecret = false; actions.onClaimSecret(it) }
         val claim = state.claimable
         if (claiming && claim != null) {
             val amount = "${Amounts.display(claim.units, FeeJuice.INFO.decimals, 4)} FJ"

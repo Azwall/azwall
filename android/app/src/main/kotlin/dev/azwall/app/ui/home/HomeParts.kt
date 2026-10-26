@@ -79,8 +79,11 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
     }
 }
 
-/** Fee Juice bridged to the account from Ethereum, under its amount; [claim] when it can be claimed now. */
-internal data class Bridged(val text: String, val claim: Boolean)
+/**
+ * Fee Juice bridged to the account from Ethereum, under its amount: [claim] when it can be claimed now, [askSecret]
+ * when it was deposited with a secret the wallet does not know.
+ */
+internal data class Bridged(val text: String, val claim: Boolean, val askSecret: Boolean = false)
 
 /** Ready to claim (by an active account: activation claims it otherwise), or on its way. */
 internal fun bridged(state: SessionState): Bridged? {
@@ -88,6 +91,7 @@ internal fun bridged(state: SessionState): Bridged? {
     return when {
         ready != null -> Bridged("${Amounts.display(ready.units, FeeJuice.INFO.decimals, 4)} FJ bridged from Ethereum", claim = state.account?.deployed == true)
         state.arriving.signum() > 0 -> Bridged("${Amounts.display(state.arriving, FeeJuice.INFO.decimals, 4)} FJ arriving from Ethereum", claim = false)
+        state.locked.isNotEmpty() -> Bridged("${Amounts.display(state.locked.first().units, FeeJuice.INFO.decimals, 4)} FJ bridged with your own secret", claim = false, askSecret = true)
         else -> null
     }
 }
@@ -102,7 +106,7 @@ private fun TokenHero(token: TokenView, tokens: List<TokenView>, stale: Boolean,
         HeroAmount(if (balance == null) "…" else "${Amounts.display(priv + pub, decimals, 4)} ${token.info.symbol}", tokens, actions.onChoosePrimary)
         if (FeeJuice.isIt(token)) {
             Text(FEE_JUICE_ROLE, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            bridged?.let { BridgedLine(it, actions.onClaimFeeJuice) }
+            bridged?.let { BridgedLine(it, actions) }
             return@Column
         }
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -146,11 +150,12 @@ private fun Notice(title: String, body: String, action: String?, onAction: () ->
     }
 }
 
-/** Bridged Fee Juice: a button when it can be claimed now, else a line. */
+/** Bridged Fee Juice: a button when it can be claimed now or needs its secret, else a line. */
 @Composable
-private fun BridgedLine(bridged: Bridged, onClaim: () -> Unit) {
-    if (bridged.claim) TextButton(onClick = onClaim) { Text("Claim ${bridged.text}") }
-    else Text(bridged.text, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun BridgedLine(bridged: Bridged, actions: HomeActions) = when {
+    bridged.claim -> TextButton(onClick = actions.onClaimFeeJuice) { Text("Claim ${bridged.text}") }
+    bridged.askSecret -> TextButton(onClick = actions.onEnterClaimSecret) { Text("${bridged.text}: enter it") }
+    else -> Text(bridged.text, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** What Fee Juice is for, under its balance. */

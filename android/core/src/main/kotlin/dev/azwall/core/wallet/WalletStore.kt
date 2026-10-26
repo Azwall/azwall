@@ -47,6 +47,11 @@ private data class StoredNetwork(
     val snapshots: List<AccountSnapshot> = emptyList(),
     /** The chain all this belongs to ([WalletStore.chainOf]); null before it was first recorded. */
     val chain: String? = null,
+    /**
+     * Claim secrets the user entered for Fee Juice bridged to an account (account → hex secrets). Not custody secrets:
+     * a bridge deposit is bound to its recipient, so its secret only lets someone credit that recipient.
+     */
+    val claimSecrets: Map<String, List<String>> = emptyMap(),
 )
 
 /**
@@ -87,6 +92,13 @@ class WalletStore(private val dir: File, private val networkId: String) {
     fun markCreated(account: String, token: String) {
         if (token in created(account)) return
         save(data.copy(created = data.created + (account to created(account) + token)))
+    }
+
+    fun claimSecrets(account: String): List<String> = data.claimSecrets[account].orEmpty()
+
+    fun addClaimSecret(account: String, secret: String) {
+        if (secret in claimSecrets(account)) return
+        save(data.copy(claimSecrets = data.claimSecrets + (account to claimSecrets(account) + secret)))
     }
 
     fun primary(account: String): String? = data.primary[account]

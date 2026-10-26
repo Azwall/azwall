@@ -70,6 +70,8 @@ data class FeeJuiceDeposit(
     val ours: Boolean,
     val ready: Boolean,
     val claimed: Boolean,
+    /** The claim secret, hex, when the wallet knows it ([ours]). */
+    val secret: String? = null,
 ) {
     val units: BigInteger get() = BigInteger(amount)
 
@@ -78,6 +80,9 @@ data class FeeJuiceDeposit(
 
     /** Deposited, its message not on Aztec yet. */
     val arriving: Boolean get() = ours && !ready && !claimed
+
+    /** Deposited with a secret the wallet does not know: the user can enter it. */
+    val locked: Boolean get() = !ours
 }
 
 /** Balances in base units, as decimal strings (they exceed 64 bits). */
@@ -142,15 +147,22 @@ class PxeClient(private val caller: PxeCaller) {
         return field("deployAccount", p, "txHash")
     }
 
-    /** Fee Juice bridged to [owner] from Ethereum, claimed or not (none where the network has no Ethereum side). */
-    suspend fun feeJuiceDeposits(owner: String): List<FeeJuiceDeposit> =
-        json.decodeFromJsonElement(caller.call("feeJuiceDeposits", buildJsonObject { put("owner", owner) }).jsonObject["deposits"]!!)
+    /**
+     * Fee Juice bridged to [owner] from Ethereum, claimed or not (none where the network has no Ethereum side). The PXE
+     * knows the public secrets; [secrets] are the ones the user entered for other deposits.
+     */
+    suspend fun feeJuiceDeposits(owner: String, secrets: List<String> = emptyList()): List<FeeJuiceDeposit> {
+        val p = buildJsonObject { put("owner", owner); putJsonArray("secrets") { secrets.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } } }
+        return json.decodeFromJsonElement(caller.call("feeJuiceDeposits", p).jsonObject["deposits"]!!)
+    }
 
     /** Claims [deposit] for an active [owner]; the transaction pays its fee with the Fee Juice it claims. */
     suspend fun claimFeeJuice(owner: String, deposit: FeeJuiceDeposit): String =
         field("claimFeeJuice", buildJsonObject { put("owner", owner); put("claim", claimJson(deposit)) }, "txHash")
 
-    private fun claimJson(d: FeeJuiceDeposit) = buildJsonObject { put("amount", d.amount); put("leafIndex", d.leafIndex) }
+    private fun claimJson(d: FeeJuiceDeposit) = buildJsonObject {
+        put("amount", d.amount); put("leafIndex", d.leafIndex); put("secret", d.secret ?: throw PxeException("this deposit's claim secret is unknown"))
+    }
 
     suspend fun waitForTx(txHash: String): Receipt = typed("waitForTx", params("txHash" to txHash))
 

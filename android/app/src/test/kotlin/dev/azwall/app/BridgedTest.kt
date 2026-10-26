@@ -12,8 +12,8 @@ import org.junit.Test
 
 class BridgedTest {
     private val network = NetworkInfo("n", "N", "6", "6", "h", "v6", true)
-    private fun deposit(amount: String, ready: Boolean, claimed: Boolean = false) =
-        FeeJuiceDeposit(amount, "0xm", "1", ours = true, ready = ready, claimed = claimed)
+    private fun deposit(amount: String, ready: Boolean, claimed: Boolean = false, ours: Boolean = true) =
+        FeeJuiceDeposit(amount, "0xm", "1", ours = ours, ready = ready, claimed = claimed)
     private fun state(deployed: Boolean?, vararg d: FeeJuiceDeposit) =
         SessionState(network, accounts = listOf(AccountView("A", "0xa", "k", deployed)), selected = "0xa", deposits = d.toList())
 
@@ -29,5 +29,13 @@ class BridgedTest {
     fun aDepositOnItsWayIsSaidAndAClaimedOneIsNot() {
         assertEquals(Bridged("2 FJ arriving from Ethereum", claim = false), bridged(state(true, deposit("2000000000000000000", ready = false))))
         assertNull(bridged(state(true, deposit("1", ready = true, claimed = true))))
+    }
+
+    @Test
+    fun aDepositWithAnUnknownSecretAsksForIt() {
+        val b = bridged(state(true, deposit("3000000000000000000", ready = false, ours = false)))!!
+        assertEquals("3 FJ bridged with your own secret", b.text)
+        assertEquals(true, b.askSecret)
+        assertEquals(false, b.claim)
     }
 }
