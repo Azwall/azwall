@@ -46,3 +46,16 @@ fn every_network_has_a_matching_pxe_bundle() {
         }
     }
 }
+
+/// Test networks have a Sponsored FPC; mainnet has none: declared sponsored there, every transaction would fail.
+#[test]
+fn only_test_networks_are_sponsored() {
+    use azwall_core::network::FeeMode;
+    let registry = Registry::from_json(REGISTRY).unwrap();
+    for network in &registry.networks {
+        let mainnet = network.expected.l1_chain_id == 1;
+        let expected = if mainnet { FeeMode::FeeJuice } else { FeeMode::Sponsored };
+        assert_eq!(network.fees, expected, "{}", network.id);
+    }
+    assert!(registry.networks.iter().any(|n| n.id == "mainnet-v6"), "mainnet v6 is shipped");
+}
