@@ -10,6 +10,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
 import { trustFeePayers } from './dapp/calls';
+import { type L1Params, l1Client } from './fee_juice';
 import { type FeeMode, feeModeOf } from './fees';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
@@ -28,6 +29,8 @@ export type NetworkParams = {
   aztec: string;
   fees: FeeMode;
   expected: { l1ChainId: number; rollupVersion: number; vkTreeRoot?: string; protocolContractsHash?: string };
+  /** The network's Ethereum side, where bridged Fee Juice is found (fee_juice.ts). */
+  l1?: L1Params;
 };
 
 export type NetworkCheck = {
@@ -196,6 +199,11 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   if (wallet.fees === 'sponsored') await wallet.registerContract(fpc.instance, fpc.artifact);
   else log('wallet', 'no Sponsored FPC on this network: fees are paid with the account\'s Fee Juice');
   trustFeePayers(wallet.fees === 'sponsored' ? [fpc.instance.address.toString()] : []);
+  // The portal comes from the node, which the checks above matched with the registry.
+  if (network.l1) {
+    const portal = l1ContractAddresses.feeJuicePortalAddress.toString() as `0x${string}`;
+    wallet.bridge = { client: l1Client(network.l1), portal, fromBlock: BigInt(network.l1.portalFromBlock), l1ChainId: network.expected.l1ChainId };
+  }
   log('wallet', `PXE ready on ${network.id}: node ${check.nodeVersion}, block ${check.blockNumber}`);
   return { wallet, check: { ...check, fees: wallet.fees } };
 }

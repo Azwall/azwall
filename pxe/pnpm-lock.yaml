@@ -243,6 +243,9 @@ importers:
       process:
         specifier: 0.11.10
         version: 0.11.10
+      viem:
+        specifier: 2.57.1
+        version: 2.57.1(typescript@7.0.2)(zod@4.4.3)
     devDependencies:
       typescript:
         specifier: 7.0.2

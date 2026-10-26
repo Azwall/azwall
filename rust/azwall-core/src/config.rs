@@ -17,6 +17,9 @@ pub struct ResolvedNetwork {
     #[serde(flatten)]
     pub spec: NetworkSpec,
     pub rpc_url: String,
+    /// The Ethereum endpoint for the network's Fee Juice deposits: `.env` first, then the registry's `l1.rpc`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub l1_rpc_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,7 +43,23 @@ impl ResolvedNetwork {
             "aztec": self.spec.aztec,
             "expected": self.spec.expected,
             "fees": self.spec.fees,
+            // Without it the wallet does not look for bridged Fee Juice.
+            "l1": self.l1_rpc_url.as_ref().zip(self.spec.l1.as_ref()).map(|(url, l1)| serde_json::json!({
+                "rpcUrl": url,
+                "portalFromBlock": l1.portal_from_block,
+            })),
         })
+    }
+}
+
+/// A network's Ethereum endpoint: `.env` first, then the registry's; none when the registry declares no `l1`.
+fn l1_rpc(spec: &NetworkSpec, env: &EnvMap) -> Result<Option<String>> {
+    let Some(l1) = &spec.l1 else { return Ok(None) };
+    let key = spec.l1_rpc_env_key();
+    match dotenv::non_empty(env, &key) {
+        Some(url) if !is_http_url(url) => Err(CoreError::Config(format!("{key} must be an http(s) URL"))),
+        Some(url) => Ok(Some(url.to_string())),
+        None => Ok(Some(l1.rpc.clone())),
     }
 }
 
@@ -54,7 +73,11 @@ impl AppConfig {
             let key = spec.rpc_env_key();
             let url = dotenv::non_empty(env, &key).or(spec.default_rpc.as_deref());
             match url {
-                Some(url) if is_http_url(url) => networks.push(ResolvedNetwork { spec: spec.clone(), rpc_url: url.to_string() }),
+                Some(url) if is_http_url(url) => networks.push(ResolvedNetwork {
+                    spec: spec.clone(),
+                    rpc_url: url.to_string(),
+                    l1_rpc_url: l1_rpc(spec, env)?,
+                }),
                 Some(_) => return Err(CoreError::Config(format!("{key} must be an http(s) URL"))),
                 None => unavailable.push(spec.id.clone()),
             }
@@ -103,7 +126,8 @@ mod tests {
       "default": "net-a",
       "networks": [
         { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0", "pxe": "v6",
-          "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 }, "fees": "sponsored" },
+          "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 }, "fees": "sponsored",
+          "l1": { "rpc": "https://eth.example", "portalFromBlock": 42 } },
         { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
           "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
       ]
@@ -167,6 +191,20 @@ mod tests {
         assert_eq!(params["fees"], "sponsored");
         // Undeclared, a network has no sponsor: its accounts pay with Fee Juice.
         assert_eq!(config.network("net-b").unwrap().pxe_open_params(3)["fees"], "feeJuice");
+    }
+
+    #[test]
+    fn the_ethereum_side_reaches_the_pxe_from_env_or_registry() {
+        let registry = Registry::from_json(REGISTRY).unwrap();
+        let config = AppConfig::resolve(&registry, &env(&[("AZWALL_RPC_NET_B", "https://b.example")])).unwrap();
+        let l1 = &config.network("net-a").unwrap().pxe_open_params(3)["l1"];
+        assert_eq!(l1["rpcUrl"], "https://eth.example");
+        assert_eq!(l1["portalFromBlock"], 42);
+        // A network that declares no Ethereum side does not look for bridged Fee Juice.
+        assert!(config.network("net-b").unwrap().pxe_open_params(3)["l1"].is_null());
+        let keyed = AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "https://my-eth.example/k")])).unwrap();
+        assert_eq!(keyed.network("net-a").unwrap().pxe_open_params(3)["l1"]["rpcUrl"], "https://my-eth.example/k");
+        assert!(AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "ftp://x")])).is_err());
     }
 
     #[test]

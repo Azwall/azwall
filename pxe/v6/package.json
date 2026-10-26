@@ -10,7 +10,6 @@
     "typecheck": "node ../scripts/sync-host.mjs && tsc -p ."
   },
   "dependencies": {
-    "@azwall/pxe-shared": "workspace:*",
     "@aztec-foundation/bb.js": "6.0.0",
     "@aztec-foundation/noir-acvm_js": "6.0.0",
     "@aztec-foundation/noir-noirc_abi": "6.0.0",
@@ -30,8 +29,10 @@
     "@aztec-labs/stdlib": "6.0.0",
     "@aztec-labs/wallet-sdk": "6.0.0",
     "@aztec-labs/wallets": "6.0.0",
+    "@azwall/pxe-shared": "workspace:*",
     "buffer": "6.0.3",
-    "process": "0.11.10"
+    "process": "0.11.10",
+    "viem": "2.57.1"
   },
   "devDependencies": {
     "typescript": "7.0.2",

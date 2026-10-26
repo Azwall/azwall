@@ -18,6 +18,9 @@ fn env_example_declares_a_key_for_every_network() {
     let env = dotenv::parse(ENV_EXAMPLE).unwrap();
     for network in &registry.networks {
         assert!(env.contains_key(&network.rpc_env_key()), "{} missing from .env.example", network.rpc_env_key());
+        if network.l1.is_some() {
+            assert!(env.contains_key(&network.l1_rpc_env_key()), "{} missing from .env.example", network.l1_rpc_env_key());
+        }
     }
 }
 

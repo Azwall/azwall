@@ -16,6 +16,10 @@
         "vkTreeRoot": "0x22fff5de6ce590153df4468f7f0b152188a803d91b3c9c648b91d93d5913f219",
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
       },
+      "l1": {
+        "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+        "portalFromBlock": 11989021
+      },
       "fees": "sponsored",
       "dapps": [
         {
@@ -48,6 +52,10 @@
         "rollupVersion": 2070860440,
         "vkTreeRoot": "0x22fff5de6ce590153df4468f7f0b152188a803d91b3c9c648b91d93d5913f219",
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
+      },
+      "l1": {
+        "rpc": "https://ethereum-rpc.publicnode.com",
+        "portalFromBlock": 26277869
       },
       "dapps": [
         {

@@ -21,6 +21,7 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embed
 
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
+import type { FeeJuiceBridge } from './fee_juice';
 import type { FeeMode } from './fees';
 import { log } from './log';
 import type { CachedStore } from './store';
@@ -95,6 +96,8 @@ export class AzwallWallet extends EmbeddedWallet {
   stores: CachedStore[] = [];
   /** Set at open (fees.ts): without a sponsor, accounts pay with their own Fee Juice. */
   fees: FeeMode = 'sponsored';
+  /** Where Fee Juice bridged to the accounts is found; none when the network declares no Ethereum side. */
+  bridge?: FeeJuiceBridge;
 
   constructor(...args: ConstructorParameters<typeof EmbeddedWallet>) {
     super(...args);

@@ -63,6 +63,19 @@ pub struct NetworkSpec {
     /// dApps the browser's start page suggests on this network: a dApp works with one Aztec version only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dapps: Vec<KnownDapp>,
+    /// The network's Ethereum side, where the wallet finds Fee Juice bridged to its accounts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub l1: Option<L1Spec>,
+}
+
+/// Where a network's Ethereum side is read: the deposits its Fee Juice portal received for an address.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct L1Spec {
+    /// Public Ethereum JSON-RPC endpoint used when `.env` sets none.
+    pub rpc: String,
+    /// The block the network's Fee Juice portal was deployed in: no deposit for it exists before.
+    pub portal_from_block: u64,
 }
 
 /// A token a network's registry entry lists: what the wallet needs to show it before asking the chain.
@@ -87,6 +100,11 @@ impl NetworkSpec {
     /// The `.env` key holding this network's RPC URL: `testnet-v6` → `AZWALL_RPC_TESTNET_V6`.
     pub fn rpc_env_key(&self) -> String {
         rpc_env_key(&self.id)
+    }
+
+    /// The `.env` key holding this network's Ethereum RPC URL: `testnet-v6` → `AZWALL_L1_RPC_TESTNET_V6`.
+    pub fn l1_rpc_env_key(&self) -> String {
+        format!("AZWALL_L1_RPC_{}", self.id.to_ascii_uppercase().replace('-', "_"))
     }
 
     /// Major version of the Aztec client, which must match the node's.
@@ -176,6 +194,9 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
         if !address_ok || t.symbol.trim().is_empty() || t.name.trim().is_empty() || t.decimals > 36 {
             return bad(&format!("token '{}' needs a 0x + 64 hex address, a name, a symbol and at most 36 decimals", t.symbol));
         }
+    }
+    if n.l1.as_ref().is_some_and(|l1| !is_http_url(&l1.rpc)) {
+        return bad("l1.rpc must be an http(s) URL");
     }
     for d in &n.dapps {
         if d.name.trim().is_empty() || !d.url.starts_with("https://") || !is_http_url(&d.url) {
