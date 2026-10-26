@@ -4,7 +4,7 @@ import { NO_FROM } from '@aztec/aztec.js/account';
 import { NO_WAIT } from '@aztec/aztec.js/contracts';
 import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
 import { getFeeJuiceBalance } from '@aztec/aztec.js/utils';
-import { Fq } from '@aztec/aztec.js/fields';
+import { Fq, Fr } from '@aztec/aztec.js/fields';
 import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, int, object, str, strings } from '@azwall/pxe-shared';
 
 import { DappGateway } from './dapp/gateway';
@@ -42,11 +42,13 @@ function l1Params(value: unknown): L1Params | undefined {
   return { rpcUrl: str(l1, 'rpcUrl'), portalFromBlock: int(l1, 'portalFromBlock') };
 }
 
-/** A deposit to claim, as native code names it: its amount and message leaf index (decimal strings). */
-function claimOf(p: Params): { amount: bigint; leafIndex: bigint } | undefined {
+type Claim = { amount: bigint; leafIndex: bigint; secret: Fr };
+
+/** A deposit to claim, as native code names it: amount and message leaf index (decimal strings), secret (hex). */
+function claimOf(p: Params): Claim | undefined {
   if (p.claim === undefined || p.claim === null) return undefined;
   const c = object(p, 'claim');
-  return { amount: amount(c, 'amount'), leafIndex: BigInt(str(c, 'leafIndex')) };
+  return { amount: amount(c, 'amount'), leafIndex: BigInt(str(c, 'leafIndex')), secret: Fr.fromString(str(c, 'secret')) };
 }
 
 function secrets(p: Params): AccountSecrets {
@@ -118,13 +120,14 @@ function feeHandlers(w: () => AzwallWallet): Record<string, (p: Params) => Promi
     // Fee Juice bridged to `owner` from Ethereum, claimed or not; none where the network has no Ethereum side.
     feeJuiceDeposits: async p => {
       const bridge = w().bridge;
-      return { deposits: bridge ? (await depositsFor(bridge, w().node, addr(str(p, 'owner')))).map(depositJson) : [] };
+      const entered = Array.isArray(p.secrets) ? p.secrets.map(x => Fr.fromString(String(x))) : [];
+      return { deposits: bridge ? (await depositsFor(bridge, w().node, addr(str(p, 'owner')), entered)).map(depositJson) : [] };
     },
     // Claims a deposit for an active account; its fee is paid with the Fee Juice the transaction claims.
     claimFeeJuice: async p => {
       const owner = addr(str(p, 'owner'));
       const claim = claimOf(p) ?? (() => { throw new Error('claim is required'); })();
-      const payload = await (await claimPayment(owner, claim.amount, claim.leafIndex)).getExecutionPayload();
+      const payload = await claimPayment(owner, claim.amount, claim.leafIndex, claim.secret).getExecutionPayload();
       const { txHash } = await w().sendTx(payload, { from: owner, wait: NO_WAIT });
       return { txHash: txHash.toString() };
     },
@@ -146,11 +149,11 @@ function dappHandlers(dapps: () => DappGateway | null): Record<string, (p: Param
  * transaction for Fee Juice bridged to a new account). Otherwise the Sponsored FPC pays where there is one, and
  * elsewhere the account pays with the Fee Juice it already holds (no payment method: self-paid).
  */
-async function deployAccount(wallet: AzwallWallet, acc: AccountSecrets, claim?: { amount: bigint; leafIndex: bigint }) {
+async function deployAccount(wallet: AzwallWallet, acc: AccountSecrets, claim?: Claim) {
   const manager = await wallet.addAccount(acc);
   const deploy = await manager.getDeployMethod();
   const sponsor = wallet.fees === 'sponsored' ? new SponsoredFeePaymentMethod((await sponsoredFpc()).instance.address) : undefined;
-  const paymentMethod = claim ? await claimPayment(manager.address, claim.amount, claim.leafIndex) : sponsor;
+  const paymentMethod = claim ? claimPayment(manager.address, claim.amount, claim.leafIndex, claim.secret) : sponsor;
   const { txHash } = await deploy.send({ from: NO_FROM, fee: paymentMethod && { paymentMethod }, wait: NO_WAIT });
   return { txHash: txHash.toString() };
 }

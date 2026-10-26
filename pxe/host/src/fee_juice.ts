@@ -1,8 +1,9 @@
 // Fee Juice bridged from Ethereum. AZTEC deposited on the network's Fee Juice portal becomes Fee Juice once the
 // deposit's L1 → L2 message is claimed on Aztec, with the secret whose hash the deposit carries. The message is bound
-// to its recipient and amount: knowing the secret only lets someone credit the recipient. So the bridge deposits with
-// a secret anyone can derive from the recipient (claimSecret), and the wallet finds its deposits on Ethereum (the
-// recipient is an indexed field of the portal's event) and claims them, with nothing to import or keep.
+// to its recipient and amount: knowing the secret only lets someone credit the recipient. So deposits can use a public
+// secret: 0 by default (its hash is a constant anyone can paste on Etherscan), or the one derived from the recipient
+// (claimSecret). The wallet finds its deposits on Ethereum (the recipient is an indexed field of the portal's event)
+// and claims those whose secret it knows: these two, and any the user entered for a deposit made otherwise.
 import { DomainSeparator } from '@aztec/constants';
 import { poseidon2Hash, poseidon2HashWithSeparator } from '@aztec/foundation/crypto/poseidon';
 import { Fr } from '@aztec/foundation/curves/bn254';
@@ -24,8 +25,10 @@ export type Deposit = {
   leafIndex: bigint;
   l1Tx: string;
   l1Block: bigint;
-  /** Deposited with the recipient's derived secret: the wallet can claim it. */
+  /** The wallet knows its secret (a public one, or one the user entered): it can claim it. */
   ours: boolean;
+  /** That secret, hex: claiming needs it. */
+  secret?: string;
   /** Its message is in the Aztec chain: it can be claimed now. */
   ready: boolean;
   claimed: boolean;
@@ -45,6 +48,11 @@ export const DEPOSIT_EVENT = parseAbiItem(
 
 /** Public nodes cap the blocks one log query may span. */
 const LOG_SPAN = 50_000n;
+
+/** The secrets the wallet tries for deposits to `recipient`: 0 (the default), the derived one, then the user's. */
+export async function knownSecrets(recipient: AztecAddress, entered: Fr[] = []): Promise<Fr[]> {
+  return [Fr.ZERO, await claimSecret(recipient), ...entered];
+}
 
 /** Every deposit the portal received for `recipient` from `fromBlock` on, oldest first. */
 export async function depositsTo(client: Pick<PublicClient, 'getLogs' | 'getBlockNumber'>, portal: `0x${string}`, recipient: AztecAddress, fromBlock: bigint) {
@@ -83,16 +91,18 @@ export async function feeJuiceDeposits(
   portal: `0x${string}`,
   recipient: AztecAddress,
   fromBlock: bigint,
+  entered: Fr[] = [],
 ): Promise<Deposit[]> {
-  const secret = await claimSecret(recipient);
-  const ourHash = (await computeSecretHash(secret)).toString();
+  const secrets = await knownSecrets(recipient, entered);
+  const byHash = new Map(await Promise.all(secrets.map(async s => [(await computeSecretHash(s)).toString().toLowerCase(), s] as const)));
   const logs = await depositsTo(l1, portal, recipient, fromBlock);
   return Promise.all(
     logs.map(async log => {
       const a = log.args as { amount: bigint; secretHash: string; key: string; index: bigint };
-      const ours = a.secretHash.toLowerCase() === ourHash.toLowerCase();
-      const state = ours ? await onAztec(node, Fr.fromHexString(a.key), secret) : { ready: false, claimed: false };
-      return { amount: a.amount, messageHash: a.key, leafIndex: a.index, l1Tx: log.transactionHash ?? '', l1Block: log.blockNumber ?? 0n, ours, ...state };
+      const secret = byHash.get(a.secretHash.toLowerCase());
+      const state = secret ? await onAztec(node, Fr.fromHexString(a.key), secret) : { ready: false, claimed: false };
+      const base = { amount: a.amount, messageHash: a.key, leafIndex: a.index, l1Tx: log.transactionHash ?? '', l1Block: log.blockNumber ?? 0n };
+      return { ...base, ours: secret !== undefined, secret: secret?.toString(), ...state };
     }),
   );
 }
@@ -106,15 +116,15 @@ export function l1Client(params: L1Params): PublicClient {
 export type FeeJuiceBridge = { client: PublicClient; portal: `0x${string}`; fromBlock: bigint; l1ChainId: number };
 
 /** The deposits for `recipient`, after checking the Ethereum endpoint is on the network's chain. */
-export async function depositsFor(bridge: FeeJuiceBridge, node: NodeReads, recipient: AztecAddress): Promise<Deposit[]> {
+export async function depositsFor(bridge: FeeJuiceBridge, node: NodeReads, recipient: AztecAddress, entered: Fr[] = []): Promise<Deposit[]> {
   const chain = await bridge.client.getChainId();
   if (chain !== bridge.l1ChainId) throw new Error(`the Ethereum endpoint is on chain ${chain}, the network on ${bridge.l1ChainId}`);
-  return feeJuiceDeposits(bridge.client, node, bridge.portal, recipient, bridge.fromBlock);
+  return feeJuiceDeposits(bridge.client, node, bridge.portal, recipient, bridge.fromBlock, entered);
 }
 
 /** Pays a transaction's fee with Fee Juice claimed in it: the deposit `leafIndex` of `amount` to `owner`. */
-export async function claimPayment(owner: AztecAddress, amount: bigint, leafIndex: bigint): Promise<FeeJuicePaymentMethodWithClaim> {
-  return new FeeJuicePaymentMethodWithClaim(owner, { claimAmount: amount, claimSecret: await claimSecret(owner), messageLeafIndex: leafIndex });
+export function claimPayment(owner: AztecAddress, amount: bigint, leafIndex: bigint, secret: Fr): FeeJuicePaymentMethodWithClaim {
+  return new FeeJuicePaymentMethodWithClaim(owner, { claimAmount: amount, claimSecret: secret, messageLeafIndex: leafIndex });
 }
 
 /** A deposit as native code reads it: amounts and indexes as decimal strings. */

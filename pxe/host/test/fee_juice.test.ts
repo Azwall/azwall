@@ -75,6 +75,21 @@ describe('bridged Fee Juice', () => {
     expect(found[0].messageHash).toBe(ready.args.key);
   });
 
+  it('claims deposits made with secret 0 (the default) or a secret the user entered, and says which secret', async () => {
+    const zeroHash = (await computeSecretHash(Fr.ZERO)).toString();
+    expect(zeroHash).toBe('0x1f8eff65d91ed781c2e7a28a2ff99b7f7506b7293121b5ffcf3cd339c84d2250');
+    const entered = new Fr(424242n);
+    const byZero = await log(1n, 1n, 10n, zeroHash);
+    const byEntered = await log(2n, 2n, 11n, (await computeSecretHash(entered)).toString());
+    const inTree = new Map([[byZero.args.key, 1n], [byEntered.args.key, 2n]]);
+    const without = await feeJuiceDeposits(l1([byZero, byEntered]) as never, aztec(inTree, []) as never, portal, me, 0n);
+    expect(without.map(d => d.ours)).toEqual([true, false]);
+    expect(without[0].secret).toBe(Fr.ZERO.toString());
+    const withIt = await feeJuiceDeposits(l1([byZero, byEntered]) as never, aztec(inTree, []) as never, portal, me, 0n, [entered]);
+    expect(withIt.map(d => [d.ours, d.ready])).toEqual([[true, true], [true, true]]);
+    expect(withIt[1].secret).toBe(entered.toString());
+  });
+
   it('refuses an Ethereum endpoint on another chain', async () => {
     const bridge = { client: l1([], 1n, 11155111) as never, portal: portal as `0x${string}`, fromBlock: 0n, l1ChainId: 1 };
     await expect(depositsFor(bridge, aztec(new Map(), []) as never, me)).rejects.toThrow('chain 11155111');
