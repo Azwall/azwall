@@ -27,6 +27,12 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    if session.storeUnreadable {
+                        Notice(icon: "exclamationmark.triangle", title: "Wallet data for \(session.network.label) could not be read",
+                               text: "The tokens and history this phone kept for this network could not be read, so they start over; the unreadable copy was kept aside. Your accounts and funds are not affected: they live on chain.",
+                               action: "OK", onAction: session.acknowledgeStoreUnreadable)
+                            .padding(.horizontal, 16)
+                    }
                     if session.chainReset {
                         // The network was redeployed under the same name: what the wallet knew of the old chain is set aside.
                         Notice(icon: "info.circle", title: "\(session.network.label) was reset",

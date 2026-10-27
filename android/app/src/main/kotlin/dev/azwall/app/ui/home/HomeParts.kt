@@ -141,6 +141,16 @@ internal fun ChainResetNotice(network: String, onOk: () -> Unit) = Notice(
     Icons.Outlined.Info,
 )
 
+/** What this phone kept for the network could not be read: the tokens and history start over. */
+@Composable
+internal fun StoreUnreadableNotice(network: String, onOk: () -> Unit) = Notice(
+    "Wallet data for $network could not be read",
+    "The tokens and history this phone kept for this network could not be read, so they start over; the unreadable copy was kept aside. Your accounts and funds are not affected: they live on chain.",
+    "OK",
+    onOk,
+    Icons.Outlined.Info,
+)
+
 @Composable
 private fun Notice(title: String, body: String, action: String?, onAction: () -> Unit, icon: ImageVector? = null) {
     Panel(Modifier.padding(horizontal = 16.dp)) {

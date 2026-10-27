@@ -70,21 +70,28 @@ public final class WalletStore: @unchecked Sendable {
     private let lock = NSLock()
     private var data: StoredNetwork
 
+    /// The file could not be read: the store started over, and the user is told (WalletSession.storeUnreadable).
+    public let startedOver: Bool
+
     public init(directory: URL, networkId: String) {
         self.networkId = networkId
         file = directory.appendingPathComponent("wallet-\(networkId).json")
-        data = Self.read(file)
+        (data, startedOver) = Self.read(file)
     }
 
-    /// None yet is a first opening; one that cannot be read starts over too, but someone must be able to tell why
-    /// the tokens and history are gone.
-    private static func read(_ file: URL) -> StoredNetwork {
-        guard FileManager.default.fileExists(atPath: file.path) else { return StoredNetwork() }
+    /// None yet is a first opening. One that cannot be read starts over too, after being moved aside: the next save
+    /// would otherwise overwrite what it still holds, and someone must be able to tell why tokens and history are gone.
+    private static func read(_ file: URL) -> (StoredNetwork, Bool) {
+        guard FileManager.default.fileExists(atPath: file.path) else { return (StoredNetwork(), false) }
         do {
-            return try JSONDecoder().decode(StoredNetwork.self, from: Data(contentsOf: file))
+            return (try JSONDecoder().decode(StoredNetwork.self, from: Data(contentsOf: file)), false)
         } catch {
             DiagnosticLog.shared.report("store", error)
-            return StoredNetwork()
+            let aside = file.appendingPathExtension("unreadable")
+            // An older unreadable copy gives way to this one; one that cannot be moved is overwritten by the next save.
+            try? FileManager.default.removeItem(at: aside)
+            do { try FileManager.default.moveItem(at: file, to: aside) } catch { DiagnosticLog.shared.report("store", error) }
+            return (StoredNetwork(), true)
         }
     }
 

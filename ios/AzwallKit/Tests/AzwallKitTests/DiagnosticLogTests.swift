@@ -49,7 +49,13 @@ struct DiagnosticLogTests {
         let networkId = "broken-\(UUID().uuidString)"
         try Data("not json".utf8).write(to: directory.appendingPathComponent("wallet-\(networkId).json"))
         let before = DiagnosticLog.shared.entries.filter { $0.contains("[store]") }.count
-        #expect(WalletStore(directory: directory, networkId: networkId).tokens.isEmpty)
+        let store = WalletStore(directory: directory, networkId: networkId)
+        #expect(store.tokens.isEmpty)
+        #expect(store.startedOver)
         #expect(DiagnosticLog.shared.entries.filter { $0.contains("[store]") }.count > before)
+        // Set aside rather than overwritten by the next save: what it holds can still be looked at.
+        let aside = directory.appendingPathComponent("wallet-\(networkId).json.unreadable")
+        #expect(try String(contentsOf: aside, encoding: .utf8) == "not json")
+        #expect(!WalletStore(directory: directory, networkId: networkId).startedOver)
     }
 }

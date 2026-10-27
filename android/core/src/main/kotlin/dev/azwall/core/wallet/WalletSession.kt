@@ -91,6 +91,8 @@ data class SessionState(
     val deposits: List<FeeJuiceDeposit> = emptyList(),
     /** The network runs a new chain since last time (WalletStore.moveTo): shown until the user acknowledges it. */
     val chainReset: Boolean = false,
+    /** What this phone kept for the network could not be read and started over (WalletStore.startedOver). */
+    val storeUnreadable: Boolean = false,
 ) {
     val account: AccountView? get() = accounts.firstOrNull { it.address == selected }
 
@@ -161,6 +163,7 @@ class WalletSession(
 
     /** Starts the PXE, opens the network and registers every account. Failures land in [state]. */
     suspend fun open() {
+        if (store.startedOver) _state.update { it.copy(storeUnreadable = true) }
         store.failInterrupted()
         store.seed(network.knownTokens)
         Snapshots.restore(_state.value, contents, store)?.let { restored -> _state.value = restored }
@@ -203,6 +206,8 @@ class WalletSession(
     }
 
     fun acknowledgeChainReset() = _state.update { it.copy(chainReset = false) }
+
+    fun acknowledgeStoreUnreadable() = _state.update { it.copy(storeUnreadable = false) }
 
     /**
      * The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory

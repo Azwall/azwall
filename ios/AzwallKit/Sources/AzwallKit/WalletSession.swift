@@ -55,6 +55,9 @@ public final class WalletSession {
     public internal(set) var stale = false
     /// The network runs a new chain since last time (WalletStore.move): shown until the user acknowledges it.
     public internal(set) var chainReset = false
+    /// What this phone kept for the network could not be read and started over (WalletStore.startedOver): shown until
+    /// the user acknowledges it.
+    public internal(set) var storeUnreadable = false
     /// What runs in the background right now, for the status line (nil when idle).
     public internal(set) var task: BackgroundTask?
     /// The browser's link to the PXE host's dApp gateway.
@@ -139,6 +142,7 @@ public final class WalletSession {
         self.contents = contents
         self.network = network
         store = WalletStore(directory: storeDirectory, networkId: network.id)
+        storeUnreadable = store.startedOver
         dapps.session = self
     }
 
@@ -201,6 +205,8 @@ public final class WalletSession {
     }
 
     public func acknowledgeChainReset() { chainReset = false }
+
+    public func acknowledgeStoreUnreadable() { storeUnreadable = false }
 
     /// The app goes to the background, where it may be killed without notice: the PXE writes what it holds in memory
     /// now rather than at its next debounce.

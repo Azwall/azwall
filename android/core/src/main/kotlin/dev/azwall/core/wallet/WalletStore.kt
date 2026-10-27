@@ -62,6 +62,10 @@ private data class StoredNetwork(
 class WalletStore(private val dir: File, private val networkId: String) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
     private val file get() = File(dir, "wallet-$networkId.json")
+
+    /** The file could not be read: the store started over. Declared before [data], whose [load] sets it. */
+    var startedOver = false
+        private set
     private var data: StoredNetwork = load()
 
     val tokens: List<TokenInfo> get() = data.tokens
@@ -161,12 +165,22 @@ class WalletStore(private val dir: File, private val networkId: String) {
     }
 
     /** No file yet is a new network; an unreadable one starts over too, but is reported: the wallet's history went with it. */
+    /**
+     * None yet is a first opening. One that cannot be read starts over too, after being moved aside (the next save would
+     * otherwise overwrite what it still holds), and [startedOver] tells the user (SessionState.storeUnreadable).
+     */
     private fun load(): StoredNetwork {
         if (!file.exists()) return StoredNetwork()
         // Reported: an unreadable file loses the stored history and tokens, which someone diagnosing it must know.
-        return runCatching { json.decodeFromString(StoredNetwork.serializer(), file.readText()) }
-            .onFailure { DiagnosticLog.shared.report("store", it) }
-            .getOrDefault(StoredNetwork())
+        return runCatching { json.decodeFromString(StoredNetwork.serializer(), file.readText()) }.getOrElse { e ->
+            DiagnosticLog.shared.report("store", e)
+            val aside = File(dir, "${file.name}.unreadable")
+            // An older unreadable copy gives way to this one; one that cannot be moved is overwritten by the next save.
+            aside.delete()
+            if (!file.renameTo(aside)) DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "store", "could not set ${file.name} aside")
+            startedOver = true
+            StoredNetwork()
+        }
     }
 
     private fun save(next: StoredNetwork) {
