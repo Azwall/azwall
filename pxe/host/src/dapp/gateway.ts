@@ -25,7 +25,7 @@ import { list, obj } from './json';
 import { confine, samePage } from './policy';
 import { rawCall } from './raw_call';
 
-const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.1.0' };
+const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.8.0' };
 
 export type ApprovalKind = 'connect' | 'verify' | 'capabilities' | 'transaction' | 'authwit';
 /**
