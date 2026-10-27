@@ -72,7 +72,7 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
     val proving by session.transactions.proving.collectAsStateWithLifecycle()
     val state by session.state.collectAsStateWithLifecycle()
-    val browser = rememberBrowser(session, vm.approvals)
+    val browser = rememberBrowser(session, vm.approvals, onProblem = vm::tell)
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
@@ -173,6 +173,7 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String)
     },
     onRefresh = { vm.run { it.refresh() } },
     onAcknowledgeReset = session::acknowledgeChainReset,
+    onAcknowledgeUnreadable = session::acknowledgeStoreUnreadable,
     onRemoveToken = session::removeToken,
     onCopied = {},
 )

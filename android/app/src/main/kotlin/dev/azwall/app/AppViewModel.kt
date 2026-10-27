@@ -208,6 +208,11 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         inSession(done, block)
     }
 
+    /** A message for the snackbar, from a screen that found a problem outside any action. */
+    fun tell(text: String) {
+        _message.value = text
+    }
+
     fun consumeMessage() {
         _message.value = null
     }

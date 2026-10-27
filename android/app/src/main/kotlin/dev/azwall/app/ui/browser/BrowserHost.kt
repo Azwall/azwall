@@ -78,7 +78,7 @@ private fun Item(icon: ImageVector, label: String, selected: Boolean, onClick: (
  * (navigation, closed tab), its pending requests are rejected and its sessions closed.
  */
 @Composable
-fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTabs {
+fun rememberBrowser(session: WalletSession, approvals: DappApprovals, onProblem: (String) -> Unit = {}): BrowserTabs {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val current by rememberUpdatedState(session)
@@ -95,6 +95,8 @@ fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTa
         val script = withContext(Dispatchers.IO) {
             runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.onFailure { DiagnosticLog.shared.report("browser", it) }.getOrNull()
         }
+        // A build without it: sites open, but no dApp can reach the wallet, which the user must know.
+        if (script == null) onProblem("Apps cannot connect to the wallet on ${session.network.label}: this version of Azwall lacks the connection script for it. Update the app.")
         if (script != null && BrowserTabs.supported()) browser.attach(session.dapps, script, scope)
     }
     return browser

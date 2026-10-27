@@ -196,9 +196,10 @@ public final class DappLink {
         _ = try? await session?.client.callRaw("dappClosePage", .object(["tabId": .number(Double(tabId))]))
     }
 
-    public func disconnect(_ sessionId: String) async {
-        guard let session else { return }
-        _ = await DiagnosticLog.shared.attempt("dapps") { try await session.client.callRaw("dappDisconnect", .object(["sessionId": .string(sessionId)])) }
+    /// Throws when the gateway could not end the session: the site stays connected, and the user must be told.
+    public func disconnect(_ sessionId: String) async throws {
+        guard let session else { throw PxeError("the wallet is locked") }
+        _ = try await session.client.callRaw("dappDisconnect", .object(["sessionId": .string(sessionId)]))
     }
 
     /// Handles the gateway's events; false for the others.
