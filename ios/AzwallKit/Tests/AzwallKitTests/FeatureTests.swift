@@ -198,6 +198,20 @@ struct SnapshotTests {
         #expect(second.account?.deployed == true)
         #expect(second.tokens.first?.balance?.private == "2500000")
         #expect(second.primary == "0xt", "the top token too, as on Android")
+        #expect(second.feeJuice == "1500000000000000000")
+    }
+
+    @Test func anAccountShowsAtTheNextStartEvenBeforeItsFirstRefresh() async throws {
+        // A first start: the PXE gives the account's address, and the refresh fails before anything is read, so no
+        // snapshot of a refresh is saved.
+        let pxe = FakePxe()
+        pxe.failBalances = true
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        await (try SessionTests().session(pxe, dir: dir)).open()
+        let second = try SessionTests().session(pxe, dir: dir)
+        second.restoreSnapshot()
+        #expect(second.account?.address == "addr-abab")
+        #expect(second.stale)
     }
 }
 

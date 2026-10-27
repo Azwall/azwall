@@ -157,6 +157,7 @@ public final class WalletSession {
                 views.append(view)
             }
             accounts = views
+            rememberAccounts(views)
             selected = selected.flatMap { sel in views.contains { $0.address == sel } ? sel : nil } ?? views.first?.address
             // The PXE store can start over (a pool damaged by a crash is set aside): register followed tokens again.
             try? await running.client.registerTokens(store.tokens.map(\.address))
@@ -250,6 +251,7 @@ public final class WalletSession {
         // Read on every network: it is the first token shown, and what pays fees where there is no sponsor.
         if current(), let balance = try? await client.feeJuiceBalance(account.address), current() {
             feeJuice = balance
+            saveFeeJuice(account, balance)
         }
     }
 

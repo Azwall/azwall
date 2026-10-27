@@ -6,6 +6,8 @@ import Testing
 /// A PXE host in memory: addresses derive from keys, balances and deployment are settable.
 final class FakePxe: PxeCaller, @unchecked Sendable {
     var deployed = false
+    /// The node's reads (deployment, balances) fail, as with an unreachable node.
+    var failBalances = false
     /// What the network declares: "sponsored", or "feeJuice" (the account pays).
     var fees = "sponsored"
     /// The rollup version the node reports: a new one means the network was redeployed.
@@ -34,8 +36,11 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
             return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":\#(rollup),"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
         case "feeJuiceBalance": return .object(["balance": .string("1500000000000000000")])
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
-        case "accountState": return .object(["deployed": .bool(deployed)])
+        case "accountState":
+            if failBalances { throw PxeError("node unreachable") }
+            return .object(["deployed": .bool(deployed)])
         case "balances":
+            if failBalances { throw PxeError("node unreachable") }
             let first = p("owner") == "addr-abab"
             if first && holdBalances { for await _ in released { break } }
             return try JSONValue.parse(#"[{"token":"0xt","private":"\#(first ? "2500000" : "7000000")","public":"0"}]"#)
