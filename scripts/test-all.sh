@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every test suite available on this machine, plus the code size rules.
+# Runs every test suite available on this machine, plus the code size rules and the swallowed-error check.
 #   Rust:    cargo test (live RPC tests stay ignored; add LIVE=1 to run them against .env)
 #   PXE:     vitest and typecheck of the JavaScript PXE hosts (pxe/)
 #   Android: Gradle unit tests (JVM)
@@ -9,6 +9,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
 scripts/check-limits.py
+scripts/check-swallowed.py
 cargo test --workspace
 if [ "${LIVE:-0}" = 1 ]; then
   cargo test -p azwall-core --test rpc_live -- --ignored --nocapture

@@ -10,6 +10,10 @@ multi-version design: [docs/architecture.md](docs/architecture.md).
   Kotlin, Swift). Split modules and extract helpers before reaching the limit.
   `scripts/check-limits.py` enforces both.
 - Match the surrounding style: doc comments on public items, comments explain *why*, not *what*.
+- No error dropped in silence: one the app carries on without is reported to the local diagnostic log
+  (`DiagnosticLog` on the apps, `log()` in the PXE host), shown to the user, or kept with a comment saying why
+  it is harmless. `scripts/check-swallowed.py` enforces it. No crash or analytics service: the log leaves the
+  device only when the user exports it.
 - Never edit generated code (`android/core/src/generated/`, `ios/AzwallRust/Sources/AzwallCoreFFI/generated/`,
   `assets/`, `jniLibs/`, `build/`, `vendor/`, `pxe/v*/src` and `pxe/v*/test` except `src/version.ts`): change
   the source (`rust/azwall-ffi`, `networks.json`, `.env`, `pxe/host`) and rerun the scripts in `scripts/`
