@@ -32,6 +32,9 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     /// This fake's own gate, so that tests running in parallel do not cancel each other's transactions.
     let gate = ProofGate()
     let (released, release) = AsyncStream<Void>.makeStream()
+    /// Holds every receipt until `releaseReceipts` yields: a transaction stays pending as long as a test needs it to.
+    var holdReceipts = false
+    let (receiptsReleased, releaseReceipts) = AsyncStream<Void>.makeStream()
 
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
         func p(_ k: String) -> String { params[k]?.stringValue ?? "" }
@@ -62,6 +65,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])
         case "waitForTx":
+            if holdReceipts { for await _ in receiptsReleased { break } }
             if let waitError { throw PxeError(waitError) }
             return .object(["txHash": .string(p("txHash")), "status": .string("proposed"), "blockNumber": .number(11)])
         case "txReceipt":
@@ -253,6 +257,9 @@ struct SessionTests {
 
     @Test func anAccountIsActivatedOnce() async throws {
         let pxe = FakePxe()
+        // Pending until the end: the fake node would otherwise confirm it in the background before the checks.
+        pxe.holdReceipts = true
+        defer { pxe.releaseReceipts.finish() }
         let s = try session(pxe)
         await s.open()
         try await s.deployAccount()
@@ -323,7 +330,8 @@ struct SessionTests {
         try await s.send(.shield, token: token, to: "ignored", amount: "10")
         #expect(pxe.sent.last?["to"] == .string("addr-abab"))
         #expect(s.proving == nil)
-        try await Task.sleep(for: .milliseconds(100))
+        // Confirmed in the background: waited for, not for a fixed time.
+        await eventually { s.activity.first?.status == .confirmed }
         #expect(s.activity.first?.status == .confirmed)
         #expect(s.activity.first?.blockNumber == 11)
     }
