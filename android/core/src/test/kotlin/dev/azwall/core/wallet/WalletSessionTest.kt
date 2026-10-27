@@ -51,6 +51,8 @@ private class FakePxe : PxeCaller {
     var failBalances = false
     /** The user's claim secrets each feeJuiceDeposits call carried. */
     val depositQueries = mutableListOf<List<String>>()
+    /** A secret and the deposits read once it is among the secrets tried, as a deposit made with it reads. */
+    var unlockedBy: Pair<String, String>? = null
     /** What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list). */
     var deposits = "[]"
     /** Base units of Fee Juice every account holds. */
@@ -87,8 +89,10 @@ private class FakePxe : PxeCaller {
             "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
             "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
             "feeJuiceDeposits" -> {
-                depositQueries += params["secrets"]!!.jsonArray.map { it.jsonPrimitive.content }
-                """{"deposits":$deposits}"""
+                val secrets = params["secrets"]!!.jsonArray.map { it.jsonPrimitive.content }
+                depositQueries += secrets
+                val unlocked = unlockedBy?.takeIf { it.first in secrets }?.second
+                """{"deposits":${unlocked ?: deposits}}"""
             }
             "deployAccount", "transfer", "claimFeeJuice" -> {
                 whileProving()
@@ -264,16 +268,20 @@ class WalletSessionTest {
 
     @Test
     fun aClaimSecretTheUserEntersIsKeptAndTriedOnTheDeposits() = runTest {
+        val secret = "0x" + "0".repeat(62) + "2a"
         pxe.deposits = """[{"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":false,"ready":false,"claimed":false}]"""
+        pxe.unlockedBy = secret to """[{"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":true,"ready":true,"claimed":false,"secret":"$secret"}]"""
         val s = session().apply { open() }
         assertEquals(1, s.state.value.locked.size)
-        s.addClaimSecret(" 0x2A \n")
-        val sent = pxe.depositQueries.last()
-        assertEquals(listOf("0x" + "0".repeat(62) + "2a"), sent)
+        // A typo opens nothing: said so, and not kept.
+        val wrong = runCatching { s.addClaimSecret("0x2b") }.exceptionOrNull()
+        assertTrue(wrong?.message!!.contains("matches none of the deposits"))
         assertTrue(runCatching { s.addClaimSecret("hello") }.isFailure)
-        // Kept: the next start tries it again.
+        s.addClaimSecret(" 0x2A \n")
+        assertEquals("9", s.state.value.claimable?.amount)
+        // Kept: the next start tries it again, and only it.
         s.refresh()
-        assertEquals(sent, pxe.depositQueries.last())
+        assertEquals(listOf(secret), pxe.depositQueries.last())
     }
 
     @Test

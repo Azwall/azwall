@@ -321,11 +321,17 @@ class WalletSession(
 
     /**
      * Remembers a claim secret the user entered for the selected account's bridge deposits (hex or decimal), and reads
-     * the deposits again: the one made with it becomes claimable. Throws on a value that is no field element.
+     * the deposits again: the one made with it becomes claimable. Throws on a value that is no field element, and on one
+     * that opens none of them, which is not kept.
      */
     suspend fun addClaimSecret(text: String) {
         val account = _state.value.selected ?: error("no account")
-        store.addClaimSecret(account, ClaimSecrets.normalize(text))
+        val secret = ClaimSecrets.normalize(text)
+        // Read with it before keeping it (a typo would otherwise pass in silence); a failed read throws rather than
+        // calling a good secret wrong.
+        val found = client.feeJuiceDeposits(account, store.claimSecrets(account) + secret)
+        require(found.any { it.secret?.lowercase() == secret }) { "This secret matches none of the deposits bridged to this account: check it and enter it again" }
+        store.addClaimSecret(account, secret)
         refreshFeeJuice(account)
     }
 

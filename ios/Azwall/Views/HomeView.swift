@@ -157,7 +157,13 @@ struct HomeView: View {
 
     private func useSecret(_ text: String) {
         Task {
-            do { try await session.addClaimSecret(text) } catch { model.message = error.localizedDescription }
+            do {
+                try await session.addClaimSecret(text)
+                // The secret was entered to claim: go on to it at once (an inactive account claims it by activating).
+                if session.account?.deployed == true, session.claimable != nil { reviewingClaim = true }
+            } catch {
+                model.message = error.localizedDescription
+            }
         }
     }
 

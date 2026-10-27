@@ -87,12 +87,20 @@ struct FeeJuiceClaimTests {
 
     @Test func anEnteredSecretIsKeptAndTriedOnTheDeposits() async throws {
         let pxe = FakePxe()
+        let secret = "0x" + String(repeating: "0", count: 62) + "ff"
+        pxe.deposits = #"[{"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":false,"ready":true,"claimed":false}]"#
+        pxe.unlockedBy = (secret, #"[{"amount":"9","messageHash":"0xm3","leafIndex":"9","ours":true,"ready":true,"claimed":false,"secret":""# + secret + #""}]"#)
         let s = try session(pxe)
         await s.open()
-        try await s.addClaimSecret("255")
-        let asked = pxe.calls.last { $0.0 == "feeJuiceDeposits" }?.1["secrets"]?.arrayValue?.compactMap(\.stringValue)
-        #expect(asked == ["0x" + String(repeating: "0", count: 62) + "ff"])
+        // A typo opens nothing: said so, and not kept.
+        do { try await s.addClaimSecret("254"); Issue.record("a wrong secret was taken") } catch {
+            #expect(error.localizedDescription.contains("matches none of the deposits"))
+        }
         await #expect(throws: PxeError.self) { try await s.addClaimSecret("not a secret") }
+        try await s.addClaimSecret("255")
+        #expect(s.claimable?.amount == "9")
+        let asked = pxe.calls.last { $0.0 == "feeJuiceDeposits" }?.1["secrets"]?.arrayValue?.compactMap(\.stringValue)
+        #expect(asked == [secret])
     }
 
     @Test func secretsAreNormalizedAndCheckedAgainstTheField() throws {

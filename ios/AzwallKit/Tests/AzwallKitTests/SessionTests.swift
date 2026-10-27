@@ -14,6 +14,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var feeJuice = "1500000000000000000"
     /// What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list).
     var deposits = "[]"
+    /// A secret and the deposits read once it is among the secrets tried, as a deposit made with it reads.
+    var unlockedBy: (secret: String, deposits: String)?
     /// The rollup version the node reports: a new one means the network was redeployed.
     var rollup = 2
     var failOpen: String?
@@ -39,7 +41,10 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
             if let failOpen { throw PxeError("open: \(failOpen)") }
             return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":\#(rollup),"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
         case "feeJuiceBalance": return .object(["balance": .string(feeJuice)])
-        case "feeJuiceDeposits": return .object(["deposits": try JSONValue.parse(deposits)])
+        case "feeJuiceDeposits":
+            let secrets = params["secrets"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let unlocked = unlockedBy.flatMap { secrets.contains($0.secret) ? $0.deposits : nil }
+            return .object(["deposits": try JSONValue.parse(unlocked ?? deposits)])
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState":
             if failBalances { throw PxeError("node unreachable") }

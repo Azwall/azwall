@@ -167,7 +167,15 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
         var claiming by rememberSaveable { mutableStateOf(false) }
         var askingSecret by rememberSaveable { mutableStateOf(false) }
         BalanceHero(state, actions.copy(onActivate = { reviewing = true }, onClaimFeeJuice = { claiming = true }, onEnterClaimSecret = { askingSecret = true }))
-        if (askingSecret) ClaimSecretDialog(onDismiss = { askingSecret = false }) { askingSecret = false; actions.onClaimSecret(it) }
+        if (askingSecret) {
+            ClaimSecretDialog(onDismiss = { askingSecret = false }) {
+                askingSecret = false
+                actions.onClaimSecret(it)
+                // The secret was entered to claim: the confirmation opens as soon as the deposit it opens is read (an
+                // inactive account claims it by activating instead).
+                claiming = state.account?.deployed == true
+            }
+        }
         val claim = state.claimable
         if (claiming && claim != null) {
             val amount = "${Amounts.display(claim.units, FeeJuice.INFO.decimals, 4)} FJ"

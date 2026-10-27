@@ -315,9 +315,14 @@ public final class WalletSession {
 
     /// Remembers a claim secret the user entered for the selected account's bridge deposits (hex or decimal), and reads
     /// the deposits again: the one made with it becomes claimable. Throws on a value that is no field element.
+    /// A secret that opens none of them is said so and not kept: a typo would otherwise pass in silence.
     public func addClaimSecret(_ text: String) async throws {
         guard let selected else { throw PxeError("no account") }
-        store.addClaimSecret(account: selected, secret: try ClaimSecrets.normalize(text))
+        let secret = try ClaimSecrets.normalize(text)
+        // Read with it before keeping it; a failed read throws rather than calling a good secret wrong.
+        let found = try await client.feeJuiceDeposits(selected, secrets: store.claimSecrets(account: selected) + [secret])
+        guard found.contains(where: { $0.secret?.lowercased() == secret }) else { throw PxeError("This secret matches none of the deposits bridged to this account: check it and enter it again") }
+        store.addClaimSecret(account: selected, secret: secret)
         await refresh()
     }
 
