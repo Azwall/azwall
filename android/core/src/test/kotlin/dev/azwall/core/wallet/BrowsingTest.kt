@@ -31,4 +31,12 @@ class BrowsingTest {
         // The same on iOS (BrowsingTests): a dApp has one colour everywhere.
         assertEquals("ac675a", KnownDapp("Palmyr", "https://aztec.palmyr.io").tint)
     }
+
+    @Test
+    fun anExplorerLinksATransactionAndNothingElse() {
+        val scan = KnownExplorer("Aztecexplorer", "https://aztecexplorer.xyz/?network=testnet", "https://aztecexplorer.xyz/tx/{hash}?network=testnet")
+        assertEquals("https://aztecexplorer.xyz/tx/0x0a1B?network=testnet", scan.pageOfTx("0x0a1B"))
+        listOf("0x", "0a1b", "0x12/../admin", "0x12?network=mainnet").forEach { assertNull(it, scan.pageOfTx(it)) }
+        assertEquals("aztecexplorer.xyz", scan.tile.host)
+    }
 }

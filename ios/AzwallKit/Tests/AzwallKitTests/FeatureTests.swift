@@ -394,4 +394,11 @@ struct BrowsingTests {
         #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io").tint == "ac675a")
         #expect(KnownDapp(name: "Palmyr", url: "https://aztec.palmyr.io/swap").iconPath == "dapps/aztec.palmyr.io.png")
     }
+
+    @Test func anExplorerLinksATransactionAndNothingElse() {
+        let scan = KnownExplorer(name: "Aztecexplorer", url: "https://aztecexplorer.xyz/?network=testnet", txUrl: "https://aztecexplorer.xyz/tx/{hash}?network=testnet")
+        #expect(scan.page(ofTx: "0x0a1B") == "https://aztecexplorer.xyz/tx/0x0a1B?network=testnet")
+        for hash in ["0x", "0a1b", "0x12/../admin", "0x12?network=mainnet"] { #expect(scan.page(ofTx: hash) == nil, "\(hash)") }
+        #expect(scan.tile.host == "aztecexplorer.xyz")
+    }
 }

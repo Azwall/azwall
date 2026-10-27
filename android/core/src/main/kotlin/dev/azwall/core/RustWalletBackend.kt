@@ -6,6 +6,7 @@ import dev.azwall.core.ffi.NodeStatus
 import dev.azwall.core.ffi.WalletCore
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.wallet.KnownDapp
+import dev.azwall.core.wallet.KnownExplorer
 
 /** [WalletBackend] over the Rust core (uniffi bindings). */
 class RustWalletBackend(private val core: WalletCore) : WalletBackend {
@@ -51,6 +52,7 @@ internal fun Network.toInfo() = NetworkInfo(
     proverSupported = proverSupported,
     knownTokens = knownTokens.map { TokenInfo(it.address, it.name, it.symbol, it.decimals.toInt()) },
     dapps = knownDapps.map { KnownDapp(it.name, it.url, it.description) },
+    explorers = explorers.map { KnownExplorer(it.name, it.url, it.txUrl) },
 )
 
 internal fun NodeStatus.toCheck() = NodeCheck(

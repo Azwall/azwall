@@ -21,6 +21,14 @@ struct StartPage: View {
                         Button { onOpen(dapp.url) } label: { DappTile(dapp: dapp) }.buttonStyle(.plain)
                     }
                 }
+                if !network.explorers.isEmpty {
+                    Text("Block explorers").font(.headline).padding(.top, 12)
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(network.explorers) { explorer in
+                            Button { onOpen(explorer.url) } label: { DappTile(dapp: explorer.tile) }.buttonStyle(.plain)
+                        }
+                    }
+                }
                 if !sessions.isEmpty {
                     Text("Connected sites").font(.headline).padding(.top, 12)
                     ForEach(unique, id: \.origin) { s in

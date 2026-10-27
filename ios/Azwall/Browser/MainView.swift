@@ -24,7 +24,11 @@ struct MainView: View {
         ZStack(alignment: .leading) {
             VStack(spacing: 0) {
                 switch tab {
-                case .wallet: HomeView(model: model, session: session, route: $route, onMenu: openMenu)
+                case .wallet:
+                    HomeView(model: model, session: session, route: $route, onMenu: openMenu) { url in
+                        browser.open(page: url)
+                        tab = .explore
+                    }
                 case .explore:
                     BrowserView(browser: browser, network: session.network, sessions: session.dapps.sessions, onMenu: openMenu, onConnections: { showConnections = true })
                 }

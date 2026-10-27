@@ -2,6 +2,19 @@ package dev.azwall.core.wallet
 
 import java.net.URLEncoder
 
+/** A block explorer of a network (networks.json): the start page lists it, a transaction's details link to it. */
+data class KnownExplorer(val name: String, val url: String, val txUrl: String) {
+    /** The page of the transaction [hash]; null for anything but a 0x hex hash, which could otherwise reshape the URL. */
+    fun pageOfTx(hash: String): String? {
+        val digits = hash.removePrefix("0x")
+        if (!hash.startsWith("0x") || digits.isEmpty() || !digits.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
+        return txUrl.replace("{hash}", hash)
+    }
+
+    /** The start page shows it as a tile, like the network's dApps. */
+    val tile: KnownDapp get() = KnownDapp(name, url, "Blocks, transactions and contracts")
+}
+
 /** A site the browser's start page suggests on a network (networks.json). */
 data class KnownDapp(val name: String, val url: String, val description: String = "") {
     /** What a tile shows under the name: `aztec.palmyr.io`. */

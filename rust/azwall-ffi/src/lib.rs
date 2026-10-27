@@ -54,6 +54,8 @@ pub struct Network {
     pub known_tokens: Vec<KnownToken>,
     /// dApps the browser's start page suggests on this network (networks.json).
     pub known_dapps: Vec<KnownDapp>,
+    /// Block explorers of this network (networks.json).
+    pub explorers: Vec<KnownExplorer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -61,6 +63,14 @@ pub struct KnownDapp {
     pub name: String,
     pub url: String,
     pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct KnownExplorer {
+    pub name: String,
+    pub url: String,
+    /// A transaction's page, `{hash}` standing for its hash.
+    pub tx_url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -93,6 +103,7 @@ impl From<&ResolvedNetwork> for Network {
                 .iter()
                 .map(|d| KnownDapp { name: d.name.clone(), url: d.url.clone(), description: d.description.clone() })
                 .collect(),
+            explorers: n.spec.explorers.iter().map(|e| KnownExplorer { name: e.name.clone(), url: e.url.clone(), tx_url: e.tx.clone() }).collect(),
         }
     }
 }

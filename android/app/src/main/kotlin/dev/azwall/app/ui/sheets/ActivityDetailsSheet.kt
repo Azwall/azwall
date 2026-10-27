@@ -17,18 +17,30 @@ import dev.azwall.app.ui.activityTitle
 import dev.azwall.app.ui.components.DetailRow
 import dev.azwall.core.wallet.ActivityDetails
 import dev.azwall.core.wallet.ActivityItem
+import dev.azwall.core.wallet.KnownExplorer
 import java.text.DateFormat
 import java.util.Date
 
 /** One transaction of the history in full: tapping a row of Activity opens it. Values can be selected and copied. */
 @Composable
-fun ActivityDetailsSheet(item: ActivityItem, onDismiss: () -> Unit) = Sheet(activityTitle(item), onDismiss, fullHeight = true) {
+fun ActivityDetailsSheet(
+    item: ActivityItem,
+    explorers: List<KnownExplorer>,
+    onOpen: (String) -> Unit,
+    onDismiss: () -> Unit,
+) = Sheet(activityTitle(item), onDismiss, fullHeight = true) {
     val clipboard = LocalClipboardManager.current
     val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(item.createdAt))
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ActivityDetails.of(item, date).forEach { (label, value) -> DetailRow(label, value) }
         item.txHash?.let { hash ->
             TextButton(onClick = { clipboard.setText(AnnotatedString(hash)) }, modifier = Modifier.fillMaxWidth()) { Text("Copy transaction hash") }
+            // Opening it tells that explorer which transaction is looked at: only when the user asks.
+            explorers.forEach { explorer ->
+                explorer.pageOfTx(hash)?.let { page ->
+                    TextButton(onClick = { onOpen(page) }, modifier = Modifier.fillMaxWidth()) { Text("View on ${explorer.name}") }
+                }
+            }
         }
     }
 }

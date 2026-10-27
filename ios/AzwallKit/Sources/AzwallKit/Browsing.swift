@@ -1,5 +1,31 @@
 import Foundation
 
+/// A block explorer of a network (networks.json): the start page lists it, a transaction's details link to it.
+public struct KnownExplorer: Equatable, Identifiable, Sendable {
+    public let name: String
+    public let url: String
+    /// A transaction's page, `{hash}` standing for its hash.
+    public let txUrl: String
+
+    public init(name: String, url: String, txUrl: String) {
+        self.name = name
+        self.url = url
+        self.txUrl = txUrl
+    }
+
+    public var id: String { url }
+
+    /// The page of the transaction `hash`; nil for anything but a 0x hex hash, which could otherwise reshape the URL.
+    public func page(ofTx hash: String) -> String? {
+        let digits = hash.dropFirst(2)
+        guard hash.hasPrefix("0x"), !digits.isEmpty, digits.allSatisfy(\.isHexDigit) else { return nil }
+        return txUrl.replacingOccurrences(of: "{hash}", with: hash)
+    }
+
+    /// The start page shows it as a tile, like the network's dApps.
+    public var tile: KnownDapp { KnownDapp(name: name, url: url, description: "Blocks, transactions and contracts") }
+}
+
 /// A site the browser's start page suggests on a network (networks.json).
 public struct KnownDapp: Equatable, Identifiable, Sendable {
     public let name: String

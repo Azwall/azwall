@@ -8,6 +8,8 @@ struct HomeView: View {
     /// Set by the side menu too (Settings).
     @Binding var route: Route?
     let onMenu: () -> Void
+    /// Opens a page in Explore (a transaction on a block explorer).
+    let onOpenPage: (String) -> Void
     @State private var tab = 0
     @State private var sheet: Sheet?
     @State private var shared: TokenView?
@@ -76,7 +78,10 @@ struct HomeView: View {
                 ShareTokenSheet(token: token, network: session.network) { session.removeToken(token.info.address) }.presentationDetents([.large])
             }
             .sheet(isPresented: Binding(get: { session.activity.contains { $0.id == opened } }, set: { if !$0 { opened = nil } })) {
-                if let item = session.activity.first(where: { $0.id == opened }) { ActivityDetailsSheet(item: item) }
+                if let item = session.activity.first(where: { $0.id == opened }) { ActivityDetailsSheet(item: item, explorers: session.network.explorers) { url in
+                    opened = nil
+                    onOpenPage(url)
+                } }
             }
             .task { await autoRefresh() }
             .safeAreaInset(edge: .bottom) { StatusLine(session: session).background(.bar) }

@@ -62,3 +62,11 @@ fn exposes_pxe_bundles_and_open_params() {
     assert_eq!(params["id"], id.as_str());
     assert!(params["expected"]["l1ChainId"].is_u64());
 }
+
+#[test]
+fn every_network_has_an_explorer_for_its_transactions() {
+    for network in core().networks() {
+        assert!(!network.explorers.is_empty(), "{}: no block explorer", network.id);
+        assert!(network.explorers.iter().all(|e| e.tx_url.contains("{hash}")), "{:?}", network.explorers);
+    }
+}

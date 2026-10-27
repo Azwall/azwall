@@ -89,6 +89,8 @@ data class HomeActions(
     val onEnterClaimSecret: () -> Unit = {},
     /** Keeps the claim secret the user entered and reads the deposits again. */
     val onClaimSecret: (String) -> Unit = {},
+    /** Opens a page in Explore (a transaction on a block explorer). */
+    val onOpenPage: (String) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,7 +124,9 @@ fun HomeScreen(state: SessionState, nodeOk: Boolean?, actions: HomeActions) {
     shared?.let { token ->
         ShareTokenSheet(token, state.network.id, state.network.label, onRemove = { actions.onRemoveToken(token.info.address) }) { shared = null }
     }
-    state.activity.firstOrNull { it.id == opened }?.let { ActivityDetailsSheet(it) { opened = null } }
+    state.activity.firstOrNull { it.id == opened }?.let {
+        ActivityDetailsSheet(it, state.network.explorers, onOpen = { url -> opened = null; actions.onOpenPage(url) }) { opened = null }
+    }
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package dev.azwall.core
 
 import dev.azwall.core.ffi.KnownDapp
+import dev.azwall.core.ffi.KnownExplorer
 import dev.azwall.core.ffi.KnownToken
 import dev.azwall.core.ffi.Network
 import dev.azwall.core.ffi.NodeStatus
@@ -21,12 +22,14 @@ class MappingTest {
             proverSupported = true,
             knownTokens = listOf(KnownToken("0xweth", "Wrapped Ether", "WETH", 18u)),
             knownDapps = listOf(KnownDapp("Palmyr", "https://aztec.palmyr.io", "DeFi")),
+            explorers = listOf(KnownExplorer("Aztecscan", "https://testnet.aztecscan.xyz", "https://testnet.aztecscan.xyz/tx-effects/{hash}")),
         )
         val info = network.toInfo()
         assertEquals("lb.drpc.org", info.rpcHost)
         assertEquals("6.0.0", info.barretenbergVersion)
         assertEquals(18, info.knownTokens.single().decimals)
         assertEquals("aztec.palmyr.io", info.dapps.single().host)
+        assertEquals("https://testnet.aztecscan.xyz/tx-effects/0x01", info.explorers.single().pageOfTx("0x01"))
     }
 
     @Test

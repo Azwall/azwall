@@ -63,6 +63,9 @@ pub struct NetworkSpec {
     /// dApps the browser's start page suggests on this network: a dApp works with one Aztec version only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dapps: Vec<KnownDapp>,
+    /// Block explorers following this network's chain: an explorer indexes one network (and Aztec version) at a time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub explorers: Vec<KnownExplorer>,
     /// The network's Ethereum side, where the wallet finds Fee Juice bridged to its accounts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub l1: Option<L1Spec>,
@@ -94,6 +97,15 @@ pub struct KnownDapp {
     pub url: String,
     #[serde(default)]
     pub description: String,
+}
+
+/// A block explorer of a network: its home page, and where it shows one transaction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownExplorer {
+    pub name: String,
+    pub url: String,
+    /// A transaction's page, `{hash}` standing for its hash: `https://aztecscan.xyz/tx-effects/{hash}`.
+    pub tx: String,
 }
 
 impl NetworkSpec {
@@ -203,6 +215,12 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
             return bad(&format!("dApp '{}' needs a name and an https URL", d.name));
         }
     }
+    for e in &n.explorers {
+        let https = |url: &str| url.starts_with("https://") && is_http_url(url);
+        if e.name.trim().is_empty() || !https(&e.url) || !https(&e.tx) || e.tx.matches("{hash}").count() != 1 {
+            return bad(&format!("explorer '{}' needs a name, an https URL and an https tx URL with one {{hash}}", e.name));
+        }
+    }
     Ok(())
 }
 
@@ -256,6 +274,18 @@ mod tests {
         for url in ["http://aztec.palmyr.io", "javascript:alert(1)", "https://"] {
             let bad = sample_json().replacen(r#""pxe": "v6""#, &dapps.replace("https://aztec.palmyr.io", url), 1);
             assert!(Registry::from_json(&bad).is_err(), "accepted {url}");
+        }
+    }
+
+    #[test]
+    fn lists_explorers_per_network() {
+        let explorers = r#""explorers": [{ "name": "Aztecscan", "url": "https://aztecscan.xyz", "tx": "https://aztecscan.xyz/tx-effects/{hash}" }], "pxe": "v6""#;
+        let r = Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, explorers, 1)).unwrap();
+        assert_eq!(r.networks[0].explorers[0].tx, "https://aztecscan.xyz/tx-effects/{hash}");
+        assert!(r.networks[1].explorers.is_empty());
+        for (from, to) in [("/tx-effects/{hash}", "/tx-effects/"), ("https://aztecscan.xyz/tx", "http://aztecscan.xyz/tx"), ("\"https://aztecscan.xyz\"", "\"javascript:x\"")] {
+            let bad = sample_json().replacen(r#""pxe": "v6""#, &explorers.replace(from, to), 1);
+            assert!(Registry::from_json(&bad).is_err(), "accepted {to}");
         }
     }
 

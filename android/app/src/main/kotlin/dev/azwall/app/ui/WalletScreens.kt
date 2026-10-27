@@ -102,7 +102,8 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
                     val engine by vm.searchEngine.collectAsStateWithLifecycle()
                     BrowserScreen(browser, state.network, sessions, engine, onMenu = openMenu, onConnections = { sheet = Sheet.CONNECTIONS })
                 } else {
-                    WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu)
+                    val openPage = { url: String -> browser.open().open(url, vm.searchEngine.value); tab = MainTab.EXPLORE }
+                    WalletRoutes(vm, session, busy, auth, dismissMessage, route, { route = it }, { sheet = it }, openMenu, openPage)
                 }
             }
             DappRequests(vm, browser, auth(CONFIRM), settle = session.transactions::settle, onShowPage = { tab = MainTab.EXPLORE })
@@ -123,13 +124,14 @@ private fun WalletRoutes(
     go: (Route) -> Unit,
     open: (Sheet) -> Unit,
     openMenu: () -> Unit,
+    openPage: (String) -> Unit,
 ) {
     val state by session.state.collectAsStateWithLifecycle()
     val nodes by vm.nodes.collectAsStateWithLifecycle()
     BackHandler(enabled = route != Route.HOME) { go(Route.HOME) }
     val home = { go(Route.HOME) }
     when (route) {
-        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, auth, go, open, openMenu))
+        Route.HOME -> HomeScreen(state, nodes[state.network.id]?.compatible, homeActions(vm, session, auth, go, open, openMenu).copy(onOpenPage = openPage))
         Route.SEND, Route.SHIELD -> TransferScreen(
             mode = if (route == Route.SEND) TransferMode.SEND else TransferMode.SHIELD,
             tokens = state.tokens,

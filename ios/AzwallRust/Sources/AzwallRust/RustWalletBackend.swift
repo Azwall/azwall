@@ -73,7 +73,8 @@ extension NetworkInfo {
             pxeBundle: network.pxeBundle,
             proverSupported: network.proverSupported,
             knownTokens: network.knownTokens.map { TokenInfo(address: $0.address, name: $0.name, symbol: $0.symbol, decimals: Int($0.decimals)) },
-            dapps: network.knownDapps.map { AzwallKit.KnownDapp(name: $0.name, url: $0.url, description: $0.description) }
+            dapps: network.knownDapps.map { AzwallKit.KnownDapp(name: $0.name, url: $0.url, description: $0.description) },
+            explorers: network.explorers.map { AzwallKit.KnownExplorer(name: $0.name, url: $0.url, txUrl: $0.txUrl) }
         )
     }
 }

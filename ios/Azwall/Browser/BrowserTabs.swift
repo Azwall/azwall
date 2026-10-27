@@ -51,6 +51,12 @@ final class BrowserTabs {
         current = tab
     }
 
+    /// Opens `url` in a new tab, e.g. a transaction on a block explorer: the tabs the user had stay as they were.
+    func open(page url: String) {
+        open()
+        current.open(url)
+    }
+
     func select(_ tab: BrowserTab) {
         if tabs.contains(where: { $0 === tab }) { current = tab }
     }

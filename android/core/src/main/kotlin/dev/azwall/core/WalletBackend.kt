@@ -2,6 +2,7 @@ package dev.azwall.core
 
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.wallet.KnownDapp
+import dev.azwall.core.wallet.KnownExplorer
 import java.net.URI
 
 /** A network the app embeds, as the UI needs it. */
@@ -19,6 +20,8 @@ data class NetworkInfo(
     val knownTokens: List<TokenInfo> = emptyList(),
     /** dApps the browser's start page suggests on this network (networks.json). */
     val dapps: List<KnownDapp> = emptyList(),
+    /** Block explorers of this network (networks.json). */
+    val explorers: List<KnownExplorer> = emptyList(),
 )
 
 data class NodeCheck(

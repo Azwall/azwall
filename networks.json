@@ -21,6 +21,18 @@
         "portalFromBlock": 11989021
       },
       "fees": "sponsored",
+      "explorers": [
+        {
+          "name": "Aztecscan",
+          "url": "https://testnet.aztecscan.xyz",
+          "tx": "https://testnet.aztecscan.xyz/tx-effects/{hash}"
+        },
+        {
+          "name": "Aztecexplorer",
+          "url": "https://aztecexplorer.xyz/?network=testnet",
+          "tx": "https://aztecexplorer.xyz/tx/{hash}?network=testnet"
+        }
+      ],
       "dapps": [
         {
           "name": "DuckDuckGo",
@@ -57,6 +69,18 @@
         "rpc": "https://ethereum-rpc.publicnode.com",
         "portalFromBlock": 26277869
       },
+      "explorers": [
+        {
+          "name": "Aztecscan",
+          "url": "https://aztecscan.xyz",
+          "tx": "https://aztecscan.xyz/tx-effects/{hash}"
+        },
+        {
+          "name": "Aztecexplorer",
+          "url": "https://aztecexplorer.xyz/?network=mainnet",
+          "tx": "https://aztecexplorer.xyz/tx/{hash}?network=mainnet"
+        }
+      ],
       "dapps": [
         {
           "name": "DuckDuckGo",

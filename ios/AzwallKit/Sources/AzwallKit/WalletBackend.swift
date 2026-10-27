@@ -15,10 +15,12 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
     public let knownTokens: [TokenInfo]
     /// dApps the browser's start page suggests on this network (networks.json).
     public let dapps: [KnownDapp]
+    /// Block explorers of this network (networks.json).
+    public let explorers: [KnownExplorer]
 
     public init(
         id: String, label: String, aztecVersion: String, barretenbergVersion: String, rpcHost: String, pxeBundle: String, proverSupported: Bool,
-        knownTokens: [TokenInfo] = [], dapps: [KnownDapp] = []
+        knownTokens: [TokenInfo] = [], dapps: [KnownDapp] = [], explorers: [KnownExplorer] = []
     ) {
         self.id = id
         self.label = label
@@ -29,6 +31,7 @@ public struct NetworkInfo: Equatable, Identifiable, Sendable {
         self.proverSupported = proverSupported
         self.knownTokens = knownTokens
         self.dapps = dapps
+        self.explorers = explorers
     }
 }
 

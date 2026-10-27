@@ -170,6 +170,7 @@ mod tests {
             fees: Default::default(),
             tokens: Vec::new(),
             dapps: Vec::new(),
+            explorers: Vec::new(),
             l1: None,
         }
     }

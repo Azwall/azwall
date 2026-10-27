@@ -30,6 +30,7 @@ import dev.azwall.app.ui.components.TokenBadge
 import dev.azwall.app.ui.siteOf
 import dev.azwall.core.wallet.DappSession
 import dev.azwall.core.wallet.KnownDapp
+import dev.azwall.core.wallet.KnownExplorer
 import dev.azwall.core.wallet.SearchEngine
 
 /**
@@ -38,14 +39,13 @@ import dev.azwall.core.wallet.SearchEngine
  * sites connected to the wallet. Badges are drawn, not favicons: loading those would tell each site the app opened.
  */
 @Composable
-fun StartPage(dapps: List<KnownDapp>, sessions: List<DappSession>, engine: SearchEngine, onOpen: (String) -> Unit) {
+fun StartPage(dapps: List<KnownDapp>, explorers: List<KnownExplorer>, sessions: List<DappSession>, engine: SearchEngine, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Explore", style = MaterialTheme.typography.headlineSmall)
-        dapps.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { DappTile(it, Modifier.weight(1f)) { onOpen(it.url) } }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
+        Tiles(dapps, onOpen)
+        if (explorers.isNotEmpty()) {
+            Text("Block explorers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+            Tiles(explorers.map { it.tile }, onOpen)
         }
         if (sessions.isNotEmpty()) {
             Text("Connected sites", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
@@ -57,6 +57,15 @@ fun StartPage(dapps: List<KnownDapp>, sessions: List<DappSession>, engine: Searc
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 12.dp),
         )
+    }
+}
+
+/** Two tiles a row. */
+@Composable
+private fun Tiles(sites: List<KnownDapp>, onOpen: (String) -> Unit) = sites.chunked(2).forEach { row ->
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        row.forEach { DappTile(it, Modifier.weight(1f)) { onOpen(it.url) } }
+        if (row.size == 1) Spacer(Modifier.weight(1f))
     }
 }
 
