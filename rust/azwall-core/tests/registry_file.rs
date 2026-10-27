@@ -62,3 +62,15 @@ fn only_test_networks_are_sponsored() {
     }
     assert!(registry.networks.iter().any(|n| n.id == "mainnet-v6"), "mainnet v6 is shipped");
 }
+
+/// Every explorer the start page lists has its logo shipped (icons/dapps/<host>.png): a tile never falls back to a
+/// lettered badge, and the logo is never loaded from the explorer itself.
+#[test]
+fn every_explorer_has_a_shipped_logo() {
+    let registry = Registry::from_json(REGISTRY).unwrap();
+    let icons = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../icons/dapps");
+    for explorer in registry.networks.iter().flat_map(|n| &n.explorers) {
+        let host = explorer.url.trim_start_matches("https://").split(['/', '?']).next().unwrap();
+        assert!(icons.join(format!("{host}.png")).exists(), "no icons/dapps/{host}.png for {}", explorer.name);
+    }
+}

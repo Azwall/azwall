@@ -396,9 +396,9 @@ struct BrowsingTests {
     }
 
     @Test func anExplorerLinksATransactionAndNothingElse() {
-        let scan = KnownExplorer(name: "Aztecexplorer", url: "https://aztecexplorer.xyz/?network=testnet", txUrl: "https://aztecexplorer.xyz/tx/{hash}?network=testnet")
-        #expect(scan.page(ofTx: "0x0a1B") == "https://aztecexplorer.xyz/tx/0x0a1B?network=testnet")
+        let scan = KnownExplorer(name: "Explorer", url: "https://explorer.example/?network=testnet", txUrl: "https://explorer.example/tx/{hash}?network=testnet")
+        #expect(scan.page(ofTx: "0x0a1B") == "https://explorer.example/tx/0x0a1B?network=testnet")
         for hash in ["0x", "0a1b", "0x12/../admin", "0x12?network=mainnet"] { #expect(scan.page(ofTx: hash) == nil, "\(hash)") }
-        #expect(scan.tile.host == "aztecexplorer.xyz")
+        #expect(scan.tile.host == "explorer.example")
     }
 }

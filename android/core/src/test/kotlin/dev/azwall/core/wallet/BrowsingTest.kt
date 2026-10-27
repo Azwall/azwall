@@ -34,9 +34,9 @@ class BrowsingTest {
 
     @Test
     fun anExplorerLinksATransactionAndNothingElse() {
-        val scan = KnownExplorer("Aztecexplorer", "https://aztecexplorer.xyz/?network=testnet", "https://aztecexplorer.xyz/tx/{hash}?network=testnet")
-        assertEquals("https://aztecexplorer.xyz/tx/0x0a1B?network=testnet", scan.pageOfTx("0x0a1B"))
+        val scan = KnownExplorer("Explorer", "https://explorer.example/?network=testnet", "https://explorer.example/tx/{hash}?network=testnet")
+        assertEquals("https://explorer.example/tx/0x0a1B?network=testnet", scan.pageOfTx("0x0a1B"))
         listOf("0x", "0a1b", "0x12/../admin", "0x12?network=mainnet").forEach { assertNull(it, scan.pageOfTx(it)) }
-        assertEquals("aztecexplorer.xyz", scan.tile.host)
+        assertEquals("explorer.example", scan.tile.host)
     }
 }

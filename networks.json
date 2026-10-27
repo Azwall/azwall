@@ -26,11 +26,6 @@
           "name": "Aztecscan",
           "url": "https://testnet.aztecscan.xyz",
           "tx": "https://testnet.aztecscan.xyz/tx-effects/{hash}"
-        },
-        {
-          "name": "Aztecexplorer",
-          "url": "https://aztecexplorer.xyz/?network=testnet",
-          "tx": "https://aztecexplorer.xyz/tx/{hash}?network=testnet"
         }
       ],
       "dapps": [
@@ -74,11 +69,6 @@
           "name": "Aztecscan",
           "url": "https://aztecscan.xyz",
           "tx": "https://aztecscan.xyz/tx-effects/{hash}"
-        },
-        {
-          "name": "Aztecexplorer",
-          "url": "https://aztecexplorer.xyz/?network=mainnet",
-          "tx": "https://aztecexplorer.xyz/tx/{hash}?network=mainnet"
         }
       ],
       "dapps": [
