@@ -12,6 +12,7 @@ import { discoverTokens } from './discover';
 import { tokenHistory } from './history';
 import { claimPayment, depositJson, depositsFor, type L1Params } from './fee_juice';
 import { declaredFees } from './fees';
+import { log } from './log';
 import { openWallet, type NetworkParams } from './open';
 import { addr, balances, registerTokens, deployToken, mint, tokenInfo, transfer, type TransferKind } from './token';
 import { type AccountSecrets, type AzwallWallet, sponsoredFpc } from './wallet';
@@ -120,8 +121,21 @@ function feeHandlers(w: () => AzwallWallet): Record<string, (p: Params) => Promi
     // Fee Juice bridged to `owner` from Ethereum, claimed or not; none where the network has no Ethereum side.
     feeJuiceDeposits: async p => {
       const bridge = w().bridge;
+      if (!bridge) return { deposits: [] };
       const entered = Array.isArray(p.secrets) ? p.secrets.map(x => Fr.fromString(String(x))) : [];
-      return { deposits: bridge ? (await depositsFor(bridge, w().node, addr(str(p, 'owner')), entered)).map(depositJson) : [] };
+      try {
+        const deposits = await depositsFor(bridge, w().node, addr(str(p, 'owner')), entered);
+        // Said once something is found: a deposit the app does not show is then told apart from one never read.
+        if (deposits.length) {
+          const states = deposits.map(d => (d.claimed ? 'claimed' : !d.ours ? 'secret unknown' : d.ready ? 'ready' : 'arriving'));
+          log('feeJuice', `${deposits.length} deposit(s) bridged: ${states.join(', ')}`);
+        }
+        return { deposits: deposits.map(depositJson) };
+      } catch (err) {
+        // The apps keep the last deposits shown when this fails: without this line, nothing would say why.
+        log('feeJuice', `bridge deposits could not be read: ${err instanceof Error ? err.message : String(err)}`, 'warn');
+        throw err;
+      }
     },
     // Claims a deposit for an active account; its fee is paid with the Fee Juice the transaction claims.
     claimFeeJuice: async p => {
