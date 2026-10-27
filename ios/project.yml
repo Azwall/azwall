@@ -48,7 +48,8 @@ targets:
           # without what changed since (a network's Ethereum side was silently lost that way). Fail instead.
           cd "$SRCROOT/.."
           lib=build/ios/AzwallFFI.xcframework/ios-arm64/libazwall_ffi.a
-          newer=$(find rust -path rust/target -prune -o \( -name '*.rs' -o -name Cargo.toml \) -newer "$lib" -print 2>/dev/null | head -1)
+          # Tests are not in the library: a new or changed test must not ask for a rebuild.
+          newer=$(find rust \( -path rust/target -o -path 'rust/*/tests' \) -prune -o \( -name '*.rs' ! -name tests.rs -o -name Cargo.toml \) -newer "$lib" -print 2>/dev/null | head -1)
           if [ ! -e "$lib" ] || [ -n "$newer" ]; then
             echo "error: the Rust core is older than ${newer:-its sources}: run scripts/build-ios.sh"
             exit 1
