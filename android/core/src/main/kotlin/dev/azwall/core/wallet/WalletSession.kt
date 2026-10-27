@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -139,6 +140,8 @@ class WalletSession(
     private val pxe: RunningPxe? get() = running.value
     private val refreshLock = Mutex()
     private var lastDiscovery = 0L
+    /** Watches deposits on their way from Ethereum (watchArrivals); null when none is. */
+    private var arrivals: Job? = null
     val transactions = Transactions(this)
     val dapps = DappLink(this)
 
@@ -257,10 +260,30 @@ class WalletSession(
     private suspend fun refreshFeeJuice(address: String) {
         runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.onSuccess { found ->
             _state.update { if (it.selected == address) it.copy(deposits = found) else it }
+            if (found.any { it.arriving }) watchArrivals(address)
         }
         val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
         _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }
         _state.value.account?.takeIf { it.address == address }?.let { Snapshots.saveFeeJuice(it, balance, store) }
+    }
+
+    /**
+     * Reads the deposits again while one is on its way from Ethereum (a few minutes), so that it shows as ready (and
+     * activation offers to claim it) without the user pulling to refresh. Bounded: a deposit the node never sees stops
+     * being watched after ARRIVAL_CHECKS reads.
+     */
+    private fun watchArrivals(address: String) {
+        if (arrivals?.isActive == true) return
+        arrivals = scope.launch {
+            repeat(ARRIVAL_CHECKS) {
+                delay(ARRIVAL_POLL_MS)
+                if (closed || _state.value.selected != address) return@launch
+                val found = runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.getOrNull() ?: return@repeat
+                _state.update { if (it.selected == address) it.copy(deposits = found) else it }
+                // Arrived: a full refresh reads the balance it brings once claimed, and the activation it unblocks.
+                if (found.none { it.arriving }) { refresh(); return@launch }
+            }
+        }
     }
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
@@ -363,5 +386,8 @@ class WalletSession(
 
     private companion object {
         const val DISCOVERY_MS = 60_000L
+        /** A deposit's L1 → L2 message lands on Aztec within minutes: read again every 30 s, for 20 minutes at most. */
+        const val ARRIVAL_POLL_MS = 30_000L
+        const val ARRIVAL_CHECKS = 40
     }
 }

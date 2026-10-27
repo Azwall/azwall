@@ -54,7 +54,7 @@ private class FakePxe : PxeCaller {
     /** What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list). */
     var deposits = "[]"
     /** Base units of Fee Juice every account holds. */
-    val feeJuice = "1500000000000000000"
+    var feeJuice = "1500000000000000000"
     var failOpen: String? = null
     val mined = CompletableDeferred<Unit>()
     var waitError: String? = null
@@ -274,6 +274,44 @@ class WalletSessionTest {
         // Kept: the next start tries it again.
         s.refresh()
         assertEquals(sent, pxe.depositQueries.last())
+    }
+
+    @Test
+    fun withoutFeeJuiceNorADepositNoActivationIsProven() = runTest {
+        pxe.fees = "feeJuice"
+        pxe.feeJuice = "0"
+        val s = session().apply { open() }
+        val state = s.state.value
+        assertFalse(Fees.canActivate(state.check, state.feeJuice, state.claimable))
+        val refused = runCatching { s.transactions.deployAccount() }.exceptionOrNull()
+        assertTrue(refused?.message!!.contains("holds no Fee Juice"))
+        assertEquals(0, pxe.calls.count { it == "deployAccount" })
+    }
+
+    @Test
+    fun aDepositOnItsWayIsWatchedUntilItCanBeClaimed() = runTest {
+        pxe.fees = "feeJuice"
+        pxe.feeJuice = "0"
+        val deposit = """{"amount":"5000000000000000000","messageHash":"0xm1","leafIndex":"7","ours":true,"claimed":false,"secret":"0x01","ready":"""
+        pxe.deposits = "[${deposit}false}]"
+        val s = session().apply { open() }
+        assertEquals(BigInteger("5000000000000000000"), s.state.value.arriving)
+        assertFalse(Fees.canActivate(s.state.value.check, s.state.value.feeJuice, s.state.value.claimable))
+        // The message lands on Aztec: no pull to refresh, the next watch read sees it.
+        pxe.deposits = "[${deposit}true}]"
+        advanceUntilIdle()
+        val state = s.state.value
+        assertEquals("7", state.claimable?.leafIndex)
+        assertTrue(Fees.canActivate(state.check, state.feeJuice, state.claimable))
+    }
+
+    @Test
+    fun aDepositThatNeverArrivesIsNotWatchedForever() = runTest {
+        pxe.deposits = """[{"amount":"5","messageHash":"0xm1","leafIndex":"7","ours":true,"ready":false,"claimed":false,"secret":"0x01"}]"""
+        session().apply { open() }
+        val before = pxe.calls.count { it == "feeJuiceDeposits" }
+        advanceUntilIdle()
+        assertEquals(before + 40, pxe.calls.count { it == "feeJuiceDeposits" })
     }
 
     @Test

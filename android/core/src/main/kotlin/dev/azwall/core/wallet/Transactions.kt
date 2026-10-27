@@ -36,8 +36,13 @@ class Transactions internal constructor(private val session: WalletSession) {
      */
     suspend fun deployAccount(): ActivityItem {
         val account = selected()
-        check(!session.state.value.activating) { "the account's activation is already on its way" }
-        val claim = session.state.value.claimable
+        val state = session.state.value
+        check(!state.activating) { "the account's activation is already on its way" }
+        val claim = state.claimable
+        // Nothing would pay it: it would only fail once proven.
+        check(Fees.canActivate(state.check, state.feeJuice, claim)) {
+            "this account holds no Fee Juice to pay its activation: bridge AZTEC from Ethereum to its address first"
+        }
         return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { session.client.deployAccount(session.secretsOf(account), claim) }
     }
 

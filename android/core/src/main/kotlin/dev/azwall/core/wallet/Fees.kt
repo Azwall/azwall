@@ -43,6 +43,13 @@ object Fees {
         "Paid with the ${Amounts.display(claim.units, DECIMALS, 4)} FJ this activation claims from your bridge deposit"
 
     /**
+     * Whether the account can pay its activation: a sponsor pays, it claims a deposit in the same transaction, or it
+     * already holds Fee Juice. Otherwise it would only fail once proven, so Activate is not offered.
+     */
+    fun canActivate(check: NetworkCheck?, feeJuice: String?, claim: FeeJuiceDeposit?): Boolean =
+        !paysWithFeeJuice(check) || claim != null || (feeJuice != null && !isEmpty(feeJuice))
+
+    /**
      * The text of the Activate notice: Fee Juice bridged and ready ([claim]) is claimed by the activation itself;
      * [arriving] base units are on their way from Ethereum.
      */
@@ -50,7 +57,7 @@ object Fees {
         claim != null -> "${Amounts.display(claim.units, DECIMALS, 4)} FJ bridged from Ethereum are ready: activating claims them and " +
             "pays its fee with them, in one transaction."
         arriving.signum() > 0 && paysWithFeeJuice(check) && (feeJuice == null || isEmpty(feeJuice)) ->
-            "${Amounts.display(arriving, DECIMALS, 4)} FJ bridged from Ethereum are on their way: activate once they have arrived, in a few minutes."
+            "${Amounts.display(arriving, DECIMALS, 4)} FJ bridged from Ethereum are on their way: you can activate once they have arrived, in a few minutes."
         !paysWithFeeJuice(check) -> "Your address can already receive funds. Activating publishes your account contract; its fee is sponsored on this network."
         feeJuice != null && !isEmpty(feeJuice) -> "Your address can already receive funds. Activating publishes your account contract, paid with the Fee Juice it holds."
         else -> "Activating costs Fee Juice, which this account does not hold yet: bridge AZTEC from Ethereum to your address, then activate."

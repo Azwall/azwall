@@ -71,7 +71,8 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
         account?.deployed == false -> Notice(
             "Activate your account",
             Fees.activation(state.check, state.feeJuice, state.claimable, state.arriving),
-            "Activate",
+            // Without a sponsor, a claim or Fee Juice, an activation would only fail once proven: not offered.
+            "Activate".takeIf { Fees.canActivate(state.check, state.feeJuice, state.claimable) },
             actions.onActivate,
             Icons.Outlined.RocketLaunch,
         )
