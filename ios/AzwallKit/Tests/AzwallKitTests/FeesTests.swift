@@ -18,4 +18,13 @@ struct FeesTests {
         #expect(Fees.activation(check("feeJuice"), feeJuice: "0").contains("bridge AZTEC from Ethereum"))
         #expect(Fees.activation(check("feeJuice"), feeJuice: "5").contains("paid with the Fee Juice it holds"))
     }
+
+    /// While the PXE starts, how the network pays fees is unknown: Activate waits rather than show then vanish.
+    @Test func activateWaitsForTheNetworkToSayHowItPays() {
+        #expect(!Fees.canActivate(nil, feeJuice: nil, claim: nil))
+        #expect(Fees.activation(nil, feeJuice: nil).contains("once the network is reached"))
+        #expect(Fees.canActivate(check("sponsored"), feeJuice: nil, claim: nil))
+        #expect(!Fees.canActivate(check("feeJuice"), feeJuice: "0", claim: nil))
+        #expect(Fees.canActivate(check("feeJuice"), feeJuice: "5", claim: nil))
+    }
 }
