@@ -64,6 +64,7 @@ final class BrowserTab: NSObject, Identifiable {
     /// Delivers a gateway message, only if `page` is still the page loaded.
     func deliver(page: Int, json: String) {
         guard page == pageId, page != 0 else { return }
+        // Encoding a String as JSON cannot fail; the fallback only satisfies the compiler.
         let literal = (try? String(decoding: JSONEncoder().encode(json), as: UTF8.self)) ?? "\"\""
         let script = "window.azwallBridge && window.azwallBridge.onmessage && window.azwallBridge.onmessage({ data: \(literal) })"
         webView.evaluateJavaScript(script, in: nil, in: Self.world) { _ in }

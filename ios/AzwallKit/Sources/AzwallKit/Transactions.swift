@@ -169,7 +169,7 @@ extension WalletSession {
         } catch is CancellationError {
             return
         } catch {
-            receipt = try? await client.txReceipt(hash)
+            receipt = await DiagnosticLog.shared.attempt("tx") { try await client.txReceipt(hash) }
         }
         guard let receipt, let done = Settlement.settle(sent, receipt) else { return }
         record(done)

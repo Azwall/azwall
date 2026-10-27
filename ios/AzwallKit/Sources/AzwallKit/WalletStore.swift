@@ -73,7 +73,19 @@ public final class WalletStore: @unchecked Sendable {
     public init(directory: URL, networkId: String) {
         self.networkId = networkId
         file = directory.appendingPathComponent("wallet-\(networkId).json")
-        data = (try? JSONDecoder().decode(StoredNetwork.self, from: Data(contentsOf: file))) ?? StoredNetwork()
+        data = Self.read(file)
+    }
+
+    /// None yet is a first opening; one that cannot be read starts over too, but someone must be able to tell why
+    /// the tokens and history are gone.
+    private static func read(_ file: URL) -> StoredNetwork {
+        guard FileManager.default.fileExists(atPath: file.path) else { return StoredNetwork() }
+        do {
+            return try JSONDecoder().decode(StoredNetwork.self, from: Data(contentsOf: file))
+        } catch {
+            DiagnosticLog.shared.report("store", error)
+            return StoredNetwork()
+        }
     }
 
     public var tokens: [TokenInfo] { lock.withLock { data.tokens } }
@@ -200,8 +212,8 @@ public final class WalletStore: @unchecked Sendable {
             return false
         }
         let aside = file.deletingLastPathComponent().appendingPathComponent("wallet-\(networkId)-\(previous.replacingOccurrences(of: ":", with: "-")).json")
-        try? FileManager.default.removeItem(at: aside)
-        try? FileManager.default.copyItem(at: file, to: aside)
+        try? FileManager.default.removeItem(at: aside) // usually none: only a second reset from the same chain left one
+        do { try FileManager.default.copyItem(at: file, to: aside) } catch { DiagnosticLog.shared.report("store", error) }
         update { $0 = StoredNetwork(chain: chain) }
         seed(known)
         return true
@@ -210,8 +222,13 @@ public final class WalletStore: @unchecked Sendable {
     private func update(_ change: (inout StoredNetwork) -> Void) {
         lock.withLock {
             change(&data)
-            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? JSONEncoder().encode(data).write(to: file, options: .atomic)
+            // Kept in memory either way: the next change writes it again.
+            do {
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try JSONEncoder().encode(data).write(to: file, options: .atomic)
+            } catch {
+                DiagnosticLog.shared.report("store", error)
+            }
         }
     }
 }

@@ -35,7 +35,7 @@ enum OnScreen {
         }
         guard attempt < 50 else { return }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(200))
+            try? await Task.sleep(for: .milliseconds(200)) // cancelled only with the app: placing then is moot
             place(webView, attempt: attempt + 1)
         }
     }

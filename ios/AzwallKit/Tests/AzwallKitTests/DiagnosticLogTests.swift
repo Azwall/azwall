@@ -34,4 +34,22 @@ struct DiagnosticLogTests {
         #expect(text.hasPrefix("Azwall diagnostic log\nApp: Azwall 0.1.0 (1)\nSystem: iOS 26.3\n"))
         #expect(text.contains("WARN [feeJuice] bridge deposits could not be read"))
     }
+
+    @Test func aFailedReadIsKeptAndACancellationIsNot() async {
+        let log = DiagnosticLog(now: { Date(timeIntervalSince1970: 0) })
+        #expect(await log.attempt("sync") { 7 } == 7)
+        #expect(await log.attempt("sync") { () throws -> Int in throw PxeError("no Ethereum node configured") } == nil)
+        #expect(await log.attempt("sync") { () throws -> Int in throw CancellationError() } == nil)
+        #expect(log.entries == ["1970-01-01T00:00:00Z WARN [sync] no Ethereum node configured"])
+    }
+
+    @Test func anUnreadableStoreStartsOverAndSaysSo() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let networkId = "broken-\(UUID().uuidString)"
+        try Data("not json".utf8).write(to: directory.appendingPathComponent("wallet-\(networkId).json"))
+        let before = DiagnosticLog.shared.entries.filter { $0.contains("[store]") }.count
+        #expect(WalletStore(directory: directory, networkId: networkId).tokens.isEmpty)
+        #expect(DiagnosticLog.shared.entries.filter { $0.contains("[store]") }.count > before)
+    }
 }

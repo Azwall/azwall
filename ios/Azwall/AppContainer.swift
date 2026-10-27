@@ -13,12 +13,19 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
     /// leaves this device), so a backup does not undo the privacy Aztec gives.
     let storeDirectory: URL = {
         var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wallet")
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try? url.setResourceValues(values)
+        var failure: Error?
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try url.setResourceValues(values)
+        } catch {
+            failure = error
+        }
         // Kept with the store (and like it out of backups): what went wrong lately, exported only by the user.
         DiagnosticLog.shared.attach(file: url.appendingPathComponent("diagnostics.log"))
+        // Reported once attached, which replaces what the log held: a store left in backups must be visible.
+        if let failure { DiagnosticLog.shared.report("store", failure) }
         return url
     }()
     let approvals = DappApprovals()
@@ -46,7 +53,6 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
 
     func wipe() throws {
         try vault.wipe()
-        try? FileManager.default.removeItem(at: storeDirectory)
         UserDefaults.standard.removeObject(forKey: "azwall.network")
         // The PXE stores (encrypted with the vault's store key, useless without it) and the browser's sites data.
         Task { @MainActor in
@@ -54,6 +60,9 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
             await WKWebsiteDataStore.default().removeData(ofTypes: all, modifiedSince: .distantPast)
             await BrowserTabs.dataStore.removeData(ofTypes: all, modifiedSince: .distantPast)
         }
+        // Last, so the rest is gone even if this fails; failing, it throws: addresses and history left in clear on
+        // the device are something the user must be told about (AppModel shows the error).
+        if FileManager.default.fileExists(atPath: storeDirectory.path) { try FileManager.default.removeItem(at: storeDirectory) }
     }
 }
 

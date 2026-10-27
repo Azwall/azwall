@@ -111,6 +111,7 @@ private final class WebViewBox {
     weak var webView: WKWebView?
 
     func deliver(_ json: String) {
+        // Encoding a String as JSON cannot fail; the fallback only satisfies the compiler.
         let literal = (try? String(decoding: JSONEncoder().encode(json), as: UTF8.self)) ?? "\"\""
         webView?.evaluateJavaScript("azwallHost.receive(\(literal))", completionHandler: nil)
     }

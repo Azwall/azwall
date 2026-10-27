@@ -174,7 +174,7 @@ struct HomeView: View {
     /// Balances are refreshed every 20 s while the screen is shown.
     private func autoRefresh() async {
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(20))
+            try? await Task.sleep(for: .seconds(20)) // cancelled when the screen goes: the loop then ends
             await session.refresh()
         }
     }

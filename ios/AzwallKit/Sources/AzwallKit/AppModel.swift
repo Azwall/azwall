@@ -194,9 +194,16 @@ public final class AppModel {
     private func start(_ unlocked: VaultContents) async {
         contents = unlocked
         let deps = deps
-        let defaultId = (try? await Task.detached { try deps.backend().defaultNetworkId() }.value) ?? ""
-        guard let network = networks.first(where: { $0.id == deps.lastNetwork }) ?? networks.first(where: { $0.id == defaultId }),
-              let backend = try? await Task.detached(operation: { try deps.backend() }).value else {
+        let backend: WalletBackend
+        do {
+            backend = try await Task.detached { try deps.backend() }.value
+        } catch {
+            // Without the Rust core nothing opens: the user is told why, not that no network is configured.
+            phase = .failed(error.localizedDescription)
+            return
+        }
+        let defaultId = backend.defaultNetworkId()
+        guard let network = networks.first(where: { $0.id == deps.lastNetwork }) ?? networks.first(where: { $0.id == defaultId }) else {
             phase = .failed("no network is configured")
             return
         }

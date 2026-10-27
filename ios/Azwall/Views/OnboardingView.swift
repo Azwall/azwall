@@ -28,8 +28,13 @@ struct OnboardingView: View {
 
     private func start() {
         Task {
-            guard let words = try? await model.newRecoveryPhrase() else { return }
-            path.append(.backup(words.split(separator: " ").map(String.init)))
+            do {
+                let words = try await model.newRecoveryPhrase()
+                path.append(.backup(words.split(separator: " ").map(String.init)))
+            } catch {
+                // The phrase itself is never part of the error: only why none could be made.
+                model.message = error.localizedDescription
+            }
         }
     }
 

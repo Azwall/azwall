@@ -58,6 +58,7 @@ struct TransferView: View {
         return to.lowercased() == session.account?.address.lowercased() ? "this is your own address" : nil
     }
 
+    /// An invalid amount is explained by amountError, under the field.
     private var valid: Bool {
         (try? amount.get()) != nil && amountError == nil && recipientError == nil && (mode == .shield || !to.isEmpty)
     }

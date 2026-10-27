@@ -31,19 +31,22 @@ extension WalletSession {
     /// A hint: a failure leaves the suggestions as they were.
     func discover(owner: String) async {
         if let last = lastDiscovery, Date().timeIntervalSince(last) < Self.discoveryInterval { return }
-        guard let client = try? client else { return }
+        guard let client = try? client else { return } // not open: the next refresh looks again
         lastDiscovery = Date()
         task = .findingTokens
         defer { task = nil }
         let known = store.tokens.map(\.address) + store.dismissed
-        if let list = try? await client.discoverTokens(owner: owner, known: known), selected == owner { found = list }
+        if let list = await DiagnosticLog.shared.attempt("discovery", { try await client.discoverTokens(owner: owner, known: known) }),
+           selected == owner { found = list }
         await importHistory(owner: owner, client)
     }
 
     /// Adds the private transfers the PXE reads back from the chain that the history does not have.
     private func importHistory(owner: String, _ client: PxeClient) async {
         let followed = store.tokens
-        guard !followed.isEmpty, let moves = try? await client.tokenHistory(owner: owner, tokens: followed.map(\.address)) else { return }
+        guard !followed.isEmpty,
+              let moves = await DiagnosticLog.shared.attempt("history", { try await client.tokenHistory(owner: owner, tokens: followed.map(\.address)) })
+        else { return }
         store.addMissing(History.items(owner: owner, moves: moves, tokens: followed, known: store.activity(account: owner)))
         if selected == owner { activity = store.activity(account: owner) }
     }

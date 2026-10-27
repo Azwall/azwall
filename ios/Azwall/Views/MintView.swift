@@ -51,19 +51,20 @@ struct MintView: View {
         .navigationTitle("Mint \(token.info.symbol)")
         .safeAreaInset(edge: .bottom) {
             Button(toPrivate ? "Mint privately" : "Mint publicly") { reviewing = true }.buttonStyle(PrimaryButtonStyle())
+                // An invalid amount is explained by amountError, under the field.
                 .disabled(model.busy || (try? amount.get()) == nil || recipientError != nil).padding()
         }
         .sheet(isPresented: $reviewing) { if let review { ReviewSheet(review: review, onConfirm: mint) } }
     }
 
     private var review: Review? {
-        guard let units = try? amount.get() else { return nil }
+        guard let units = try? amount.get() else { return nil } // the button is disabled then
         let shown = "\(Amounts.format(units, decimals: token.info.decimals, maxFraction: token.info.decimals)) \(token.info.symbol)"
         return Review.mint(amount: shown, toPrivate: toPrivate, to: to, network: network, fee: fee)
     }
 
     private func mint() {
-        guard let units = try? amount.get() else { return }
+        guard let units = try? amount.get() else { return } // the button is disabled then
         let info = token.info, toPrivate = toPrivate, to = to
         Task {
             await model.sign(done: "Mint sent.", onAuthorized: { dismiss() }) { try await $0.mint(token: info, amount: units, toPrivate: toPrivate, to: to) }

@@ -34,6 +34,7 @@ struct RootView: View {
                 Text(friendlyError(message)).font(.subheadline).padding(.horizontal, 16).padding(.vertical, 12)
                     .background(Capsule().fill(.regularMaterial)).padding(.bottom, 24)
                     .onTapGesture { model.message = nil }
+                    // Cancelled only once the message is gone, so clearing it again is harmless.
                     .task { try? await Task.sleep(for: .seconds(4)); model.message = nil }
             }
         }

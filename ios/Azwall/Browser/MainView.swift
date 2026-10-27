@@ -72,8 +72,13 @@ struct MainView: View {
     /// The selected network's content script, talking to its PXE host's gateway.
     private func attachBrowser() {
         let file = Bundle.main.resourceURL?.appendingPathComponent("pxe/\(session.network.pxeBundle)/dapp-content-script.js")
-        guard let file, let script = try? String(contentsOf: file, encoding: .utf8) else { return }
-        browser.attach(session.dapps, contentScript: script)
+        guard let file else { return }
+        do {
+            browser.attach(session.dapps, contentScript: try String(contentsOf: file, encoding: .utf8))
+        } catch {
+            // A build without the network's content script: the browser opens sites but no dApp can reach the wallet.
+            DiagnosticLog.shared.report("browser", error)
+        }
     }
 }
 

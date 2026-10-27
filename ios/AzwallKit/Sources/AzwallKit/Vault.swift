@@ -120,6 +120,7 @@ public struct Vault: Sendable {
     /// A fresh signing key, by rejection sampling of 32 random bytes below the field order (unbiased).
     public static func newSigningKey() -> String {
         while true {
+            // Rejected (at or above the field order) is the expected answer now and then: draw again.
             if let key = try? parseSigningKey(hex(randomBytes(32))) { return key }
         }
     }

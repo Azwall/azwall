@@ -155,7 +155,8 @@ public final class WalletSession {
         store.seed(network.knownTokens)
         restoreSnapshot()
         let backend = backend, id = network.id
-        Task.detached { try? backend.prepareProver(networkId: id) }
+        // Ahead of the first proof; Settings > Load prover retries it in front of the user.
+        Task.detached { _ = await DiagnosticLog.shared.attempt("prover") { try backend.prepareProver(networkId: id) } }
         do {
             let running = try await launcher.launch(network)
             // Locked or switched away while the host started: nobody would ever stop it.
@@ -212,7 +213,7 @@ public final class WalletSession {
         guard let running = pxe else { return }
         pxe = nil
         eventLoop?.cancel()
-        try? await running.client.close()
+        try? await running.client.close() // the host is stopped just below either way
         await running.stop()
     }
 
@@ -245,7 +246,7 @@ public final class WalletSession {
     private func refreshSelected() async {
         guard let account, let client = try? self.client else { return }
         let current = { self.selected == account.address }
-        task = .syncing(from: try? await client.syncStatus())
+        task = .syncing(from: await DiagnosticLog.shared.attempt("sync") { try await client.syncStatus() })
         do {
             let deployed = try await client.isDeployed(account.address)
             let followed = store.tokens
@@ -267,11 +268,13 @@ public final class WalletSession {
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if current() && self.account?.deployed == true { await discover(owner: account.address) }
         // What was bridged to it: claimed by its activation, or by itself once active.
-        if current(), let found = try? await client.feeJuiceDeposits(account.address, secrets: store.claimSecrets(account: account.address)), current() {
+        let secrets = store.claimSecrets(account: account.address)
+        if current(), let found = await DiagnosticLog.shared.attempt("feeJuice", { try await client.feeJuiceDeposits(account.address, secrets: secrets) }),
+           current() {
             deposits = found
         }
         // Read on every network: it is the first token shown, and what pays fees where there is no sponsor.
-        if current(), let balance = try? await client.feeJuiceBalance(account.address), current() {
+        if current(), let balance = await DiagnosticLog.shared.attempt("feeJuice", { try await client.feeJuiceBalance(account.address) }), current() {
             feeJuice = balance
             saveFeeJuice(account, balance)
         }

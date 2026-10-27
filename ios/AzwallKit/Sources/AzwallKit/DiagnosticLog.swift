@@ -45,6 +45,21 @@ public final class DiagnosticLog: @unchecked Sendable {
         record(.warn, scope, error.localizedDescription)
     }
 
+    /// What `body` returns, or nil with its failure kept for the export: for reads the app carries on without
+    /// (a balance, a deposit, the sync status). A cancellation is not logged: whoever asked has moved on.
+    public func attempt<T>(
+        _ scope: String, isolation: isolated (any Actor)? = #isolation, _ body: () async throws -> T
+    ) async -> T? {
+        do {
+            return try await body()
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(scope, error)
+            return nil
+        }
+    }
+
     public var entries: [String] { lock.withLock { lines } }
 
     /// The text the user shares: what app and device it comes from, then the lines, oldest first.

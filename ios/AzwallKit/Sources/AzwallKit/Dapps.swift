@@ -184,11 +184,11 @@ public final class DappLink {
             Self.logger.warning("dropped a \(message.utf8.count, privacy: .public)-byte message from \(origin, privacy: .public)")
             return
         }
-        guard let session, let account = session.account?.address, let client = try? session.client else { return }
+        guard let session, let account = session.account?.address else { return }
         let params: JSONValue = .object([
             "tabId": .number(Double(tabId)), "origin": .string(origin), "message": .string(message), "account": .string(account),
         ])
-        _ = try? await client.callRaw("dappMessage", params)
+        _ = await DiagnosticLog.shared.attempt("dapps") { try await session.client.callRaw("dappMessage", params) }
     }
 
     /// Page `tabId` navigated away or its tab closed: its sessions and pending connections end.
@@ -197,7 +197,8 @@ public final class DappLink {
     }
 
     public func disconnect(_ sessionId: String) async {
-        _ = try? await session?.client.callRaw("dappDisconnect", .object(["sessionId": .string(sessionId)]))
+        guard let session else { return }
+        _ = await DiagnosticLog.shared.attempt("dapps") { try await session.client.callRaw("dappDisconnect", .object(["sessionId": .string(sessionId)])) }
     }
 
     /// Handles the gateway's events; false for the others.
@@ -207,9 +208,12 @@ public final class DappLink {
             guard let tab = event.data["tabId"]?.intValue, let message = event.data["message"] else { return true }
             pages?.yield(PageMessage(page: tab, json: message.jsonString()))
         case "dappSessions":
-            sessions = (try? event.data.decode([DappSession].self)) ?? []
+            do { sessions = try event.data.decode([DappSession].self) } catch {
+                sessions = []
+                DiagnosticLog.shared.report("dapps", error)
+            }
         case "dappTx":
-            if let tx = try? event.data.decode(DappTx.self) { track(tx) }
+            do { track(try event.data.decode(DappTx.self)) } catch { DiagnosticLog.shared.report("dapps", error) }
         default:
             return false
         }
@@ -226,6 +230,7 @@ public final class DappLink {
         let item = tx.applied(to: started[tx.id] ?? draft)
         if item.status == .proving { started[tx.id] = item } else { started[tx.id] = nil }
         session.record(item)
+        // Not open (locked meanwhile): resume() follows the pending item on the next opening.
         if item.status == .pending, let client = try? session.client { Task { await session.confirm(item, client) } }
     }
 }

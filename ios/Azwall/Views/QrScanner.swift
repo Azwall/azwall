@@ -33,7 +33,7 @@ private struct ScannerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let scanner = DataScannerViewController(recognizedDataTypes: [.barcode(symbologies: [.qr])], isHighlightingEnabled: true)
         scanner.delegate = context.coordinator
-        try? scanner.startScanning()
+        try? scanner.startScanning() // throws only when unavailable, which QrScanner checked before showing this
         return scanner
     }
 

@@ -59,6 +59,7 @@ final class BundleServer: @unchecked Sendable {
         guard parts.count >= 2, parts[0] == "GET" else { return Self.status(405, "Method Not Allowed") }
         let path = String(parts[1].split(separator: "?").first ?? "").removingPercentEncoding ?? ""
         let file = root.appendingPathComponent(path).standardizedFileURL
+        // Unreadable is answered like missing: any page may ask for any path, and the PXE host reports a bundle it misses.
         guard file.path.hasPrefix(root.path + "/pxe/"), let body = try? Data(contentsOf: file) else { return Self.status(404, "Not Found") }
         let head = "HTTP/1.1 200 OK\r\nContent-Type: \(Self.mimeType(file.pathExtension))\r\nContent-Length: \(body.count)\r\n"
             + "Cache-Control: no-cache\r\nConnection: close\r\n\r\n"
