@@ -71,6 +71,20 @@ struct FeeJuiceClaimTests {
         #expect(pxe.sent.last?["claim"]?["leafIndex"]?.stringValue == "7")
     }
 
+    @Test func aClaimOnItsWayIsNotSentTwice() async throws {
+        let pxe = FakePxe()
+        pxe.deposits = "[\(five)]"
+        pxe.deployed = true
+        let s = try session(pxe)
+        await s.open()
+        // Sent, not in a block yet: the deposit still reads as unclaimed.
+        s.record(ActivityItem(account: s.selected!, kind: .claimFeeJuice, status: .pending))
+        #expect(s.claiming)
+        #expect(s.bridged == Bridged(text: "Claiming 5 FJ bridged from Ethereum…", claim: false))
+        await #expect(throws: PxeError.self) { try await s.claimFeeJuice(try #require(s.claimable)) }
+        #expect(!pxe.calls.contains { $0.0 == "claimFeeJuice" })
+    }
+
     @Test func anEnteredSecretIsKeptAndTriedOnTheDeposits() async throws {
         let pxe = FakePxe()
         let s = try session(pxe)

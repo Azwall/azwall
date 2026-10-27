@@ -90,6 +90,8 @@ internal data class Bridged(val text: String, val claim: Boolean, val askSecret:
 internal fun bridged(state: SessionState): Bridged? {
     val ready = state.claimable
     return when {
+        // Sent, not in a block yet: said as such, without a second Claim button.
+        ready != null && state.claiming -> Bridged("Claiming ${Amounts.display(ready.units, FeeJuice.INFO.decimals, 4)} FJ bridged from Ethereum…", claim = false)
         ready != null -> Bridged("${Amounts.display(ready.units, FeeJuice.INFO.decimals, 4)} FJ bridged from Ethereum", claim = state.account?.deployed == true)
         state.arriving.signum() > 0 -> Bridged("${Amounts.display(state.arriving, FeeJuice.INFO.decimals, 4)} FJ arriving from Ethereum", claim = false)
         state.locked.isNotEmpty() -> Bridged("${Amounts.display(state.locked.first().units, FeeJuice.INFO.decimals, 4)} FJ bridged with your own secret", claim = false, askSecret = true)

@@ -50,6 +50,7 @@ class Transactions internal constructor(private val session: WalletSession) {
     suspend fun claimFeeJuice(deposit: FeeJuiceDeposit): ActivityItem {
         val account = selected()
         check(session.state.value.account?.deployed == true) { "activate the account first: activation claims it too" }
+        check(!session.state.value.claiming) { "a claim of this Fee Juice is already on its way" }
         return track(draft(ActivityKind.CLAIM_FEE_JUICE, account, FeeJuice.INFO, deposit.units)) { session.client.claimFeeJuice(account, deposit) }
     }
 

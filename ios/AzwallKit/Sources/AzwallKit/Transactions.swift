@@ -21,6 +21,7 @@ extension WalletSession {
     /// Claims Fee Juice bridged to the selected, active account; the transaction pays its fee with what it claims.
     public func claimFeeJuice(_ deposit: FeeJuiceDeposit) async throws {
         guard account?.deployed == true else { throw PxeError("activate the account first: activation claims it too") }
+        guard !claiming else { throw PxeError("a claim of this Fee Juice is already on its way") }
         let me = try selectedAddress()
         var item = ActivityItem(account: me, kind: .claimFeeJuice)
         item.token = FeeJuice.id

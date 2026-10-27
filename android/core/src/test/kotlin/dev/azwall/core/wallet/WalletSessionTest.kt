@@ -315,6 +315,19 @@ class WalletSessionTest {
     }
 
     @Test
+    fun aClaimOnItsWayIsNotSentTwice() = runTest {
+        pxe.deposits = """[{"amount":"5000000000000000000","messageHash":"0xm1","leafIndex":"4","ours":true,"ready":true,"claimed":false,"secret":"0x01"}]"""
+        pxe.deployed = true
+        val s = session().apply { open() }
+        // Sent, not in a block yet: the deposit still reads as unclaimed.
+        s.recordActivity(ActivityItem("c1", s.state.value.selected!!, ActivityKind.CLAIM_FEE_JUICE, ActivityStatus.PENDING, 0L))
+        assertTrue(s.state.value.claiming)
+        val refused = runCatching { s.transactions.claimFeeJuice(s.state.value.claimable!!) }.exceptionOrNull()
+        assertTrue(refused?.message!!.contains("already on its way"))
+        assertEquals(0, pxe.calls.count { it == "claimFeeJuice" })
+    }
+
+    @Test
     fun withoutABridgeDepositTheActivationPaysAsBefore() = runTest {
         val s = session().apply { open() }
         assertNull(s.state.value.claimable)

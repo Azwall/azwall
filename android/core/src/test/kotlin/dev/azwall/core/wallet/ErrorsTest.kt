@@ -11,5 +11,8 @@ class ErrorsTest {
         assertEquals("Timeout after 30 s", Errors.friendly("Timeout after 30 s\nmore"))
         assertEquals("Something went wrong", Errors.friendly(null))
         assertEquals("Something went wrong", Errors.friendly("\nstack only"))
+        // A dropped connection says what happened and what to do, not WebKit's or Chromium's words.
+        assertEquals(Errors.NETWORK, Errors.friendly("claimFeeJuice: Load failed"))
+        assertEquals(Errors.NETWORK, Errors.friendly("transfer: Failed to fetch"))
     }
 }

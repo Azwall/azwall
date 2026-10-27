@@ -95,6 +95,9 @@ struct ErrorsTests {
         #expect(Errors.friendly("transfer: insufficient balance\n  at stack") == "insufficient balance")
         #expect(Errors.friendly("open: node https://rpc.io/… is down") == "node https://rpc.io/… is down")
         #expect(Errors.friendly("Timeout after 30 s\nmore") == "Timeout after 30 s")
+        // A dropped connection says what happened and what to do, not WebKit's or Chromium's words.
+        #expect(Errors.friendly("claimFeeJuice: Load failed") == Errors.network)
+        #expect(Errors.friendly("transfer: Failed to fetch") == Errors.network)
         #expect(Errors.friendly(nil) == "Something went wrong")
         #expect(Errors.friendly("\nstack only") == "Something went wrong")
     }

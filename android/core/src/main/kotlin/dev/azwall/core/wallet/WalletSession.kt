@@ -97,6 +97,13 @@ data class SessionState(
     val activating: Boolean
         get() = activity.any { it.kind == ActivityKind.DEPLOY_ACCOUNT && it.account == selected && it.status in IN_FLIGHT }
 
+    /**
+     * A claim of bridged Fee Juice is sent and not in a block yet: the deposit still reads as unclaimed until then, and
+     * claiming it again would only pay a fee to fail.
+     */
+    val claiming: Boolean
+        get() = activity.any { it.kind == ActivityKind.CLAIM_FEE_JUICE && it.account == selected && it.status in IN_FLIGHT }
+
     /** The first deposit the wallet can claim now, if any: activation claims it in the same transaction. */
     val claimable: FeeJuiceDeposit? get() = deposits.firstOrNull { it.claimable }
 

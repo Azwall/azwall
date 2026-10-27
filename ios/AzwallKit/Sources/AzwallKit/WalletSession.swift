@@ -83,6 +83,12 @@ public final class WalletSession {
         activity.contains { $0.kind == .deployAccount && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
     }
 
+    /// A claim of bridged Fee Juice is sent and not in a block yet: the deposit still reads as unclaimed until then, and
+    /// claiming it again would only pay a fee to fail.
+    public var claiming: Bool {
+        activity.contains { $0.kind == .claimFeeJuice && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
+    }
+
     /// The first deposit the wallet can claim now, if any: activation claims it in the same transaction.
     public var claimable: FeeJuiceDeposit? { deposits.first { $0.claimable } }
 

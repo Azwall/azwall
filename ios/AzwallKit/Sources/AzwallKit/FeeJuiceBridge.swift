@@ -88,7 +88,10 @@ extension WalletSession {
     public var bridged: Bridged? {
         let d = FeeJuice.info.decimals
         if let ready = claimable {
-            return Bridged(text: "\(Amounts.display(ready.amount, decimals: d, maxFraction: 4)) FJ bridged from Ethereum", claim: account?.deployed == true)
+            let amount = Amounts.display(ready.amount, decimals: d, maxFraction: 4)
+            // Sent, not in a block yet: said as such, without a second Claim button.
+            if claiming { return Bridged(text: "Claiming \(amount) FJ bridged from Ethereum…", claim: false) }
+            return Bridged(text: "\(amount) FJ bridged from Ethereum", claim: account?.deployed == true)
         }
         if Amounts.isPositive(arriving) {
             return Bridged(text: "\(Amounts.display(arriving, decimals: d, maxFraction: 4)) FJ arriving from Ethereum", claim: false)
