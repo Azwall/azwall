@@ -10,6 +10,10 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var failBalances = false
     /// What the network declares: "sponsored", or "feeJuice" (the account pays).
     var fees = "sponsored"
+    /// Base units of Fee Juice every account holds.
+    var feeJuice = "1500000000000000000"
+    /// What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list).
+    var deposits = "[]"
     /// The rollup version the node reports: a new one means the network was redeployed.
     var rollup = 2
     var failOpen: String?
@@ -34,7 +38,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
             return try JSONValue.parse(#"{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":\#(rollup),"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"\#(fees)"}"#)
-        case "feeJuiceBalance": return .object(["balance": .string("1500000000000000000")])
+        case "feeJuiceBalance": return .object(["balance": .string(feeJuice)])
+        case "feeJuiceDeposits": return .object(["deposits": try JSONValue.parse(deposits)])
         case "addAccount": return .object(["address": .string("addr-" + p("signingKey").suffix(4))])
         case "accountState":
             if failBalances { throw PxeError("node unreachable") }
@@ -46,7 +51,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
             return try JSONValue.parse(#"[{"token":"0xt","private":"\#(first ? "2500000" : "7000000")","public":"0"}]"#)
         case "tokenInfo": return .object(["address": .string(p("token")), "name": .string("Test"), "symbol": .string("TST"), "decimals": .number(6)])
         case "mint": return .object(["txHash": .string("0xmint")])
-        case "deployAccount", "transfer":
+        case "deployAccount", "transfer", "claimFeeJuice":
             await whileProving?()
             try gate.check()
             sent.append(params)

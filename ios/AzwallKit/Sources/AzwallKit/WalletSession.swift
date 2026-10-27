@@ -69,6 +69,8 @@ public final class WalletSession {
     public private(set) var provingSince: Date?
     /// Where fees are paid with Fee Juice: base units the selected account holds (Fees).
     public internal(set) var feeJuice: String?
+    /// Fee Juice bridged to the selected account from Ethereum, claimed or not (FeeJuiceDeposit).
+    public internal(set) var deposits: [FeeJuiceDeposit] = []
     /// Releases the transaction being proven when the user cancels it (Transactions.swift).
     @ObservationIgnored var stopProving: (() -> Void)?
     /// A cancelled transaction still being proven in the background; the next one waits for its proof to be refused.
@@ -80,6 +82,15 @@ public final class WalletSession {
     public var activating: Bool {
         activity.contains { $0.kind == .deployAccount && $0.account == selected && ($0.status == .proving || $0.status == .pending) }
     }
+
+    /// The first deposit the wallet can claim now, if any: activation claims it in the same transaction.
+    public var claimable: FeeJuiceDeposit? { deposits.first { $0.claimable } }
+
+    /// Base units bridged to the account and not on Aztec yet.
+    public var arriving: String { deposits.filter(\.arriving).map(\.amount).reduce("0", Amounts.add) }
+
+    /// Deposits made with a secret the wallet does not know: the user can enter it.
+    public var locked: [FeeJuiceDeposit] { deposits.filter(\.locked) }
 
     /// The account's Fee Juice, as the first token of the home screen: 0 until read, as a new account holds.
     public var feeJuiceToken: TokenView { FeeJuice.token(feeJuice ?? "0") }
@@ -207,6 +218,7 @@ public final class WalletSession {
         lastDiscovery = nil
         primary = store.primary(account: address)
         feeJuice = nil
+        deposits = []
         await refresh()
     }
 
@@ -248,6 +260,10 @@ public final class WalletSession {
         task = nil
         // Independent of the balances: a token that cannot be read must not hide the others found.
         if current() && self.account?.deployed == true { await discover(owner: account.address) }
+        // What was bridged to it: claimed by its activation, or by itself once active.
+        if current(), let found = try? await client.feeJuiceDeposits(account.address, secrets: store.claimSecrets(account: account.address)), current() {
+            deposits = found
+        }
         // Read on every network: it is the first token shown, and what pays fees where there is no sponsor.
         if current(), let balance = try? await client.feeJuiceBalance(account.address), current() {
             feeJuice = balance
@@ -288,6 +304,14 @@ public final class WalletSession {
     public func addToken(_ address: String) async throws {
         guard let from = account?.address else { throw PxeError("no account") }
         store.addToken(try await client.tokenInfo(address.trimmingCharacters(in: .whitespacesAndNewlines), from: from))
+        await refresh()
+    }
+
+    /// Remembers a claim secret the user entered for the selected account's bridge deposits (hex or decimal), and reads
+    /// the deposits again: the one made with it becomes claimable. Throws on a value that is no field element.
+    public func addClaimSecret(_ text: String) async throws {
+        guard let selected else { throw PxeError("no account") }
+        store.addClaimSecret(account: selected, secret: try ClaimSecrets.normalize(text))
         await refresh()
     }
 

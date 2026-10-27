@@ -15,6 +15,10 @@ struct HomeView: View {
     @State private var opened: String?
     /// Activating pays a fee where there is no sponsor: confirmed like any transaction first.
     @State private var reviewingActivation = false
+    /// Claiming bridged Fee Juice, confirmed like any transaction first.
+    @State private var reviewingClaim = false
+    @State private var enteringSecret = false
+    @State private var claimSecret = ""
 
     enum Route: Hashable { case send, shield, receive, settings, tokens }
     enum Sheet: Identifiable { case networks, accounts, addToken; var id: Self { self } }
@@ -31,7 +35,8 @@ struct HomeView: View {
                             .padding(.horizontal, 16)
                     }
                     accountHeader
-                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onShield: { route = .shield }, onRetry: refresh)
+                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onShield: { route = .shield }, onRetry: refresh,
+                                onClaim: { reviewingClaim = true }, onEnterSecret: { claimSecret = ""; enteringSecret = true })
                         .padding(.top, 20)
                     actions.padding(.vertical, 20)
                     FoundTokensView(session: session)
@@ -45,7 +50,21 @@ struct HomeView: View {
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
             .sheet(isPresented: $reviewingActivation) {
-                ReviewSheet(review: Review.activation(network: session.network.label, fee: Fees.line(session.check, feeJuice: session.feeJuice)), onConfirm: activate)
+                let fee = session.claimable.map(Fees.claimLine) ?? Fees.line(session.check, feeJuice: session.feeJuice)
+                ReviewSheet(review: Review.activation(network: session.network.label, fee: fee), onConfirm: activate)
+            }
+            .sheet(isPresented: $reviewingClaim) {
+                if let claim = session.claimable {
+                    let amount = "\(Amounts.display(claim.amount, decimals: FeeJuice.info.decimals, maxFraction: 4)) FJ"
+                    ReviewSheet(review: Review.claimFeeJuice(amount: amount, network: session.network.label)) { self.claim(claim) }
+                }
+            }
+            .alert("Claim secret", isPresented: $enteringSecret) {
+                TextField("0x… or a number", text: $claimSecret).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {}
+                Button("Use it") { useSecret(claimSecret) }
+            } message: {
+                Text("The secret whose hash you gave the Fee Juice portal when bridging, in hex (0x…) or as a number. It only lets someone credit your account, never take the deposit.")
             }
             .sheet(item: $shared) { token in
                 ShareTokenSheet(token: token, network: session.network) { session.removeToken(token.info.address) }.presentationDetents([.large])
@@ -130,6 +149,16 @@ struct HomeView: View {
 
     private func activate() {
         Task { await model.sign(done: "Account activation sent.") { try await $0.deployAccount() } }
+    }
+
+    private func claim(_ deposit: FeeJuiceDeposit) {
+        Task { await model.sign(done: "Fee Juice claim sent.") { try await $0.claimFeeJuice(deposit) } }
+    }
+
+    private func useSecret(_ text: String) {
+        Task {
+            do { try await session.addClaimSecret(text) } catch { model.message = error.localizedDescription }
+        }
     }
 
     private func refresh() {

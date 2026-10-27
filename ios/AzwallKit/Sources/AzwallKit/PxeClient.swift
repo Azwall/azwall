@@ -157,9 +157,32 @@ public struct PxeClient: Sendable {
         try await caller.call("accountState", .object(["address": .string(address)]))["deployed"]?.boolValue == true
     }
 
-    /// Proves and sends the account deployment; returns the transaction hash.
-    public func deployAccount(_ account: AccountSecrets) async throws -> String {
-        try await field("deployAccount", try JSONValue.from(account), "txHash")
+    /// Proves and sends the account deployment; with `claim`, the transaction claims that deposit and pays its fee with
+    /// it. Returns the transaction hash.
+    public func deployAccount(_ account: AccountSecrets, claim: FeeJuiceDeposit? = nil) async throws -> String {
+        var params = try JSONValue.from(account)
+        if let claim, case .object(var fields) = params {
+            fields["claim"] = try claimJSON(claim)
+            params = .object(fields)
+        }
+        return try await field("deployAccount", params, "txHash")
+    }
+
+    /// Fee Juice bridged to `owner` from Ethereum, claimed or not (none where the network has no Ethereum side). The PXE
+    /// knows the public secrets; `secrets` are the ones the user entered for other deposits.
+    public func feeJuiceDeposits(_ owner: String, secrets: [String] = []) async throws -> [FeeJuiceDeposit] {
+        let reply = try await caller.call("feeJuiceDeposits", .object(["owner": .string(owner), "secrets": .array(secrets.map { .string($0) })]))
+        return try (reply["deposits"] ?? .array([])).decode([FeeJuiceDeposit].self)
+    }
+
+    /// Claims `deposit` for an active `owner`; the transaction pays its fee with the Fee Juice it claims.
+    public func claimFeeJuice(owner: String, deposit: FeeJuiceDeposit) async throws -> String {
+        try await field("claimFeeJuice", .object(["owner": .string(owner), "claim": try claimJSON(deposit)]), "txHash")
+    }
+
+    private func claimJSON(_ d: FeeJuiceDeposit) throws -> JSONValue {
+        guard let secret = d.secret else { throw PxeError("this deposit's claim secret is unknown") }
+        return .object(["amount": .string(d.amount), "leafIndex": .string(d.leafIndex), "secret": .string(secret)])
     }
 
     public func waitForTx(_ txHash: String) async throws -> Receipt {

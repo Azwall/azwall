@@ -36,6 +36,17 @@ public struct Review: Equatable, Sendable {
         return Review(title: "Activate your account", lines: lines.map { Line(label: $0.0, value: $0.1) }, confirm: "Confirm and activate")
     }
 
+    /// Claiming Fee Juice bridged from Ethereum: the transaction pays its fee out of what it claims.
+    public static func claimFeeJuice(amount: String, network: String) -> Review {
+        let lines = [
+            ("Amount", amount),
+            ("From", "Your deposit on the Fee Juice portal, on Ethereum"),
+            ("Network", network),
+            ("Fee", "Paid out of the Fee Juice this transaction claims"),
+        ]
+        return Review(title: "Claim your Fee Juice", lines: lines.map { Line(label: $0.0, value: $0.1) }, confirm: "Confirm and claim")
+    }
+
     /// Minting `amount` of the account's own token; an empty `to` mints to the account itself.
     public static func mint(amount: String, toPrivate: Bool, to: String, network: String, fee: String = Fees.sponsored) -> Review {
         let lines = [

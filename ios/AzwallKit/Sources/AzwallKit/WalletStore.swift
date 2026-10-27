@@ -5,6 +5,8 @@ public enum ActivityKind: String, Codable, Sendable {
     case shield = "SHIELD", unshield = "UNSHIELD", mint = "MINT", deployToken = "DEPLOY_TOKEN"
     /// A transaction a dApp asked for; a private transfer received (read back from the chain).
     case dapp = "DAPP", receive = "RECEIVE"
+    /// Fee Juice bridged from Ethereum, claimed by an active account (activation claims it otherwise).
+    case claimFeeJuice = "CLAIM_FEE_JUICE"
 }
 
 public enum ActivityStatus: String, Codable, Sendable {
@@ -55,6 +57,9 @@ private struct StoredNetwork: Codable {
     var snapshots: [AccountSnapshot]?
     /// The chain all this belongs to (`WalletStore.chain(of:)`); nil before it was first recorded.
     var chain: String?
+    /// Claim secrets the user entered for Fee Juice bridged to an account (account → hex secrets). Not custody
+    /// secrets: a bridge deposit is bound to its recipient, so its secret only lets someone credit that recipient.
+    var claimSecrets: [String: [String]]?
 }
 
 /// Non-secret data of one network: followed tokens and history. One JSON file per network, written atomically.
@@ -115,6 +120,13 @@ public final class WalletStore: @unchecked Sendable {
             if !(all[account] ?? []).contains(token) { all[account, default: []].append(token) }
             d.created = all
         }
+    }
+
+    public func claimSecrets(account: String) -> [String] { lock.withLock { data.claimSecrets?[account] ?? [] } }
+
+    public func addClaimSecret(account: String, secret: String) {
+        guard !claimSecrets(account: account).contains(secret) else { return }
+        update { d in d.claimSecrets = (d.claimSecrets ?? [:]).merging([account: (d.claimSecrets?[account] ?? []) + [secret]]) { $1 } }
     }
 
     public func primary(account: String) -> String? { lock.withLock { data.primary?[account] } }

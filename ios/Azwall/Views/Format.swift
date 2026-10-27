@@ -36,6 +36,7 @@ func activityTitle(_ item: ActivityItem) -> String {
     case .deployToken: "Token created" + (item.symbol.map { " (\($0))" } ?? "")
     case .dapp: item.summary ?? "App transaction"
     case .receive: "Received privately"
+    case .claimFeeJuice: "Fee Juice claimed"
     }
 }
 
@@ -50,6 +51,7 @@ func provingTitle(_ kind: ActivityKind) -> String {
     case .deployToken: "Creating the token"
     case .dapp: "Proving the app's transaction"
     case .receive: "Receiving"
+    case .claimFeeJuice: "Claiming your Fee Juice"
     }
 }
 
@@ -59,7 +61,7 @@ func activityAmount(_ item: ActivityItem) -> String? {
     let text = "\(Amounts.format(amount, decimals: item.decimals ?? 0)) \(item.symbol ?? "")".trimmingCharacters(in: .whitespaces)
     switch item.kind {
     case .sendPrivate, .sendPublic: return "−" + text
-    case .mint, .receive: return "+" + text
+    case .mint, .receive, .claimFeeJuice: return "+" + text
     default: return text
     }
 }

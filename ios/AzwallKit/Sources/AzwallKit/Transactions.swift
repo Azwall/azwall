@@ -4,13 +4,30 @@ import Foundation
 /// made on the device), pending (accepted by the node), then confirmed or failed. Proving is the long part
 /// (15 to 30 s on a phone); mining is awaited in the background.
 extension WalletSession {
-    /// Deploys the selected account's contract; fees are paid by the Sponsored FPC.
-    /// Deploys the selected account's contract, once: a second activation would only pay a fee to fail.
+    /// Deploys the selected account's contract, once: a second activation would only pay a fee to fail. With Fee Juice
+    /// bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction. Refused when
+    /// nothing can pay it (Fees.canActivate): it would only fail once proven.
     public func deployAccount() async throws {
         guard !activating else { throw PxeError("the account's activation is already on its way") }
+        let claim = claimable
+        guard Fees.canActivate(check, feeJuice: feeJuice, claim: claim) else {
+            throw PxeError("this account holds no Fee Juice to pay its activation: bridge AZTEC from Ethereum to its address first")
+        }
         let me = try selectedAddress()
         let secrets = try secrets(of: me)
-        try await track(ActivityItem(account: me, kind: .deployAccount)) { client in try await client.deployAccount(secrets) }
+        try await track(ActivityItem(account: me, kind: .deployAccount)) { client in try await client.deployAccount(secrets, claim: claim) }
+    }
+
+    /// Claims Fee Juice bridged to the selected, active account; the transaction pays its fee with what it claims.
+    public func claimFeeJuice(_ deposit: FeeJuiceDeposit) async throws {
+        guard account?.deployed == true else { throw PxeError("activate the account first: activation claims it too") }
+        let me = try selectedAddress()
+        var item = ActivityItem(account: me, kind: .claimFeeJuice)
+        item.token = FeeJuice.id
+        item.symbol = FeeJuice.info.symbol
+        item.decimals = FeeJuice.info.decimals
+        item.amount = deposit.amount
+        try await track(item) { client in try await client.claimFeeJuice(owner: me, deposit: deposit) }
     }
 
     /// Sends `amount` base units of `token`. For shield and unshield the recipient is the sender.

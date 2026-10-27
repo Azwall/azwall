@@ -7,6 +7,10 @@ struct BalanceHero: View {
     let onActivate: () -> Void
     let onShield: () -> Void
     let onRetry: () -> Void
+    /// Claims Fee Juice bridged to the active account (WalletSession.claimable).
+    var onClaim: () -> Void = {}
+    /// Asks for the claim secret of a deposit made with one of the user's own.
+    var onEnterSecret: () -> Void = {}
 
     var body: some View {
         // While the PXE starts, the hero already shows (Fee Juice at 0, or last session's balances): the status
@@ -17,9 +21,11 @@ struct BalanceHero: View {
             Notice(icon: "paperplane", title: "Activating your account",
                    text: "Activation sent: your account can send transactions once it is in a block.", action: nil, onAction: {})
         } else if session.account?.deployed == false {
+            // Without a sponsor, a claim or Fee Juice, an activation would only fail once proven: not offered.
+            let canPay = Fees.canActivate(session.check, feeJuice: session.feeJuice, claim: session.claimable)
             Notice(icon: "paperplane", title: "Activate your account",
-                   text: Fees.activation(session.check, feeJuice: session.feeJuice),
-                   action: "Activate", onAction: onActivate)
+                   text: Fees.activation(session.check, feeJuice: session.feeJuice, claim: session.claimable, arriving: session.arriving),
+                   action: canPay ? "Activate" : nil, onAction: onActivate)
         } else {
             hero(session.hero).stalePulse(session.stale)
         }
@@ -34,8 +40,21 @@ struct BalanceHero: View {
             } else {
                 split(token)
             }
+            if let bridged = session.bridged { bridgedLine(bridged) }
         }
         .padding(.horizontal)
+    }
+
+    /// Bridged Fee Juice: a button when it can be claimed now or needs its secret, else a line.
+    @ViewBuilder
+    private func bridgedLine(_ bridged: Bridged) -> some View {
+        if bridged.claim {
+            Button("Claim \(bridged.text)", action: onClaim).font(.subheadline.weight(.semibold))
+        } else if bridged.askSecret {
+            Button("\(bridged.text): enter it", action: onEnterSecret).font(.subheadline.weight(.semibold))
+        } else {
+            Text(bridged.text).font(.subheadline).foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
