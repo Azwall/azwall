@@ -75,6 +75,7 @@ fun SettingsScreen(state: SessionState, info: SettingsInfo, busy: Boolean, actio
             NetworkSection(state, info, actions)
             BrowserSection(info.searchEngine, actions.onSearchEngine)
             SecuritySection(info.hasPhrase, actions)
+            DiagnosticsSection(info.appVersion)
             AboutSection(info)
         }
     }

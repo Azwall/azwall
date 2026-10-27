@@ -25,6 +25,7 @@ struct SettingsView: View {
                 Text("Where the Explore address bar searches: only engines that do not profile who searches.")
             }
             securitySection
+            DiagnosticsSection()
             Section("About") {
                 LabeledContent("Azwall", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
                 LabeledContent("Rust core", value: AzwallRuntime.coreVersion)

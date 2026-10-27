@@ -12,6 +12,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
+import dev.azwall.core.DiagnosticLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -98,8 +99,8 @@ class PxeHost private constructor(
             val message = data?.get("message")?.jsonPrimitive?.content ?: event.data.toString()
             val scope = data?.get("scope")?.jsonPrimitive?.content ?: "pxe"
             when (data?.get("level")?.jsonPrimitive?.content) {
-                "error" -> Log.e(TAG, "[$scope] $message")
-                "warn" -> Log.w(TAG, "[$scope] $message")
+                "error" -> Log.e(TAG, "[$scope] $message").also { DiagnosticLog.shared.record(DiagnosticLog.Level.ERROR, "pxe $scope", message) }
+                "warn" -> Log.w(TAG, "[$scope] $message").also { DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "pxe $scope", message) }
                 else -> if (verbose) Log.i(TAG, "[$scope] $message")
             }
         }

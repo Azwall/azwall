@@ -7,6 +7,7 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import dev.azwall.core.AzwallRuntime
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.KeystoreSecretBox
 import dev.azwall.core.vault.Vault
@@ -44,7 +45,11 @@ class AppContainer(context: Context) : AppDeps {
     override val vault = Vault(File(app.filesDir, "vault.bin"), box)
     override val approvals = DappApprovals()
     override val launcher: PxeLauncher = AndroidPxeLauncher(app, approvals) { backend }
-    override val storeDir = File(app.filesDir, "wallet")
+    override val storeDir = File(app.filesDir, "wallet").also {
+        // Kept with the store: what went wrong lately, exported only by the user.
+        it.mkdirs()
+        DiagnosticLog.shared.attach(File(it, "diagnostics.log"))
+    }
     override val deviceSecure: Boolean get() = app.getSystemService(KeyguardManager::class.java).isDeviceSecure
 
     override var lastNetwork: String?

@@ -157,6 +157,11 @@ enum PxeLog {
 
     private static func write(_ data: JSONValue, bundle: String) {
         let text = "[\(bundle)] [\(data["scope"]?.stringValue ?? "host")] \(data["message"]?.stringValue ?? "\(data)")"
+        // Warnings and errors also go to the diagnostic log the user can export (redacted there).
+        let level = data["level"]?.stringValue
+        if level == "warn" || level == "error" {
+            DiagnosticLog.shared.record(level == "error" ? .error : .warn, "pxe \(bundle)", text)
+        }
         #if DEBUG
         switch data["level"]?.stringValue {
         case "error": logger.error("\(text, privacy: .public)")

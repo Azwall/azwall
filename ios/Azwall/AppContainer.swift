@@ -17,6 +17,8 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? url.setResourceValues(values)
+        // Kept with the store (and like it out of backups): what went wrong lately, exported only by the user.
+        DiagnosticLog.shared.attach(file: url.appendingPathComponent("diagnostics.log"))
         return url
     }()
     let approvals = DappApprovals()
