@@ -85,6 +85,7 @@ fun TransferScreen(
     val token = tokens.getOrNull(tokenIndex) ?: return NoTokens(mode, onBack)
     val kind = kindOf(mode, publicSide)
     val available = available(token, kind)
+    // Kept as a Result: amountError shows the failure under the field.
     val amount = runCatching { Amounts.parse(amountText, token.info.decimals) }
     val amountError = amountError(amountText, amount, available)
     val toError = if (mode == TransferMode.SEND) recipientError(to, me) else null

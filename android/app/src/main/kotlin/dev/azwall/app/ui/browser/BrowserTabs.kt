@@ -2,6 +2,7 @@ package dev.azwall.app.ui.browser
 
 import android.content.Context
 import androidx.webkit.WebViewFeature
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.wallet.DappLink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +37,8 @@ class BrowserTabs(private val context: Context, private val onPageClosed: (Int) 
     fun attach(link: DappLink, contentScript: String, scope: CoroutineScope) {
         check(supported()) { "this WebView is too old for dApps; update Android System WebView" }
         this.link = link
-        val messages = PageMessages { page, origin, message -> scope.launch { runCatching { link.fromPage(page, origin, message) } } }
+        // The dApp waits for a reply that does not come; reported so a stuck dApp can be diagnosed.
+        val messages = PageMessages { page, origin, message -> scope.launch { runCatching { link.fromPage(page, origin, message) }.onFailure { DiagnosticLog.shared.report("dapps", it) } } }
         installed = contentScript to messages
         _tabs.value.forEach { it.install(contentScript, messages) }
         links?.cancel()
@@ -83,6 +85,7 @@ class BrowserTabs(private val context: Context, private val onPageClosed: (Int) 
 
         /** dApps must be served over https; http only for local development. */
         fun allowedOrigin(origin: String): Boolean {
+            // An origin that does not parse is simply not allowed.
             val uri = runCatching { URI(origin) }.getOrNull() ?: return false
             return uri.scheme == "https" || (uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1"))
         }

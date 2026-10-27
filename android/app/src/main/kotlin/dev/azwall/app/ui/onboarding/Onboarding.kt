@@ -66,6 +66,7 @@ fun OnboardingFlow(busy: Boolean, actions: OnboardingActions) {
         step == Step.BACKUP && words != null -> Backup(words, onBack = { step = Step.WELCOME }, onNext = { step = Step.VERIFY })
         step == Step.VERIFY && words != null -> Verify(words, busy, onBack = { step = Step.BACKUP }, onDone = { actions.onCreate(phrase!!) })
         else -> Welcome(
+            // newPhrase shows its own failure; the user stays on the welcome step to try again.
             onCreate = { scope.launch { runCatching { actions.newPhrase() }.onSuccess { phrase = it; step = Step.BACKUP } } },
             onImport = { step = Step.IMPORT },
         )

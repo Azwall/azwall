@@ -1,5 +1,6 @@
 package dev.azwall.core.pxe
 
+import dev.azwall.core.DiagnosticLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -57,7 +58,9 @@ class PxeChannel(
 
     /** Handles one message from the page. Unreadable messages are reported as `log` events. */
     fun receive(json: String) {
+        // Reported and emitted as a log event: the message is dropped, its call times out on the host side.
         val msg = runCatching { Json.parseToJsonElement(json).jsonObject }.getOrElse {
+            DiagnosticLog.shared.report("pxe", it)
             _events.tryEmit(PxeEvent("log", JsonPrimitive("unreadable message from the PXE host: ${it.message}")))
             return
         }
@@ -91,6 +94,7 @@ class PxeChannel(
         val params = msg["params"] as? JsonObject ?: JsonObject(emptyMap())
         scope.launch {
             val handler = handlers[method]
+            // Not dropped: a failure goes back to the host as the reply's error, for its caller to handle.
             val result = runCatching { handler?.invoke(params) ?: throw PxeException("unknown native method: $method") }
             send(
                 message("reply", id) {

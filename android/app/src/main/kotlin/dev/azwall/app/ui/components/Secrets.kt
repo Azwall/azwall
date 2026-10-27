@@ -39,6 +39,7 @@ fun copySecret(context: Context, text: String) {
     clip.description.extras = PersistableBundle().apply { putBoolean(sensitive, true) }
     clipboard.setPrimaryClip(clip)
     Handler(Looper.getMainLooper()).postDelayed({
+        // Only to clear our own copy: if the system refuses the read, the clip is left to its own expiry.
         val current = runCatching { clipboard.primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
         if (current == text) clipboard.clearPrimaryClip()
     }, CLEAR_AFTER_MS)

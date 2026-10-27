@@ -86,6 +86,7 @@ private fun ConnectedSite(session: DappSession, onClick: () -> Unit) {
 private fun DappIcon(dapp: KnownDapp, size: Dp = 40.dp) {
     val context = LocalContext.current
     val icon = remember(dapp.iconPath) {
+        // A missing or undecodable icon falls back to the lettered badge.
         runCatching { context.assets.open(dapp.iconPath).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
     }
     if (icon == null) TokenBadge(dapp.name, dapp.tint, size) else Image(icon, null, Modifier.size(size).clip(RoundedCornerShape(10.dp)))

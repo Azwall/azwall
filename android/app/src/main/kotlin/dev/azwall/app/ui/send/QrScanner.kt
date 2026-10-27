@@ -94,6 +94,7 @@ private fun CameraPreview(onResult: (String) -> Unit) {
             provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, usecase, analysis)
         }, ContextCompat.getMainExecutor(context))
         onDispose {
+            // Best-effort release: a provider that never bound has no camera to unbind.
             runCatching { providerFuture.get().unbindAll() }
             executor.shutdown()
         }

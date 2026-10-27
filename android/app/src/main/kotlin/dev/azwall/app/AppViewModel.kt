@@ -10,6 +10,7 @@ import dev.azwall.core.vault.VaultContents
 import dev.azwall.core.wallet.AutoLock
 import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.WalletSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     fun boot() {
         if (_phase.value != AppPhase.Booting) return
         viewModelScope.launch {
+            // Not dropped: a failure is the Failed phase, which shows it.
             val result = withContext(io) { runCatching { deps.backend.networks() to deps.vault.exists() } }
             result.onSuccess { (networks, exists) ->
                 _networks.value = networks
@@ -97,10 +99,11 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     /** A new recovery phrase for onboarding; the Rust core loads on first use, off the main thread. */
-    suspend fun newRecoveryPhrase(): String = withContext(io) { deps.backend.newRecoveryPhrase() }
+    suspend fun newRecoveryPhrase(): String = told { withContext(io) { deps.backend.newRecoveryPhrase() } }
 
     /** Null when [secret] is a usable phrase or key, else what is wrong with it. */
     suspend fun checkSecret(secret: String): String? = withContext(io) {
+        // The failure is the answer: its message tells the user what is wrong with what they typed.
         runCatching { Recovery.firstAccount(secret, "", deps.backend) }.exceptionOrNull()?.message
     }
 
@@ -108,9 +111,9 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     val hasRecoveryPhrase: Boolean get() = contents?.phrase != null
 
     /** The recovery phrase, after the user authenticated again; null for a wallet created from a key. */
-    suspend fun revealPhrase(auth: Auth): String? {
+    suspend fun revealPhrase(auth: Auth): String? = told {
         if (!auth()) throw AuthCancelled()
-        return contents?.phrase
+        contents?.phrase
     }
 
     /**
@@ -162,10 +165,10 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     /** Re-authenticates, then returns the signing key of the account at [address] (for backup). */
-    suspend fun revealKey(address: String, auth: Auth): String {
+    suspend fun revealKey(address: String, auth: Auth): String = told {
         if (!auth()) throw AuthCancelled()
         val session = (_phase.value as? AppPhase.Unlocked)?.session ?: error("the wallet is locked")
-        return session.state.value.accounts.first { it.address == address }.signingKey
+        session.state.value.accounts.first { it.address == address }.signingKey
     }
 
     fun wipe(auth: Auth) = action {
@@ -228,6 +231,19 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         _phase.value = AppPhase.Unlocked(session)
         session.open()
         checkNode(network.id)
+    }
+
+    /**
+     * For what a screen awaits itself rather than through [action]: a failure is shown as [action] would show it,
+     * then rethrown for the screen to stay where it is. A cancellation (the screen left) is not shown.
+     */
+    private suspend fun <T> told(block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        _message.value = e.message ?: e.toString()
+        throw e
     }
 
     private fun action(block: suspend () -> Unit) = viewModelScope.launch {

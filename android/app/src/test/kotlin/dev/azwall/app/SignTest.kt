@@ -11,10 +11,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -82,5 +84,30 @@ class SignTest {
         // Past the owner check, the form closes; without an unlocked wallet the transaction stops there.
         assertTrue(closed)
         assertEquals("the wallet is locked", vm.message.value)
+    }
+
+    @Test
+    fun aDeclinedRevealSaysSo() = runTest {
+        val vm = model()
+        assertTrue(runCatching { vm.revealKey("0x1", auth = { false }) }.isFailure)
+        assertEquals("authentication was cancelled", vm.message.value)
+        vm.consumeMessage()
+        assertTrue(runCatching { vm.revealPhrase(auth = { false }) }.isFailure)
+        assertEquals("authentication was cancelled", vm.message.value)
+    }
+
+    @Test
+    fun aRecoveryPhraseThatCannotBeMadeSaysWhy() = runTest {
+        val vm = model()
+        // The fake backend throws "not used": onboarding stays on its first step, with the reason shown.
+        assertTrue(runCatching { vm.newRecoveryPhrase() }.isFailure)
+        assertEquals("not used", vm.message.value)
+    }
+
+    @Test
+    fun aRevealedPhraseShowsNoMessage() = runTest {
+        val vm = model()
+        assertNull(vm.revealPhrase(auth = { true }))
+        assertNull(vm.message.value)
     }
 }

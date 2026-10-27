@@ -117,6 +117,7 @@ fun AccountsSheet(
 private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
     var alias by rememberSaveable { mutableStateOf("Account $number") }
     var key by remember { mutableStateOf("") }
+    // The failure is the answer: its message is shown under the key field.
     val keyError = key.takeIf { it.isNotBlank() }?.let { runCatching { Vault.parseSigningKey(it) }.exceptionOrNull()?.message }
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(alias, { alias = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())

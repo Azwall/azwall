@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.AppViewModel
 import dev.azwall.app.Auth
 import dev.azwall.app.ui.components.AccountAvatar
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.WalletSession
@@ -84,12 +85,16 @@ fun rememberBrowser(session: WalletSession, approvals: DappApprovals): BrowserTa
     val browser = remember {
         BrowserTabs(context) { page ->
             approvals.rejectTab(page)
-            scope.launch { runCatching { current.dapps.closePage(page) } }
+            // A page the gateway did not forget keeps its dApp session until the PXE restarts; reported.
+            scope.launch { runCatching { current.dapps.closePage(page) }.onFailure { DiagnosticLog.shared.report("dapps", it) } }
         }
     }
     LaunchedEffect(session) {
         val path = "pxe/${session.network.pxeBundle}/dapp-content-script.js"
-        val script = withContext(Dispatchers.IO) { runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrNull() }
+        // Without its content script the browser still shows pages, but no dApp can reach the wallet.
+        val script = withContext(Dispatchers.IO) {
+            runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.onFailure { DiagnosticLog.shared.report("browser", it) }.getOrNull()
+        }
         if (script != null && BrowserTabs.supported()) browser.attach(session.dapps, script, scope)
     }
     return browser

@@ -61,4 +61,5 @@ interface WalletBackend {
 }
 
 internal fun hostOf(url: String): String =
+    // Only for display: an unparseable URL is shown as such.
     runCatching { URI(url).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "invalid URL"

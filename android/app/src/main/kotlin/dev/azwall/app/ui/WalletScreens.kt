@@ -229,12 +229,14 @@ private fun SettingsRoute(vm: AppViewModel, session: WalletSession, busy: Boolea
     SettingsScreen(state, info, busy, SettingsActions(
         onMenu = menu,
         onRename = { name -> state.account?.let { vm.renameAccount(it.address, name, auth("Rename the account")) } },
+        // The view model shows why a reveal failed (declined, locked); the dialog just stays closed.
         onRevealKey = { scope.launch { revealed = runCatching { vm.revealKey(state.selected!!, auth("Show the secret key")) }.getOrNull() } },
         onCheckNode = { vm.checkNode(network) },
         onLoadProver = { vm.loadProver(network) },
         onLock = { vm.lock() },
         onWipe = { vm.wipe(auth("Remove the wallet")) },
         onSearchEngine = vm::chooseSearchEngine,
+        // As for the key: the failure is already shown.
         onRevealPhrase = { scope.launch { phrase = runCatching { vm.revealPhrase(auth("Show the recovery phrase")) }.getOrNull() } },
     ))
     phrase?.let { PhraseDialog(it) { phrase = null } }
@@ -246,6 +248,8 @@ private fun mint(vm: AppViewModel, auth: Auth, token: TokenView, amount: String,
         session.transactions.mint(token.info, Amounts.parse(amount, token.info.decimals), private, to)
     }
 
+// Settings' "About" lines only: "?" says it, and a core that cannot load fails every other call loudly.
 private fun coreVersion(): String = runCatching { dev.azwall.core.ffi.coreVersion() }.getOrDefault("?")
 
+// As for the core version: an empty list in "About" only.
 private fun releases(): List<String> = runCatching { dev.azwall.core.ffi.supportedBarretenbergReleases() }.getOrDefault(emptyList())

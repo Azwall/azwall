@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.pxe.FeeJuiceDeposit
 import dev.azwall.core.pxe.Receipt
 import dev.azwall.core.pxe.TokenInfo
@@ -194,7 +195,8 @@ class Transactions internal constructor(private val session: WalletSession) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            runCatching { session.client.txReceipt(hash) }.getOrNull()
+            // No receipt leaves the item pending for resume() to look again; the log keeps why.
+            runCatching { session.client.txReceipt(hash) }.onFailure { DiagnosticLog.shared.report("transactions", it) }.getOrNull()
         }
         settled(sent, receipt ?: return)?.let {
             session.recordActivity(it)

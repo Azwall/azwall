@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.AccountSecrets
@@ -164,7 +165,8 @@ class WalletSession(
         store.seed(network.knownTokens)
         Snapshots.restore(_state.value, contents, store)?.let { restored -> _state.value = restored }
         scope.launch { dapps.followActivity() }
-        scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) } }
+        // Only warms the prover ahead of the first transaction; the log keeps why it could not.
+        scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) }.onFailure { DiagnosticLog.shared.report("prover", it) } }
         try {
             val host = launcher.launch(network)
             // Locked or switched away while the host started: nobody would ever stop it.
@@ -176,7 +178,8 @@ class WalletSession(
             val known = _state.value.accounts
             val accounts = contents.accounts.map { s -> register(s).let { v -> v.copy(deployed = known.firstOrNull { it.address == v.address }?.deployed) } }
             Snapshots.remember(accounts, store)
-            runCatching { host.client.registerTokens(store.tokens.map { it.address }) }
+            // The wallet opens anyway, but a token the PXE does not know reads no balance; the log says why.
+            runCatching { host.client.registerTokens(store.tokens.map { it.address }) }.onFailure { DiagnosticLog.shared.report("pxe", it) }
             _state.update { s ->
                 val selected = s.selected?.takeIf { sel -> accounts.any { it.address == sel } } ?: accounts.firstOrNull()?.address
                 s.copy(phase = Phase.READY, check = check, accounts = accounts, selected = selected)
@@ -206,11 +209,13 @@ class WalletSession(
      * now rather than at its next debounce.
      */
     suspend fun flush() {
-        runCatching { pxe?.client?.flush() }
+        // The PXE still writes at its next debounce; a failed flush only risks what a kill would lose.
+        runCatching { pxe?.client?.flush() }.onFailure { DiagnosticLog.shared.report("pxe", it) }
     }
 
     fun close() {
         closed = true
+        // Closing only lets the PXE finish its writes: the host is stopped right after either way.
         pxe?.let { host -> parent.launch { runCatching { host.client.close() }; host.stop() } }
         running.value = null
         scope.cancel()
@@ -233,7 +238,8 @@ class WalletSession(
     suspend fun refresh() = refreshLock.withLock {
         val account = _state.value.account ?: return
         val current = { _state.value.selected == account.address }
-        val sync = runCatching { client.syncStatus() }.getOrNull()
+        // The refresh goes on without a sync height; the log keeps why it could not be read.
+        val sync = runCatching { client.syncStatus() }.onFailure { DiagnosticLog.shared.report("sync", it) }.getOrNull()
         _state.update { it.copy(refreshing = true, task = BackgroundTask.Syncing(sync)) }
         try {
             val deployed = client.isDeployed(account.address)
@@ -265,11 +271,13 @@ class WalletSession(
 
     /** What the account holds of Fee Juice (shown first, and what pays its fees where there is no sponsor), and what was bridged to it. */
     private suspend fun refreshFeeJuice(address: String) {
-        runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.onSuccess { found ->
+        // The deposits shown stay as they were: reported, as a silent failure here once hid a bridge read that never worked.
+        runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.onFailure { DiagnosticLog.shared.report("feeJuice", it) }.onSuccess { found ->
             _state.update { if (it.selected == address) it.copy(deposits = found) else it }
             if (found.any { it.arriving }) watchArrivals(address)
         }
-        val balance = runCatching { client.feeJuiceBalance(address) }.getOrNull() ?: return
+        // The last balance known stays shown; the log keeps why it was not refreshed.
+        val balance = runCatching { client.feeJuiceBalance(address) }.onFailure { DiagnosticLog.shared.report("feeJuice", it) }.getOrNull() ?: return
         _state.update { if (it.selected == address) it.copy(feeJuice = balance) else it }
         _state.value.account?.takeIf { it.address == address }?.let { Snapshots.saveFeeJuice(it, balance, store) }
     }
@@ -285,7 +293,8 @@ class WalletSession(
             repeat(ARRIVAL_CHECKS) {
                 delay(ARRIVAL_POLL_MS)
                 if (closed || _state.value.selected != address) return@launch
-                val found = runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.getOrNull() ?: return@repeat
+                // The next poll tries again; each failure is kept for the log.
+                val found = runCatching { client.feeJuiceDeposits(address, store.claimSecrets(address)) }.onFailure { DiagnosticLog.shared.report("feeJuice", it) }.getOrNull() ?: return@repeat
                 _state.update { if (it.selected == address) it.copy(deposits = found) else it }
                 // Arrived: a full refresh reads the balance it brings once claimed, and the activation it unblocks.
                 if (found.none { it.arriving }) { refresh(); return@launch }
@@ -365,7 +374,8 @@ class WalletSession(
         lastDiscovery = now
         val known = store.tokens.map { it.address } + store.dismissed
         _state.update { it.copy(task = BackgroundTask.FindingTokens) }
-        val found = runCatching { client.discoverTokens(owner, known) }.getOrNull()
+        // Tokens are looked for again at the next discovery; the log keeps why this one failed.
+        val found = runCatching { client.discoverTokens(owner, known) }.onFailure { DiagnosticLog.shared.report("tokens", it) }.getOrNull()
         importHistory(owner)
         _state.update { s -> s.copy(task = null, found = if (found != null && s.selected == owner) found else s.found) }
     }
@@ -374,7 +384,8 @@ class WalletSession(
     private suspend fun importHistory(owner: String) {
         val tokens = store.tokens
         if (tokens.isEmpty()) return
-        val moves = runCatching { client.tokenHistory(owner, tokens.map { it.address }) }.getOrNull() ?: return
+        // The history keeps what it had; the log keeps why the chain could not be read back.
+        val moves = runCatching { client.tokenHistory(owner, tokens.map { it.address }) }.onFailure { DiagnosticLog.shared.report("history", it) }.getOrNull() ?: return
         store.addMissing(History.items(owner, moves, tokens, store.activity(owner)))
         _state.update { s -> if (s.selected == owner) s.copy(activity = store.activity(owner)) else s }
     }

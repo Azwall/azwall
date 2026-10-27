@@ -1,6 +1,7 @@
 package dev.azwall.core
 
 import java.io.File
+import java.util.concurrent.CancellationException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -36,8 +37,14 @@ class DiagnosticLog(private val now: () -> Instant = Instant::now) {
         target?.let { runCatching { it.writeText(text) } }
     }
 
-    /** An error caught where the app carries on without it: kept for the export. */
-    fun report(scope: String, error: Throwable) = record(Level.WARN, scope, error.message ?: error.toString())
+    /**
+     * An error caught where the app carries on without it: kept for the export. A cancellation is not one: it is
+     * how a read ends when the wallet locks or switches network, and every catch-all around a suspend call sees it.
+     */
+    fun report(scope: String, error: Throwable) {
+        if (error is CancellationException) return
+        record(Level.WARN, scope, error.message ?: error.toString())
+    }
 
     val entries: List<String> @Synchronized get() = lines.toList()
 

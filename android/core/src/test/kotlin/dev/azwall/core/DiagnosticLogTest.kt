@@ -43,4 +43,11 @@ class DiagnosticLogTest {
         assertTrue(text.startsWith("Azwall diagnostic log\nApp: Azwall 0.1.0 (1)\nSystem: Android 16\n"))
         assertTrue(text.contains("WARN [feeJuice] bridge deposits could not be read"))
     }
+
+    @Test
+    fun aCancelledReadIsNotAnError() {
+        val log = DiagnosticLog { Instant.EPOCH }
+        log.report("sync", kotlinx.coroutines.CancellationException("the wallet locked"))
+        assertTrue(log.entries.isEmpty())
+    }
 }

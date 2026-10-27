@@ -72,7 +72,8 @@ class PxeHost private constructor(
                 host.destroy()
                 throw PxeException("the PXE host $bundle did not start: ${e.message}")
             }
-            host.aztecVersion = runCatching { event.data.jsonObject["aztec"]!!.jsonPrimitive.content }.getOrDefault("")
+            // A host that does not say its Aztec version leaves the line blank in Settings; reported as a host/app mismatch.
+            host.aztecVersion = runCatching { event.data.jsonObject["aztec"]!!.jsonPrimitive.content }.onFailure { DiagnosticLog.shared.report("pxe", it) }.getOrDefault("")
             return host
         }
 
@@ -95,6 +96,7 @@ class PxeHost private constructor(
 
         private fun logEvent(event: PxeEvent, verbose: Boolean) {
             if (event.name != "log") return
+            // A log that is not an object is still logged, as its raw text.
             val data = runCatching { event.data.jsonObject }.getOrNull()
             val message = data?.get("message")?.jsonPrimitive?.content ?: event.data.toString()
             val scope = data?.get("scope")?.jsonPrimitive?.content ?: "pxe"

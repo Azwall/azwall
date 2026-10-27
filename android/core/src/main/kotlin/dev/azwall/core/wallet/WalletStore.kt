@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.pxe.NetworkCheck
 import dev.azwall.core.pxe.TokenInfo
 import kotlinx.serialization.Serializable
@@ -159,8 +160,14 @@ class WalletStore(private val dir: File, private val networkId: String) {
         return true
     }
 
-    private fun load(): StoredNetwork =
-        runCatching { json.decodeFromString(StoredNetwork.serializer(), file.readText()) }.getOrDefault(StoredNetwork())
+    /** No file yet is a new network; an unreadable one starts over too, but is reported: the wallet's history went with it. */
+    private fun load(): StoredNetwork {
+        if (!file.exists()) return StoredNetwork()
+        // Reported: an unreadable file loses the stored history and tokens, which someone diagnosing it must know.
+        return runCatching { json.decodeFromString(StoredNetwork.serializer(), file.readText()) }
+            .onFailure { DiagnosticLog.shared.report("store", it) }
+            .getOrDefault(StoredNetwork())
+    }
 
     private fun save(next: StoredNetwork) {
         data = next

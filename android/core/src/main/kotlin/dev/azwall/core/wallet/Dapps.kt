@@ -1,5 +1,6 @@
 package dev.azwall.core.wallet
 
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.pxe.PxeException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -51,9 +52,11 @@ data class ApprovalSection(val title: String, val rows: List<Row>) {
 
     companion object {
         /** The sections of an `approve` call; malformed ones are skipped. */
+        // Sections are only extra detail on top of the approval's title and details; a malformed list shows none.
         fun list(json: JsonElement?): List<ApprovalSection> = runCatching { json?.jsonArray }.getOrNull().orEmpty().mapNotNull { section ->
             val o = section as? JsonObject ?: return@mapNotNull null
             val title = o["title"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            // A section without readable rows is skipped with the rest of what is malformed.
             val rows = runCatching { o["rows"]?.jsonArray }.getOrNull().orEmpty().mapNotNull { row ->
                 val r = row as? JsonObject ?: return@mapNotNull null
                 val label = r["label"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
@@ -74,6 +77,7 @@ class DappApprovals {
 
     /** Native handler for the host's `approve` call: params in, `{ approved }` out. */
     suspend fun approve(params: JsonObject): JsonElement {
+        // Not dropped: rethrown, so the host's call fails and nothing is approved.
         val kind = runCatching { ApprovalKind.valueOf(params.text("kind").uppercase()) }.getOrElse { throw PxeException("unknown approval kind") }
         val details = params["details"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         val tab = params["tab"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
@@ -164,7 +168,8 @@ class DappLink internal constructor(private val session: WalletSession) {
     /** Keeps [sessions] in sync with the gateway; collect it while the browser is alive. */
     suspend fun followSessions() {
         session.pxeEvents.filter { it.name == "dappSessions" }.collect { e ->
-            _sessions.value = runCatching { json.decodeFromJsonElement<List<DappSession>>(e.data) }.getOrDefault(emptyList())
+            // A list the app cannot read shows no sessions; reported, as it means the host and app disagree on its shape.
+            _sessions.value = runCatching { json.decodeFromJsonElement<List<DappSession>>(e.data) }.onFailure { DiagnosticLog.shared.report("dapps", it) }.getOrDefault(emptyList())
         }
     }
 
@@ -175,7 +180,8 @@ class DappLink internal constructor(private val session: WalletSession) {
     suspend fun followActivity() {
         val started = mutableMapOf<String, ActivityItem>()
         session.pxeEvents.filter { it.name == "dappTx" }.collect { e ->
-            val tx = runCatching { json.decodeFromJsonElement<DappTx>(e.data) }.getOrNull() ?: return@collect
+            // An unreadable dApp transaction is missing from the activity; reported, as the host and app disagree on its shape.
+            val tx = runCatching { json.decodeFromJsonElement<DappTx>(e.data) }.onFailure { DiagnosticLog.shared.report("dapps", it) }.getOrNull() ?: return@collect
             val item = (started[tx.id] ?: tx.draft()).let(tx::applyTo)
             if (item.status == ActivityStatus.PROVING) started[tx.id] = item else started.remove(tx.id)
             session.recordActivity(item)

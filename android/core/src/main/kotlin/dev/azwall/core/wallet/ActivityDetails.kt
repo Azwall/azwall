@@ -34,5 +34,6 @@ object ActivityDetails {
         return "${Amounts.format(units, decimals, decimals)} ${item.symbol.orEmpty()}".trim()
     }
 
+    // Null is the answer for an amount that is not a number: the raw text is shown instead.
     private fun String.toBigIntegerOrNull(): BigInteger? = runCatching { BigInteger(this) }.getOrNull()
 }

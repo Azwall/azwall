@@ -50,6 +50,7 @@ fun MintScreen(token: TokenView, network: String, fee: String, busy: Boolean, on
     var scanNote by rememberSaveable { mutableStateOf<String?>(null) }
     var reviewing by rememberSaveable { mutableStateOf(false) }
     val toError = if (to.isNotEmpty() && !PaymentRequest.isAddress(to)) "an Aztec address is 0x followed by 64 hexadecimal characters" else null
+    // The failure is the answer: its message is shown under the amount field.
     val amountError = amount.takeIf { it.isNotBlank() }?.let { runCatching { Amounts.parse(it, token.info.decimals) }.exceptionOrNull()?.message }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
         Header("Mint ${token.info.symbol}", onBack)
