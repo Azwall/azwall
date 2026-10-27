@@ -5,6 +5,7 @@ import { Fr } from '@aztec/aztec.js/fields';
 import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector, getAllFunctionAbis } from '@aztec/stdlib/abi';
 
 import { decodeStruct } from '../version';
+import { log } from '../log';
 import { type Json, list, obj } from './json';
 
 /** The artifact of the contract at an address, if the PXE knows it. */
@@ -96,7 +97,11 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
   const c = obj(call);
   const to = String(c.to ?? '');
   const label = String(c.name ?? 'unknown function');
-  const artifact = await artifactOf(to).catch(() => undefined);
+  const artifact = await artifactOf(to).catch(err => {
+    log('dapp', `reading the artifact of ${short(to)}: ${err instanceof Error ? err.message : String(err)}`, 'warn');
+    return undefined;
+  });
+  // A selector that does not parse is the site's error: the call is shown unverified, as an unknown one.
   const fn = artifact && c.selector !== undefined ? await bySelector(artifact, String(c.selector)).catch(() => undefined) : undefined;
   if (!artifact || !fn) return { name: label, line: `${label} on ${short(to)} (unverified: the wallet does not know this contract)`, fee: false };
   if (c.name !== undefined && label !== fn.name) throw new Error(`the call to ${short(to)} is labelled ${label} but runs ${fn.name}`);
@@ -107,7 +112,7 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
     const type = { kind: 'struct', path: fn.name, fields: fn.parameters.map(p => ({ name: p.name, type: p.type })) } as AbiType;
     values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
     args = fn.parameters.map(p => `${p.name}: ${show(values?.[p.name])}`);
-  } catch {
+  } catch { // Arguments that do not fit the function's parameters are shown as `…`; the raw request is in the details.
     values = undefined;
   }
   const line = summary(fn.name, args, `${artifact.name} ${short(to)}`);

@@ -29,8 +29,9 @@ export async function discoverTokens(wallet: AzwallWallet, owner: string, known:
         const info = await tokenInfo(wallet, address, owner);
         const [balance] = await balances(wallet, owner, [address]);
         return BigInt(balance.private) + BigInt(balance.public) > 0n ? { ...info, private: balance.private, public: balance.public } : null;
-      } catch {
-        return null; // not readable as a standard token
+      } catch (err) {
+        log('tokens', `${address} not readable as a standard token: ${err instanceof Error ? err.message : String(err)}`, 'warn');
+        return null;
       }
     }),
   );

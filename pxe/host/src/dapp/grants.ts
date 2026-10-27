@@ -22,7 +22,7 @@ function address(v: unknown): string {
   if (s === ANY) return ANY;
   try {
     return `0x${BigInt(s).toString(16)}`;
-  } catch {
+  } catch { // Not a number: compared as written, so it only matches itself.
     return s.toLowerCase();
   }
 }
@@ -95,6 +95,7 @@ const KIND_LINES: Record<Kind, string> = {
 
 /** What a request adds, as the approval panel lists it. */
 export async function addedLines(more: ReturnType<typeof added>, nameOf: (address: string) => Promise<string | undefined>): Promise<string[]> {
+  // The name only labels the line; without it the short address says which contract.
   const contract = async (c: string) => (c === ANY ? 'any contract' : ((await nameOf(c).catch(() => undefined)) ?? short(c)));
   const scopes = await Promise.all(
     more.scopes.map(async s => {
@@ -152,8 +153,10 @@ export async function permit(g: Grants, method: string, args: unknown[], artifac
 export function oneAtATime(): <T>(key: string, task: () => Promise<T>) => Promise<T> {
   const last = new Map<string, Promise<unknown>>();
   return <T>(key: string, task: () => Promise<T>) => {
+    // A previous task's failure is its own caller's: here it only orders, so it must not stop the next one.
     const next = (last.get(key) ?? Promise.resolve()).catch(() => undefined).then(task);
     last.set(key, next);
+    // Forgetting the finished tail only; its failure still reaches the caller through the returned promise.
     void next.catch(() => undefined).then(() => last.get(key) === next && last.delete(key));
     return next;
   };

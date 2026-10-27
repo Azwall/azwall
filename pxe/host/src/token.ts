@@ -37,7 +37,12 @@ export async function registerToken(wallet: AzwallWallet, token: string): Promis
  */
 export async function registerTokens(wallet: AzwallWallet, tokens: string[]): Promise<{ failed: string[] }> {
   const failed: string[] = [];
-  for (const token of tokens) await registerToken(wallet, token).catch(() => failed.push(token));
+  for (const token of tokens) {
+    await registerToken(wallet, token).catch(err => {
+      log('tokens', `registering ${token}: ${err instanceof Error ? err.message : String(err)}`, 'warn');
+      failed.push(token);
+    });
+  }
   return { failed };
 }
 

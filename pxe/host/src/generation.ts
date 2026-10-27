@@ -9,7 +9,7 @@ function generationKey(base: string): string {
 function generation(base: string): number {
   try {
     return Number(localStorage.getItem(generationKey(base)) ?? 0) || 0;
-  } catch {
+  } catch { // No localStorage (private context): the store keeps its first name.
     return 0;
   }
 }
@@ -25,8 +25,7 @@ export function nextGeneration(base: string): string {
   const old = generationName(base);
   try {
     localStorage.setItem(generationKey(base), String(generation(base) + 1));
-  } catch {
-    // without localStorage the store keeps its name, and the start-over deletes it in place as before
+  } catch { // Without localStorage the store keeps its name, and the start-over deletes it in place as before
   }
   return old;
 }

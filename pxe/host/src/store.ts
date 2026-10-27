@@ -204,6 +204,7 @@ export class CachedStore {
       }
     };
     const p = this.#txChain.then(run, run);
+    // The chain only orders transactions: p's failure reaches the caller, and must not block the next one.
     this.#txChain = p.catch(() => {});
     return p;
   }
@@ -372,7 +373,7 @@ const DELETE_JOURNAL_KEY = 'azwall:journal-delete';
 export function journalMode(): 'PERSIST' | 'DELETE' {
   try {
     return localStorage.getItem(DELETE_JOURNAL_KEY) === '1' ? 'DELETE' : 'PERSIST';
-  } catch {
+  } catch { // Without localStorage nothing was recorded against PERSIST, the default
     return 'PERSIST';
   }
 }
@@ -380,8 +381,7 @@ export function journalMode(): 'PERSIST' | 'DELETE' {
 export function useDeleteJournal(): void {
   try {
     localStorage.setItem(DELETE_JOURNAL_KEY, '1');
-  } catch {
-    // without localStorage, the next start tries PERSIST again and falls back again
+  } catch { // Without localStorage, the next start tries PERSIST again and falls back again
   }
 }
 
@@ -393,8 +393,7 @@ function rowsKey(name: string): string {
 function rememberRows(name: string, rows: number): void {
   try {
     localStorage.setItem(rowsKey(name), String(rows));
-  } catch {
-    // diagnostics only (no localStorage in a worker or a private context)
+  } catch { // Diagnostics only (no localStorage in a worker or a private context)
   }
 }
 
@@ -406,15 +405,14 @@ function brokenKey(name: string): string {
 export function markBroken(name: string): void {
   try {
     localStorage.setItem(brokenKey(name), '1');
-  } catch {
-    // without localStorage, the open-time check still runs
+  } catch { // Without localStorage, the open-time check still runs
   }
 }
 
 export function isMarkedBroken(name: string): boolean {
   try {
     return localStorage.getItem(brokenKey(name)) === '1';
-  } catch {
+  } catch { // Without localStorage nothing was marked; the open-time check still runs
     return false;
   }
 }
@@ -422,8 +420,7 @@ export function isMarkedBroken(name: string): boolean {
 export function clearBroken(name: string): void {
   try {
     localStorage.removeItem(brokenKey(name));
-  } catch {
-    // nothing to clear
+  } catch { // Without localStorage nothing was marked, so there is nothing to clear
   }
 }
 
@@ -431,8 +428,7 @@ export function clearBroken(name: string): void {
 export function forgetRows(name: string): void {
   try {
     localStorage.removeItem(rowsKey(name));
-  } catch {
-    // diagnostics only
+  } catch { // The row count is diagnostics only: without localStorage none was kept
   }
 }
 
@@ -441,7 +437,7 @@ function checkNotReset(name: string, loaded: number): void {
   let before = 0;
   try {
     before = Number(localStorage.getItem(rowsKey(name)) ?? 0);
-  } catch {
+  } catch { // Diagnostics only (no localStorage in a worker or a private context)
     return;
   }
   if (loaded === 0 && before > 0) log('store', `${name}: STORE RESET — it held ${before} rows at its last flush and opens empty`, 'error');

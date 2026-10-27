@@ -24,7 +24,7 @@ export function describe(value: unknown): string {
   if (typeof value !== 'object' || value === null) return String(value);
   try {
     return JSON.stringify(value);
-  } catch {
+  } catch { // Not JSON (a cycle, a bigint): its string form still says something, and the logger cannot log its own failure.
     return String(value);
   }
 }

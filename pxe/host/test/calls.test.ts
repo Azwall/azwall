@@ -1,7 +1,10 @@
 import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/stdlib/abi';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { describeAuthWit, describeTx, LINE_LIMIT, readCall, show, trustFeePayers } from '../src/dapp/calls';
+import { log } from '../src/log';
+
+vi.mock('../src/log', () => ({ log: vi.fn() }));
 
 const transfer = {
   name: 'transfer',
@@ -72,6 +75,15 @@ describe('calls', () => {
   it('says when the wallet cannot verify a call', async () => {
     const read = await readCall({ name: 'claim', to: '0x99', selector: '0x01020304', args: [] }, artifactOf);
     expect(read.line).toContain('unverified');
+  });
+
+  it('logs why a contract could not be read, and still shows the call unverified', async () => {
+    const failing = async () => {
+      throw new Error('PXE closed');
+    };
+    const read = await readCall({ name: 'claim', to: token, selector: '0x01020304', args: [] }, failing);
+    expect(read.line).toContain('unverified');
+    expect(log).toHaveBeenCalledWith('dapp', expect.stringContaining('PXE closed'), 'warn');
   });
 
   it('describes transactions and authorizations', async () => {

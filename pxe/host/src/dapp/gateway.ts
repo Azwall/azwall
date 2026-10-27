@@ -230,6 +230,7 @@ export class DappGateway {
   /** Who pays a transaction: the network's sponsor when its fee call is there or the wallet adds it, else the payer it names. */
   async #payer(account: string, args: unknown[]): Promise<Payer> {
     const payload = obj(args[0]);
+    // readCall caches its promise and permit() already awaited it: a call that fails here was refused before.
     const reads = await Promise.all(list(payload.calls).map(c => readCall(c, a => this.wallet.artifactAt(a)).catch(() => undefined)));
     if (reads.some(r => r?.fee)) return 'sponsor';
     const named = payload.feePayer === undefined ? undefined : String(payload.feePayer);
@@ -275,7 +276,11 @@ export class DappGateway {
    * activity like the wallet's own: proving, then sent with its hash (the app follows it to a block) or failed.
    */
   async #send(session: ActiveSession, account: string, args: unknown[]): Promise<unknown> {
-    const summary = (await describeTx(args[0], a => this.wallet.artifactAt(a)).catch(() => []))[0] ?? 'sendTx';
+    const described = await describeTx(args[0], a => this.wallet.artifactAt(a)).catch(err => {
+      log('dapp', `describing an approved transaction: ${errorMessage(err)}`, 'warn');
+      return [];
+    });
+    const summary = described[0] ?? 'sendTx';
     const tx = { id: crypto.randomUUID(), account, origin: session.origin, summary };
     this.bridge.emit('dappTx', { ...tx, status: 'proving' });
     try {

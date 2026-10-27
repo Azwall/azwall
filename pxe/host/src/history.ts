@@ -5,6 +5,7 @@
 import { BlockNumber } from '@aztec/aztec.js/fields';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
 
+import { log } from './log';
 import { addr } from './token';
 import type { AzwallWallet } from './wallet';
 
@@ -36,6 +37,9 @@ export async function tokenHistory(wallet: AzwallWallet, owner: string, tokens: 
 
 /** When the block was built, in milliseconds (0 if the node does not have it). */
 async function blockTime(wallet: AzwallWallet, block: number): Promise<number> {
-  const response = await wallet.node.getBlock(BlockNumber(block)).catch(() => undefined);
+  const response = await wallet.node.getBlock(BlockNumber(block)).catch(err => {
+    log('history', `reading block ${block}: ${err instanceof Error ? err.message : String(err)}`, 'warn');
+    return undefined;
+  });
   return response ? Number(response.header.globalVariables.timestamp) * 1000 : 0;
 }

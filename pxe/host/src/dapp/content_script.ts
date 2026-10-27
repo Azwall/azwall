@@ -20,7 +20,7 @@ if (bridge && !(globalThis as Record<string, unknown>)[marker] && window.top ===
     let msg: unknown;
     try {
       msg = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data));
-    } catch {
+    } catch { // Not a protocol message (the wallet only sends JSON): nothing to relay.
       return;
     }
     for (const l of listeners) l(msg as never);

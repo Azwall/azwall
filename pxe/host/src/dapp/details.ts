@@ -76,7 +76,7 @@ function decimal(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined;
   try {
     return BigInt(String(v)).toString();
-  } catch {
+  } catch { // Not a number: shown as the site sent it.
     return full(v);
   }
 }
@@ -100,6 +100,7 @@ async function patternRows(scope: unknown, kind: string, nameOf: NameOf): Promis
   for (const p of list(scope).map(obj)) {
     const contract = String(p.contract ?? '');
     const fn = p.function === '*' ? 'any function' : String(p.function ?? '?');
+    // The name only labels the row; the address beside it is what identifies the contract.
     const name = contract === '*' ? 'Any contract' : ((await nameOf(contract).catch(() => undefined)) ?? 'Contract');
     rows.push({ label: `${kind ? `${kind} · ` : ''}${name}: ${fn}`, value: contract === '*' ? 'any address' : contract });
     if (p.additionalScopes !== undefined) {
@@ -115,6 +116,7 @@ async function contractRows(contracts: unknown, nameOf: NameOf, noun: string): P
   if (contracts === '*') return [{ label: `${noun}s`, value: `Any ${noun.toLowerCase()}` }];
   const rows: Row[] = [];
   for (const c of list(contracts)) {
+    // The name only labels the row; the address beside it is what identifies the contract.
     const name = await nameOf(full(c)).catch(() => undefined);
     rows.push({ label: name ?? noun, value: full(c) });
   }
