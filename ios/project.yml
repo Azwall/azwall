@@ -42,6 +42,17 @@ targets:
         embed: true
         link: false
     preBuildScripts:
+      - name: Check the Rust core is built
+        script: |
+          # Xcode links build/ios/AzwallFFI.xcframework but cannot build it: an app with an older Rust core runs
+          # without what changed since (a network's Ethereum side was silently lost that way). Fail instead.
+          cd "$SRCROOT/.."
+          lib=build/ios/AzwallFFI.xcframework/ios-arm64/libazwall_ffi.a
+          newer=$(find rust -path rust/target -prune -o \( -name '*.rs' -o -name Cargo.toml \) -newer "$lib" -print 2>/dev/null | head -1)
+          if [ ! -e "$lib" ] || [ -n "$newer" ]; then
+            echo "error: the Rust core is older than ${newer:-its sources}: run scripts/build-ios.sh"
+            exit 1
+          fi
       - name: Resolve network config
         script: |
           # Xcode runs scripts without the login shell's PATH: add rustup's and Homebrew's.
