@@ -134,6 +134,14 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         start(contents ?: error("the wallet is locked"))
     }
 
+    /** Starts the network's session again: after it failed to open, or its PXE host stopped. */
+    fun restart() = action {
+        val current = (_phase.value as? AppPhase.Unlocked)?.session ?: return@action
+        current.close()
+        deps.approvals.rejectAll()
+        start(contents ?: error("the wallet is locked"))
+    }
+
     private val autoLock = AutoLock()
 
     fun onBackground() {
@@ -149,6 +157,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
 
     fun lock() {
         (_phase.value as? AppPhase.Unlocked)?.session?.close()
+        // A site's request must not outlive the lock, as on iOS.
+        deps.approvals.rejectAll()
         contents = null
         _phase.value = AppPhase.Locked
     }

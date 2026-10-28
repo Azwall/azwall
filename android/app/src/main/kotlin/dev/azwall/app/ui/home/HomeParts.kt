@@ -166,7 +166,7 @@ private fun Notice(title: String, body: String, action: String?, onAction: () ->
 /** Bridged Fee Juice: a button when it can be claimed now or needs its secret, else a line. */
 @Composable
 private fun BridgedLine(bridged: Bridged, actions: HomeActions) = when {
-    bridged.claim -> TextButton(onClick = actions.onClaimFeeJuice) { Text("Claim ${bridged.text}") }
+    bridged.claim -> TextButton(onClick = actions.onReviewClaim) { Text("Claim ${bridged.text}") }
     bridged.askSecret -> TextButton(onClick = actions.onEnterClaimSecret) { Text("${bridged.text}: enter it") }
     else -> Text(bridged.text, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

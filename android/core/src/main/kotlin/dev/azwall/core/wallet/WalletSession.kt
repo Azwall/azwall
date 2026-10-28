@@ -1,6 +1,9 @@
 package dev.azwall.core.wallet
 
 import dev.azwall.core.DiagnosticLog
+import dev.azwall.core.pxe.PxeChannel
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.serialization.json.JsonPrimitive
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.AccountSecrets
@@ -177,6 +180,7 @@ class WalletSession(
             // Locked or switched away while the host started: nobody would ever stop it.
             if (closed) return host.stop()
             running.value = host
+            watchHost(host)
             val check = host.client.open(backend.pxeOpenParams(network.id), contents.dbKey)
             adoptChain(check)
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
@@ -194,6 +198,18 @@ class WalletSession(
         } catch (e: Exception) {
             _state.update { it.copy(phase = Phase.FAILED, error = e.message ?: e.toString()) }
         }
+    }
+
+    /**
+     * The host can stop on its own (the system ends its web view to free memory): every call would fail from then on,
+     * so the wallet says so, and Retry starts a new session.
+     */
+    private fun watchHost(host: RunningPxe) = scope.launch {
+        val gone = host.events.firstOrNull { it.name == PxeChannel.CLOSED }
+        if (gone == null || closed) return@launch
+        val reason = (gone.data as? JsonPrimitive)?.content ?: "the wallet engine stopped"
+        DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "pxe", reason)
+        _state.update { it.copy(phase = Phase.FAILED, error = reason, refreshing = false, task = null) }
     }
 
     /** A network reset since last time drops what the screen shows of the old chain (WalletStore.moveTo). */
@@ -344,15 +360,17 @@ class WalletSession(
      * the deposits again: the one made with it becomes claimable. Throws on a value that is no field element, and on one
      * that opens none of them, which is not kept.
      */
-    suspend fun addClaimSecret(text: String) {
+    suspend fun addClaimSecret(text: String): String {
         val account = _state.value.selected ?: error("no account")
         val secret = ClaimSecrets.normalize(text)
         // Read with it before keeping it (a typo would otherwise pass in silence); a failed read throws rather than
         // calling a good secret wrong.
         val found = client.feeJuiceDeposits(account, store.claimSecrets(account) + secret)
-        require(found.any { it.secret?.lowercase() == secret }) { "This secret matches none of the deposits bridged to this account: check it and enter it again" }
+        val opened = found.firstOrNull { it.secret?.lowercase() == secret }
+        requireNotNull(opened) { "This secret matches none of the deposits bridged to this account: check it and enter it again" }
         store.addClaimSecret(account, secret)
         refreshFeeJuice(account)
+        return opened.messageHash
     }
 
     /** Shows [address] at the top of the home screen for the selected account. */

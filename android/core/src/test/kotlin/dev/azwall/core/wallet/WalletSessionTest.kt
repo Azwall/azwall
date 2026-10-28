@@ -215,7 +215,7 @@ class WalletSessionTest {
         val wrong = runCatching { s.addClaimSecret("0x2b") }.exceptionOrNull()
         assertTrue(wrong?.message!!.contains("matches none of the deposits"))
         assertTrue(runCatching { s.addClaimSecret("hello") }.isFailure)
-        s.addClaimSecret(" 0x2A \n")
+        assertEquals("0xm3", s.addClaimSecret(" 0x2A \n"))
         assertEquals("9", s.state.value.claimable?.amount)
         // Kept: the next start tries it again, and only it.
         s.refresh()
@@ -344,6 +344,23 @@ class WalletSessionTest {
         val s = session().apply { open() }
         s.flush()
         assertEquals("flush", pxe.calls.last())
+    }
+
+    @Test
+    fun aHostTheSystemStopsLeavesTheWalletFailedNotWaiting() = runTest {
+        val events = kotlinx.coroutines.flow.MutableSharedFlow<PxeEvent>(extraBufferCapacity = 1)
+        val vault = Vault(tmp.root.resolve("vault"), PlainBox)
+        val contents = vault.create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = events; override fun stop() {} } }
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
+        val s = WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
+        s.open()
+        advanceUntilIdle()
+        assertEquals(Phase.READY, s.state.value.phase)
+        events.emit(PxeEvent(dev.azwall.core.pxe.PxeChannel.CLOSED, kotlinx.serialization.json.JsonPrimitive("the wallet engine stopped")))
+        advanceUntilIdle()
+        assertEquals(Phase.FAILED, s.state.value.phase)
+        assertEquals("the wallet engine stopped", s.state.value.error)
     }
 
     @Test

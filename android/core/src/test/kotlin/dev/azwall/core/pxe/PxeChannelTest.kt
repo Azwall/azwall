@@ -4,6 +4,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -22,8 +23,9 @@ import org.junit.Test
 class PxeChannelTest {
     private val sent = mutableListOf<JsonObject>()
 
-    private fun TestScope.channel(handlers: Map<String, NativeHandler> = emptyMap()) =
-        PxeChannel({ sent += Json.parseToJsonElement(it).jsonObject }, handlers, this)
+    /** Without timeouts by default: the test clock jumps over them whenever it runs to idle. */
+    private fun TestScope.channel(handlers: Map<String, NativeHandler> = emptyMap(), timeoutOf: (String) -> Long? = { null }) =
+        PxeChannel({ sent += Json.parseToJsonElement(it).jsonObject }, handlers, this, timeoutOf)
 
     private fun reply(id: Int, ok: Boolean, value: String) =
         if (ok) """{"kind":"reply","id":$id,"ok":true,"result":$value}""" else """{"kind":"reply","id":$id,"ok":false,"error":"$value"}"""
@@ -47,6 +49,31 @@ class PxeChannelTest {
         advanceUntilIdle()
         ch.receive(reply(sent.single()["id"]!!.jsonPrimitive.int, false, "network is not compatible"))
         assertEquals("open: network is not compatible", result.await().exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun aCallTheHostNeverAnswersFailsInsteadOfWaitingForGood() = runTest {
+        val ch = channel(timeoutOf = PxeChannel::defaultTimeout)
+        val read = async { runCatching { ch.call("balances") } }
+        val proof = async { runCatching { ch.call("transfer") } }
+        advanceTimeBy(PxeChannel.defaultTimeout("balances") + 1)
+        assertTrue(read.await().exceptionOrNull()?.message!!.contains("no answer from the wallet engine"))
+        // Proving takes minutes on a phone: still waiting.
+        assertTrue(proof.isActive)
+        advanceUntilIdle()
+        assertTrue(proof.await().isFailure)
+    }
+
+    @Test
+    fun aStoppedHostFailsWhatWaitsAndSaysItStopped() = runTest {
+        val ch = channel()
+        val closed = async { ch.events.first { it.name == PxeChannel.CLOSED } }
+        val waiting = async { runCatching { ch.call("syncStatus") } }
+        advanceUntilIdle()
+        ch.close("the wallet engine stopped")
+        assertEquals("syncStatus: the wallet engine stopped", waiting.await().exceptionOrNull()?.message)
+        assertEquals("the wallet engine stopped", closed.await().data.jsonPrimitive.content)
+        assertEquals("open: the wallet engine stopped", runCatching { ch.call("open") }.exceptionOrNull()?.message)
     }
 
     @Test

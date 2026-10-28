@@ -38,6 +38,7 @@ import dev.azwall.app.ui.receive.ReceiveScreen
 import dev.azwall.app.ui.send.ProvingOverlay
 import dev.azwall.app.ui.send.TransferMode
 import dev.azwall.app.ui.send.TransferScreen
+import dev.azwall.core.wallet.Phase
 import dev.azwall.core.wallet.TokenView
 import dev.azwall.app.ui.tokens.TokenStudioScreen
 import dev.azwall.app.ui.tokens.TokenStudioActions
@@ -169,11 +170,14 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String)
     onChoosePrimary = { address -> session.choosePrimary(address) },
     onDismissFound = { token -> session.dismissFound(token) },
     onActivate = { claim -> vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount(claim) } },
-    onClaimSecret = { secret, onAdded -> vm.run { it.addClaimSecret(secret); onAdded() } },
-    onClaimFeeJuice = {
-        session.state.value.claimable?.let { deposit -> vm.sign(auth(CONFIRM), "Fee Juice claim sent.") { it.transactions.claimFeeJuice(deposit) } }
+    onClaimSecret = { secret, onAdded -> vm.run { onAdded(it.addClaimSecret(secret)) } },
+    onClaimFeeJuice = { hash ->
+        val deposit = session.state.value.deposits.firstOrNull { it.messageHash == hash && it.claimable }
+        if (deposit == null) vm.tell("This deposit cannot be claimed any more: pull to refresh.")
+        else vm.sign(auth(CONFIRM), "Fee Juice claim sent.") { it.transactions.claimFeeJuice(deposit) }
     },
-    onRefresh = { vm.run { it.refresh() } },
+    // A wallet that failed to open, or whose engine stopped, starts over; otherwise reads again.
+    onRefresh = { if (session.state.value.phase == Phase.FAILED) vm.restart() else vm.run { it.refresh() } },
     onAcknowledgeReset = session::acknowledgeChainReset,
     onAcknowledgeUnreadable = session::acknowledgeStoreUnreadable,
     onRemoveToken = session::removeToken,

@@ -43,6 +43,13 @@ final class BundleServer: @unchecked Sendable {
         listener.cancel()
     }
 
+    /// Whether this server still holds its port. A listener the system reclaimed (the app was suspended) leaves the
+    /// port free for another app, whose page would then load under the PXE's origin.
+    var isListening: Bool {
+        if case .ready = listener.state { return true }
+        return false
+    }
+
     private func serve(_ connection: NWConnection) {
         connection.start(queue: queue)
         connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, _, _ in

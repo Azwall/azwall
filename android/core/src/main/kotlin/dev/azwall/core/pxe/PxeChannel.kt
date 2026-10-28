@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -37,6 +39,8 @@ class PxeChannel(
     private val send: (String) -> Unit,
     private val handlers: Map<String, NativeHandler>,
     private val scope: CoroutineScope,
+    /** How long a call may go unanswered; null waits for good. */
+    private val timeoutOf: (method: String) -> Long? = ::defaultTimeout,
 ) {
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, Pair<String, CompletableDeferred<JsonElement>>>()
@@ -46,14 +50,26 @@ class PxeChannel(
     @Volatile
     private var closedReason: String? = null
 
-    /** Calls a PXE host method and returns its result, or throws [PxeException] with the host's error. */
+    /**
+     * Calls a PXE host method and returns its result, or throws [PxeException] with the host's error. A call the
+     * host never answers (a reply lost, a page stuck) fails after [timeoutOf] its method, rather than leaving the
+     * screen waiting for good.
+     */
     suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement {
-        closedReason?.let { throw PxeException("$method: $it") }
         val id = nextId.getAndIncrement()
         val reply = CompletableDeferred<JsonElement>()
         pending[id] = method to reply
+        // Checked after the call is listed: a close() in between fails it rather than leaving it pending.
+        closedReason?.let { pending.remove(id); throw PxeException("$method: $it") }
         send(message("call", id) { put("method", method); put("params", params) })
-        return reply.await()
+        val limit = timeoutOf(method)
+        return try {
+            if (limit == null) reply.await() else withTimeout(limit) { reply.await() }
+        } catch (e: TimeoutCancellationException) {
+            throw PxeException("$method: no answer from the wallet engine after ${limit!! / 60_000} min")
+        } finally {
+            pending.remove(id)
+        }
     }
 
     /** Handles one message from the page. Unreadable messages are reported as `log` events. */
@@ -71,11 +87,13 @@ class PxeChannel(
         }
     }
 
-    /** Fails every pending and future call, e.g. when the web view is destroyed. */
+    /** Fails every pending and future call, e.g. when the web view is destroyed, and says so with a `closed` event. */
     fun close(reason: String) {
+        if (closedReason != null) return
         closedReason = reason
-        pending.values.forEach { (method, reply) -> reply.completeExceptionally(PxeException("$method: $reason")) }
-        pending.clear()
+        // One by one: a call listed meanwhile is failed too, or sees closedReason itself.
+        for (id in pending.keys.toList()) pending.remove(id)?.let { (method, reply) -> reply.completeExceptionally(PxeException("$method: $reason")) }
+        _events.tryEmit(PxeEvent(CLOSED, JsonPrimitive(reason)))
     }
 
     private fun settle(msg: JsonObject) {
@@ -105,6 +123,17 @@ class PxeChannel(
                 },
             )
         }
+    }
+
+    companion object {
+        /** The event [close] emits, with its reason. */
+        const val CLOSED = "closed"
+
+        /** Methods that prove, wait for a block or open a network: minutes on a phone. */
+        private val LONG = setOf("open", "transfer", "deployAccount", "deployToken", "mint", "claimFeeJuice", "waitForTx", "close", "flush")
+
+        /** How long a call may go unanswered: reads are quick, proving and waiting for a block are not. */
+        fun defaultTimeout(method: String): Long = if (method in LONG) 20 * 60_000L else 2 * 60_000L
     }
 
     private fun message(kind: String, id: Int, body: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): String =

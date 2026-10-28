@@ -118,6 +118,14 @@ public final class AppModel {
         await start(contents)
     }
 
+    /// Starts the network's session again: after it failed to open, or its PXE host stopped.
+    public func restart() async {
+        guard let current = session, let contents else { return }
+        deps.approvals.rejectAll()
+        await current.close()
+        await start(contents)
+    }
+
     @ObservationIgnored private var autoLock = AutoLock()
 
     public func onBackground() async {

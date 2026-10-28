@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -88,7 +89,8 @@ class PxeHost private constructor(
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
-                webViewClient = AssetClient(loader)
+                // The system may end the web view's process (memory): the app goes on, the host is stopped.
+                webViewClient = AssetClient(loader) { channel.close("the wallet engine stopped: the system ended it, often to free memory") }
                 addJavascriptInterface(Bridge(channel), "AzwallAndroid")
                 loadUrl("https://$HOST/assets/pxe/$bundle/index.html")
             }
@@ -109,7 +111,7 @@ class PxeHost private constructor(
     }
 
     /** Serves the bundle from the APK and keeps the page on its own origin. */
-    private class AssetClient(private val loader: WebViewAssetLoader) : WebViewClient() {
+    private class AssetClient(private val loader: WebViewAssetLoader, private val onGone: () -> Unit) : WebViewClient() {
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
             loader.shouldInterceptRequest(request.url)?.also { response ->
                 // Streaming compilation requires the exact WASM MIME type.
@@ -117,6 +119,13 @@ class PxeHost private constructor(
             }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
+
+        /** Without this, Android kills the whole app when the web view's renderer dies. */
+        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+            onGone()
+            view.destroy()
+            return true
+        }
     }
 
     /** `AzwallAndroid.postMessage(json)` in the page. Called on a WebView background thread. */

@@ -34,10 +34,28 @@ public actor PxeChannel {
     private var pending: [Int: (method: String, continuation: CheckedContinuation<JSONValue, Error>)] = [:]
     private var closedReason: String?
     private var listeners: [UUID: AsyncStream<PxeEvent>.Continuation] = [:]
+    private let timeoutOf: @Sendable (String) -> Duration?
 
-    public init(send: @escaping @Sendable (String) -> Void, handlers: [String: NativeHandler]) {
+    /// The event `close` emits, with its reason.
+    public static let closed = "closed"
+
+    /// Methods that prove, wait for a block or open a network: minutes on a phone.
+    private static let long: Set<String> = ["open", "transfer", "deployAccount", "deployToken", "mint", "claimFeeJuice", "waitForTx", "close", "flush"]
+
+    /// How long a call may go unanswered: reads are quick, proving and waiting for a block are not.
+    public static func defaultTimeout(_ method: String) -> Duration? {
+        long.contains(method) ? .seconds(20 * 60) : .seconds(2 * 60)
+    }
+
+    /// `timeoutOf` gives how long a call may go unanswered (nil: for good), so a lost reply or a stuck page fails
+    /// the call rather than leaving the screen waiting.
+    public init(
+        send: @escaping @Sendable (String) -> Void, handlers: [String: NativeHandler],
+        timeoutOf: @escaping @Sendable (String) -> Duration? = { PxeChannel.defaultTimeout($0) }
+    ) {
         self.send = send
         self.handlers = handlers
+        self.timeoutOf = timeoutOf
     }
 
     /// Calls a PXE host method; throws `PxeError` with the host's error.
@@ -45,10 +63,23 @@ public actor PxeChannel {
         if let reason = closedReason { throw PxeError("\(method): \(reason)") }
         let id = nextId
         nextId += 1
+        if let limit = timeoutOf(method) {
+            Task { [weak self] in
+                // Cancelled only with the task itself: expiring a call already answered does nothing.
+                try? await Task.sleep(for: limit)
+                await self?.expire(id, after: limit)
+            }
+        }
         return try await withCheckedThrowingContinuation { continuation in
             pending[id] = (method, continuation)
             send(Self.message(["kind": .string("call"), "id": .number(Double(id)), "method": .string(method), "params": params]))
         }
+    }
+
+    /// Fails call `id` if the host has not answered it by now.
+    private func expire(_ id: Int, after limit: Duration) {
+        guard let entry = pending.removeValue(forKey: id) else { return }
+        entry.continuation.resume(throwing: PxeError("\(entry.method): no answer from the wallet engine after \(limit.components.seconds / 60) min"))
     }
 
     /// A stream of the host's events, from now on.
@@ -76,9 +107,12 @@ public actor PxeChannel {
 
     /// Fails every pending and future call, e.g. when the web view is torn down.
     public func close(_ reason: String) {
+        guard closedReason == nil else { return }
         closedReason = reason
         for (_, entry) in pending { entry.continuation.resume(throwing: PxeError("\(entry.method): \(reason)")) }
         pending.removeAll()
+        // Said before the streams end, so a session can tell a stopped host from a closed one.
+        emit(PxeEvent(name: Self.closed, data: .string(reason)))
         listeners.values.forEach { $0.finish() }
         listeners.removeAll()
     }

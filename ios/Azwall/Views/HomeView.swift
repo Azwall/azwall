@@ -182,8 +182,9 @@ struct HomeView: View {
         }
     }
 
+    /// A wallet that failed to open, or whose engine stopped, starts over; otherwise it reads again.
     private func refresh() {
-        Task { await session.refresh() }
+        Task { if session.phase == .failed { await model.restart() } else { await session.refresh() } }
     }
 
     /// Balances are refreshed every 20 s while the screen is shown.

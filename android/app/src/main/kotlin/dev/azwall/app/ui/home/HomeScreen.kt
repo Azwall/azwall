@@ -85,12 +85,14 @@ data class HomeActions(
     val onRefresh: () -> Unit,
     val onCopied: () -> Unit,
     /** Claims Fee Juice bridged to the active account (SessionState.claimable). */
-    val onClaimFeeJuice: () -> Unit = {},
+    val onClaimFeeJuice: (messageHash: String) -> Unit = {},
+    /** Opens the review of the claimable deposit. */
+    val onReviewClaim: () -> Unit = {},
     /** Opens the field for a bridge deposit's claim secret (SessionState.locked). */
     val onEnterClaimSecret: () -> Unit = {},
     /** Keeps the claim secret the user entered and reads the deposits again. */
     /** Keeps a claim secret; `onAdded` runs once it is checked against the deposits and kept, not on a refused one. */
-    val onClaimSecret: (secret: String, onAdded: () -> Unit) -> Unit = { _, _ -> },
+    val onClaimSecret: (secret: String, onAdded: (messageHash: String) -> Unit) -> Unit = { _, _ -> },
     /** Opens a page in Explore (a transaction on a block explorer). */
     val onOpenPage: (String) -> Unit = {},
 )
@@ -173,9 +175,10 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
         // Activating pays a fee where there is no sponsor: confirmed like any transaction first.
         var reviewing by rememberSaveable { mutableStateOf(false) }
         var reviewedClaim by rememberSaveable { mutableStateOf<String?>(null) }
-        var claiming by rememberSaveable { mutableStateOf(false) }
+        // The deposit the claim review was opened for: confirming claims it, whatever a refresh reads meanwhile.
+        var claiming by rememberSaveable { mutableStateOf<String?>(null) }
         var askingSecret by rememberSaveable { mutableStateOf(false) }
-        BalanceHero(state, actions.copy(onActivate = { reviewedClaim = it; reviewing = true }, onClaimFeeJuice = { claiming = true }, onEnterClaimSecret = { askingSecret = true }))
+        BalanceHero(state, actions.copy(onActivate = { reviewedClaim = it; reviewing = true }, onReviewClaim = { claiming = state.claimable?.messageHash }, onEnterClaimSecret = { askingSecret = true }))
         if (askingSecret) {
             ClaimSecretDialog(onDismiss = { askingSecret = false }) {
                 askingSecret = false
@@ -183,15 +186,15 @@ private fun AccountHeader(state: SessionState, actions: HomeActions) {
                 // read (an inactive account claims it by activating instead). A refused secret opens nothing, now or
                 // later, as on iOS.
                 val active = state.account?.deployed == true
-                actions.onClaimSecret(it) { claiming = active }
+                actions.onClaimSecret(it) { opened -> if (active) claiming = opened }
             }
         }
-        val claim = state.claimable
-        if (claiming && claim != null) {
+        val claim = state.deposits.firstOrNull { it.messageHash == claiming && it.claimable }
+        if (claim != null) {
             val amount = "${Amounts.display(claim.units, FeeJuice.INFO.decimals, 4)} FJ"
-            ReviewSheet(Review.claimFeeJuice(amount, state.network.label), onDismiss = { claiming = false }) {
-                claiming = false
-                actions.onClaimFeeJuice()
+            ReviewSheet(Review.claimFeeJuice(amount, state.network.label), onDismiss = { claiming = null }) {
+                claiming = null
+                actions.onClaimFeeJuice(claim.messageHash)
             }
         }
         if (reviewing) {

@@ -179,6 +179,17 @@ struct SessionTests {
         #expect(s.tokens.first?.total == "2500000")
     }
 
+    @Test func aHostTheSystemStopsLeavesTheWalletFailedNotWaiting() async throws {
+        let pxe = FakePxe()
+        let s = try session(pxe)
+        await s.open()
+        #expect(s.phase == .ready)
+        pxe.emit.yield(PxeEvent(name: PxeChannel.closed, data: .string("the wallet engine stopped")))
+        for _ in 0..<50 where s.phase != .failed { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(s.phase == .failed)
+        #expect(s.error == "the wallet engine stopped")
+    }
+
     @Test func anAccountNotActivatedYetShowsWhatItReceived() async throws {
         let pxe = FakePxe()
         let s = try session(pxe)

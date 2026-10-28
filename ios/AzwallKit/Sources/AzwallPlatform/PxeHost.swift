@@ -29,7 +29,11 @@ public final class PxeHost {
         PxeLog.follow(await channel.events(), bundle: bundle)
         let keepsStores = handlers["storeSave"] != nil
         let webView = makeWebView(channel: channel, origin: "http://127.0.0.1:\(server.port)", keepsStores: keepsStores)
+        // The system may end the page's process (memory): the channel is closed, which the session reports.
+        let watcher = ProcessWatcher(channel: channel)
+        webView.navigationDelegate = watcher
         box.webView = webView
+        box.watcher = watcher
         #if canImport(UIKit)
         OnScreen.attach(webView)
         #endif
@@ -56,8 +60,14 @@ public final class PxeHost {
         #endif
     }
 
+    /// The bundle's server, started again when it lost its port: the page is only ever loaded from our own listener
+    /// (if another app holds the port, starting fails and nothing is loaded).
     private static func server(for bundle: String, resources: URL) async throws -> BundleServer {
-        if let running = servers[bundle] { return running }
+        if let running = servers[bundle] {
+            if running.isListening { return running }
+            running.stop()
+            servers[bundle] = nil
+        }
         let server = try BundleServer(root: resources, port: port(for: bundle))
         try await server.start()
         servers[bundle] = server
@@ -109,11 +119,29 @@ public final class PxeHost {
 @MainActor
 private final class WebViewBox {
     weak var webView: WKWebView?
+    /// The web view's navigation delegate, which it holds weakly.
+    var watcher: ProcessWatcher?
 
     func deliver(_ json: String) {
         // Encoding a String as JSON cannot fail; the fallback only satisfies the compiler.
         let literal = (try? String(decoding: JSONEncoder().encode(json), as: UTF8.self)) ?? "\"\""
         webView?.evaluateJavaScript("azwallHost.receive(\(literal))", completionHandler: nil)
+    }
+}
+
+/// Closes the channel when WebKit ends the page's content process: every pending and later call fails at once
+/// (rather than waiting for good), and the session sees the host stopped.
+@MainActor
+final class ProcessWatcher: NSObject, WKNavigationDelegate {
+    private let channel: PxeChannel
+
+    init(channel: PxeChannel) {
+        self.channel = channel
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        let channel = channel
+        Task { await channel.close("the wallet engine stopped: the system ended it, often to free memory") }
     }
 }
 

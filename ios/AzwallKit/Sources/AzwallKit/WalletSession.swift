@@ -293,9 +293,20 @@ public final class WalletSession {
         eventLoop = Task { [weak self] in
             for await event in events {
                 guard let self else { return }
+                if event.name == PxeChannel.closed { self.hostStopped(event.data.stringValue) }
                 _ = self.dapps.handle(event)
             }
         }
+    }
+
+    /// The host can stop on its own (the system ends its web view to free memory): every call would fail from then on,
+    /// so the wallet says so, and Retry starts a new session.
+    private func hostStopped(_ reason: String?) {
+        guard !closed else { return }
+        let text = reason ?? "the wallet engine stopped"
+        DiagnosticLog.shared.record(.warn, "pxe", text)
+        phase = .failed
+        error = text
     }
 
     /// Creates a fresh account, or imports one from its key, and saves it in the vault.
