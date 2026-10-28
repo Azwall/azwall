@@ -11,8 +11,9 @@ android {
         applicationId = "dev.azwall"
         minSdk = 30
         targetSdk = 37
-        versionCode = 1
         versionName = "0.8.0"
+        // Stores refuse a build number they saw: it follows the version (0.8.0 → 800), as on iOS.
+        versionCode = versionName!!.split(".").map(String::toInt).let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 

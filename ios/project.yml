@@ -48,8 +48,9 @@ targets:
           # without what changed since (a network's Ethereum side was silently lost that way). Fail instead.
           cd "$SRCROOT/.."
           lib=build/ios/AzwallFFI.xcframework/ios-arm64/libazwall_ffi.a
-          # Tests are not in the library: a new or changed test must not ask for a rebuild.
-          newer=$(find rust \( -path rust/target -o -path 'rust/*/tests' \) -prune -o \( -name '*.rs' ! -name tests.rs -o -name Cargo.toml \) -newer "$lib" -print 2>/dev/null | head -1)
+          # Tests are not in the library: a new or changed test must not ask for a rebuild. The workspace's Cargo.toml and
+          # Cargo.lock are: a crate upgrade or a version bump changes what is linked.
+          newer=$(find Cargo.toml Cargo.lock rust \( -path rust/target -o -path 'rust/*/tests' \) -prune -o \( -name '*.rs' ! -name tests.rs -o -name Cargo.toml -o -name Cargo.lock \) -newer "$lib" -print 2>/dev/null | head -1)
           if [ ! -e "$lib" ] || [ -n "$newer" ]; then
             echo "error: the Rust core is older than ${newer:-its sources}: run scripts/build-ios.sh"
             exit 1
@@ -83,5 +84,6 @@ targets:
         # ios/Azwall/Assets.xcassets, built from branding/azwall-icon.png by scripts/make-icons.sh.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.8.0
-        CURRENT_PROJECT_VERSION: 1
+        # Stores refuse a build number they saw: it follows the version (0.8.0 → 800), as on Android.
+        CURRENT_PROJECT_VERSION: 800
         SWIFT_VERSION: "6"
