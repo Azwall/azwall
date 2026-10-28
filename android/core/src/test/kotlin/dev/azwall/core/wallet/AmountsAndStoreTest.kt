@@ -108,7 +108,7 @@ class WalletStoreTest {
     @Test
     fun aStoreWriteThatDoesNotLandIsSaid() {
         val store = WalletStore(tmp.root, "testnet-v6")
-        // A directory where the file goes: neither the rename nor the copy can replace it.
+        // A directory where the file goes: the rename cannot replace it.
         tmp.root.resolve("wallet-testnet-v6.json").resolve("blocked").mkdirs()
         store.addToken(TokenInfo("0xbbb", "B", "B", 6))
         assertTrue(store.unsaved)

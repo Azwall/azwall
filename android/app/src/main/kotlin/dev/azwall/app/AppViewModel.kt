@@ -8,7 +8,7 @@ import dev.azwall.core.vault.AuthenticationRequired
 import dev.azwall.core.vault.VaultKeyLost
 import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.vault.Recovery
-import dev.azwall.core.vault.VaultContents
+import dev.azwall.core.vault.VaultState
 import dev.azwall.core.wallet.AutoLock
 import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.WalletSession
@@ -73,7 +73,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     private val _searchEngine = MutableStateFlow(deps.searchEngine)
     val searchEngine: StateFlow<SearchEngine> = _searchEngine.asStateFlow()
 
-    private var contents: VaultContents? = null
+    /** The unlocked vault, the one owner every session reads and changes it through (VaultState). */
+    private val vaultState = VaultState(deps.vault)
 
     /** dApp requests waiting for the user (the browser shows them as sheets). */
     val approvals get() = deps.approvals
@@ -101,8 +102,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         // Checked first: otherwise the Keystore refuses the key with a message the user cannot act on.
         if (!deps.deviceSecure) throw NoScreenLock()
         val (account, phrase) = withContext(io) { Recovery.firstAccount(secret, alias, deps.backend) }
-        val created = withAuth(auth) { withContext(io) { deps.vault.create(account, phrase) } }
-        start(created)
+        vaultState.open { withAuth(auth) { withContext(io) { deps.vault.create(account, phrase) } } }
+        start()
     }
 
     /** A new recovery phrase for onboarding; the Rust core loads on first use, off the main thread. */
@@ -115,12 +116,12 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     /** False for a wallet created from a signing key, before recovery phrases. */
-    val hasRecoveryPhrase: Boolean get() = contents?.phrase != null
+    val hasRecoveryPhrase: Boolean get() = vaultState.current?.phrase != null
 
     /** The recovery phrase, after the user authenticated again; null for a wallet created from a key. */
     suspend fun revealPhrase(auth: Auth): String? = told {
         if (!auth()) throw AuthCancelled()
-        contents?.phrase
+        vaultState.current?.phrase
     }
 
     /**
@@ -132,23 +133,24 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         // own unlock included: asked first. Under the current key, opening it is what asks.
         val legacy = withContext(io) { deps.vault.needsUpgrade() }
         if (legacy && !auth()) throw AuthCancelled()
-        val contents = try {
-            withAuth(auth) { withContext(io) { deps.vault.unlock() } }
+        try {
+            // After any save still running (an account added just before a lock): it reads what that save wrote.
+            vaultState.open { withAuth(auth) { withContext(io) { deps.vault.unlock() } } }
         } catch (e: VaultKeyLost) {
             _phase.value = AppPhase.KeyLost
             throw e
         }
-        if (legacy) upgradeVault(contents)
-        start(contents)
+        if (legacy) upgradeVault()
+        start()
     }
 
     /**
      * Seals the vault again with the key bound to each operation (one more prompt, once). Declined or failed, the
      * wallet opens anyway on the old key, and the next unlock tries again.
      */
-    private suspend fun upgradeVault(contents: VaultContents) {
+    private suspend fun upgradeVault() {
         // Kept for the log; the user already has their wallet open, and is asked again at the next unlock.
-        runCatching { withContext(io) { deps.vault.upgrade(contents) } }
+        runCatching { vaultState.change { vault, current -> vault.upgrade(current); current to Unit } }
             .onFailure { DiagnosticLog.shared.report("vault", it) }
     }
 
@@ -168,8 +170,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         current.close()
         deps.approvals.rejectAll()
         deps.lastNetwork = id
-        // The session's contents, not the copy taken at unlock: accounts added or renamed since are in them.
-        start(current.vaultContents)
+        start()
     }
 
     /** Starts the network's session again: after it failed to open, or its PXE host stopped. */
@@ -177,7 +178,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         val current = (_phase.value as? AppPhase.Unlocked)?.session ?: return@action
         current.close()
         deps.approvals.rejectAll()
-        start(current.vaultContents)
+        start()
     }
 
     private val autoLock = AutoLock()
@@ -208,7 +209,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         (_phase.value as? AppPhase.Unlocked)?.session?.close()
         // A site's request must not outlive the lock, as on iOS.
         deps.approvals.rejectAll()
-        contents = null
+        vaultState.forget()
         _phase.value = AppPhase.Locked
     }
 
@@ -284,14 +285,14 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         block()
     }
 
-    private suspend fun start(unlocked: VaultContents) {
-        contents = unlocked
+    /** Opens the session of the last network on the unlocked vault (which it reads from [vaultState], not a copy). */
+    private suspend fun start() {
         val networks = _networks.value
         val network = networks.firstOrNull { it.id == deps.lastNetwork }
             ?: networks.firstOrNull { it.id == withContext(io) { deps.backend.defaultNetworkId() } }
             ?: error("no network is configured")
         deps.lastNetwork = network.id
-        val session = WalletSession(deps.backend, deps.launcher, deps.vault, unlocked, deps.storeDir, network, viewModelScope)
+        val session = WalletSession(deps.backend, deps.launcher, vaultState, deps.storeDir, network, viewModelScope)
         _phase.value = AppPhase.Unlocked(session)
         session.open()
         checkNode(network.id)

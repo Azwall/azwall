@@ -179,7 +179,7 @@ class DappLinkTest {
         val network = NetworkInfo("n", "N", "6", "6", "h", "v6", true)
         // A scope on the test scheduler (advanceUntilIdle runs it), cancelled after each test.
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
-        return WalletSession(Backend, launcher, vault, contents, tmp.root, network, scope).apply { open() }
+        return WalletSession(Backend, launcher, unlocked(vault, contents), tmp.root, network, scope).apply { open() }
     }
 
     @Test

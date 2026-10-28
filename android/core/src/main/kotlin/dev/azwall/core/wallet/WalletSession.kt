@@ -19,6 +19,7 @@ import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.vault.VaultContents
+import dev.azwall.core.vault.VaultState
 import java.io.File
 import java.math.BigInteger
 import kotlinx.coroutines.CoroutineScope
@@ -138,8 +139,8 @@ data class SessionState(
 class WalletSession(
     private val backend: WalletBackend,
     private val launcher: PxeLauncher,
-    private val vault: Vault,
-    private var contents: VaultContents,
+    /** The unlocked vault, shared with the sessions before and after this one (VaultState). */
+    private val vaultState: VaultState,
     private val storeDir: File,
     val network: NetworkInfo,
     private val parent: CoroutineScope,
@@ -330,23 +331,15 @@ class WalletSession(
         }
     }
 
-    /**
-     * The vault as it is now, accounts added or renamed in this session included: what a session started after this
-     * one (Retry, another network) must start from, or its next write would drop them.
-     */
-    val vaultContents: VaultContents get() = contents
-
-    /** One vault write at a time: each starts from what the one before wrote. */
-    private val vaultWrites = Mutex()
+    /** The vault as it is now: read from the one owner every time, never from a copy (VaultState). */
+    private val contents: VaultContents get() = vaultState.contents
 
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
     suspend fun addAccount(alias: String, importedKey: String? = null): AccountView {
-        val secrets = vaultWrites.withLock {
-            val secrets = Recovery.nextAccount(contents, alias, importedKey, backend)
-            // Off the main thread: sealing the vault waits for the user to authenticate (PromptedSecretBox).
-            val current = contents
-            contents = withContext(Dispatchers.IO) { vault.addAccount(current, secrets) }
-            secrets
+        // From the latest contents, after any other save: the next account index and the duplicate checks see them.
+        val secrets = vaultState.change { vault, current ->
+            val secrets = Recovery.nextAccount(current, alias, importedKey, backend)
+            vault.addAccount(current, secrets) to secrets
         }
         val view = register(secrets)
         _state.update { it.copy(accounts = it.accounts + view) }
@@ -357,10 +350,7 @@ class WalletSession(
 
     suspend fun renameAccount(address: String, alias: String) {
         val account = _state.value.accounts.firstOrNull { it.address == address } ?: return
-        vaultWrites.withLock {
-            val current = contents
-            contents = withContext(Dispatchers.IO) { vault.renameAccount(current, account.signingKey, alias) }
-        }
+        vaultState.change { vault, current -> vault.renameAccount(current, account.signingKey, alias) to Unit }
         _state.update { s -> s.copy(accounts = s.accounts.map { if (it.address == address) it.copy(alias = alias.trim()) else it }) }
     }
 

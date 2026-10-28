@@ -60,7 +60,7 @@ class WalletSessionTest {
         val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = emptyFlow<PxeEvent>(); override fun stop() {} } }
         // The session runs endless collectors: a scope on the test scheduler (advanceUntilIdle runs it), cancelled after.
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
-        return WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
+        return WalletSession(FakeBackend, launcher, unlocked(vault, contents), tmp.root, network, scope)
     }
 
     @Test
@@ -353,7 +353,7 @@ class WalletSessionTest {
         val contents = vault.create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
         val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = events; override fun stop() {} } }
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
-        val s = WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
+        val s = WalletSession(FakeBackend, launcher, unlocked(vault, contents), tmp.root, network, scope)
         s.open()
         advanceUntilIdle()
         assertEquals(Phase.READY, s.state.value.phase)
@@ -374,7 +374,7 @@ class WalletSessionTest {
             object : RunningPxe { override val client = PxeClient(pxe); override val events = emptyFlow<PxeEvent>(); override fun stop() { stopped = true } }
         }
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
-        val s = WalletSession(FakeBackend, launcher, vault, contents, tmp.root, network, scope)
+        val s = WalletSession(FakeBackend, launcher, unlocked(vault, contents), tmp.root, network, scope)
         val opening = launch { s.open() }
         advanceUntilIdle()
         s.close() // locked while the PXE host starts

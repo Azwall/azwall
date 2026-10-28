@@ -115,3 +115,7 @@ internal object PlainBox : SecretBox {
     override fun seal(plain: ByteArray) = plain
     override fun open(sealed: ByteArray) = sealed
 }
+
+/** [vault] unlocked with [contents], as the app holds it (VaultState). */
+internal fun unlocked(vault: dev.azwall.core.vault.Vault, contents: dev.azwall.core.vault.VaultContents) =
+    dev.azwall.core.vault.VaultState(vault).also { state -> kotlinx.coroutines.runBlocking { state.open { contents } } }

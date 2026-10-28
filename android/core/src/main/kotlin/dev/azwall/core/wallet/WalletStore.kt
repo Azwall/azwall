@@ -184,8 +184,9 @@ class WalletStore(private val dir: File, private val networkId: String) {
     }
 
     /**
-     * Writes [next] (a temporary file, then an atomic rename). The wallet goes on with it in memory either way, but
-     * a write that did not land is said: after a restart the old history and tokens would come back without a word.
+     * Writes [next] (a temporary file, then an atomic rename: the file on disk is always the last whole one). The
+     * wallet goes on with it in memory either way, but a write that did not land is said: after a restart the older
+     * history and tokens would come back without a word.
      */
     private fun save(next: StoredNetwork) {
         data = next
@@ -194,8 +195,8 @@ class WalletStore(private val dir: File, private val networkId: String) {
         // Reported, then said again below as a write that did not land.
         val written = runCatching {
             tmp.writeText(json.encodeToString(StoredNetwork.serializer(), next))
-            // A rename can fail where a copy works (another file system's rules): tried before giving up.
-            tmp.renameTo(file) || runCatching { tmp.copyTo(file, overwrite = true); tmp.delete() }.isSuccess
+            // Only an atomic rename replaces the file: a copy cut short would destroy the last good one.
+            tmp.renameTo(file)
         }.onFailure { DiagnosticLog.shared.report("store", it) }.getOrDefault(false)
         if (!written) {
             unsaved = true
