@@ -1,4 +1,3 @@
-import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -109,7 +108,6 @@ tasks.named("preBuild") { dependsOn(generateAzwallConfig, buildPxeHosts, checkCr
 
 // What reaches a store must be built for it: the Rust core in release mode for every architecture shipped, and only
 // the registry's public endpoints (an RPC URL from .env may carry its owner's API key, readable by anyone in the APK).
-@Suppress("UNCHECKED_CAST")
 val checkReleaseInputs by tasks.registering {
     dependsOn(generateAzwallConfig)
     doLast {
@@ -119,20 +117,11 @@ val checkReleaseInputs by tasks.registering {
         if (staged.firstOrNull() != "release" || !staged.drop(1).containsAll(abis)) {
             throw GradleException("the Rust core staged is not a release build for ${abis.joinToString()}: run scripts/build-android.sh --release ${abis.joinToString(" ")}")
         }
-        val json = groovy.json.JsonSlurper()
-        val networks = { file: File -> (json.parse(file) as Map<String, Any?>)["networks"] as List<Map<String, Any?>> }
-        val public = networks(repoRoot.resolve("networks.json")).flatMap { n ->
-            val l1 = n["l1"] as Map<String, Any?>?
-            listOfNotNull(n["defaultRpc"], l1?.get("rpc"), l1?.get("fallbackRpc")).map { it.toString() }
-        }.toSet()
-        val shipped = networks(repoRoot.resolve("assets/azwall-config.json")).flatMap { n ->
-            listOfNotNull(n["rpcUrl"]?.toString()) + (n["l1RpcUrls"] as List<Any?>?).orEmpty().map { it.toString() }
-        }
-        val private = shipped.filter { it !in public }
-        if (private.isNotEmpty()) {
-            val hosts = private.map { URI(it).host }.distinct().joinToString()
-            throw GradleException("assets/azwall-config.json holds endpoints from .env ($hosts): a release ships the registry's public ones only; clear them in .env and build again")
-        }
+        // The registry's public endpoints only (azwall-config tells them apart, and names hosts, never keys).
+        val check = ProcessBuilder("cargo", "run", "--quiet", "-p", "azwall-core", "--bin", "azwall-config", "--", "--public-only")
+            .directory(repoRoot).redirectErrorStream(true).start()
+        val output = check.inputStream.bufferedReader().readText()
+        if (check.waitFor() != 0) throw GradleException(output.lines().last { it.isNotBlank() })
     }
 }
 afterEvaluate {

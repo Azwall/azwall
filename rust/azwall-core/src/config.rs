@@ -98,6 +98,26 @@ impl AppConfig {
         Ok(Self { default_network: registry.default.clone(), networks, rpc_max_batch: max_batch(env)?, unavailable })
     }
 
+    /**
+     * The hosts of the endpoints `.env` put in place of the registry's: a release must ship none, as an RPC URL of
+     * one's own may carry its API key, readable by anyone in the app.
+     */
+    pub fn endpoints_from_env(&self) -> Vec<String> {
+        let mut hosts = Vec::new();
+        for n in &self.networks {
+            let public: Vec<&str> = n.spec.default_rpc.iter().map(String::as_str)
+                .chain(n.spec.l1.iter().flat_map(|l1| std::iter::once(l1.rpc.as_str()).chain(l1.fallback_rpc.as_deref())))
+                .collect();
+            for url in std::iter::once(&n.rpc_url).chain(&n.l1_rpc_urls) {
+                if !public.contains(&url.as_str()) {
+                    // Only the host: the rest of the URL may be the key itself.
+                    hosts.push(crate::rpc::redact_urls(url).trim_end_matches("/…").to_string());
+                }
+            }
+        }
+        hosts
+    }
+
     pub fn from_json(json: &str) -> Result<Self> {
         let config: AppConfig = serde_json::from_str(json).map_err(|e| CoreError::Config(e.to_string()))?;
         if config.network(&config.default_network).is_err() {
@@ -213,6 +233,9 @@ mod tests {
         // A network that declares no Ethereum side does not look for bridged Fee Juice.
         assert!(config.network("net-b").unwrap().pxe_open_params(3)["l1"].is_null());
         let keyed = AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "https://my-eth.example/k")])).unwrap();
+        // net-b has no public endpoint: its own comes from .env, and a release would refuse it.
+        assert_eq!(config.endpoints_from_env(), ["https://b.example"]);
+        assert_eq!(keyed.endpoints_from_env(), ["https://my-eth.example"], "the key stays out of the message");
         // A keyed endpoint of the user's own comes first; the public ones stay as fallbacks.
         assert_eq!(
             keyed.network("net-a").unwrap().pxe_open_params(3)["l1"]["rpcUrls"],

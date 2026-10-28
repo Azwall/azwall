@@ -1,7 +1,8 @@
 //! Resolves `networks.json` + `.env` into the config JSON both apps bundle.
 //!
-//! Usage: azwall-config [--registry networks.json] [--env .env] [--out assets/azwall-config.json]
-//! Without `--out`, prints to stdout. Paths default to the repository root.
+//! Usage: azwall-config [--registry networks.json] [--env .env] [--out assets/azwall-config.json] [--public-only]
+//! Without `--out`, prints to stdout. Paths default to the repository root. `--public-only` (release builds) fails
+//! when `.env` replaced a registry endpoint: one's own RPC URL may carry its API key.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -12,13 +13,18 @@ struct Args {
     registry: PathBuf,
     env: PathBuf,
     out: Option<PathBuf>,
+    public_only: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut args = Args { registry: root.join("networks.json"), env: root.join(".env"), out: None };
+    let mut args = Args { registry: root.join("networks.json"), env: root.join(".env"), out: None, public_only: false };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
+        if flag == "--public-only" {
+            args.public_only = true;
+            continue;
+        }
         let value = it.next().map(PathBuf::from).ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--registry" => args.registry = value,
@@ -36,6 +42,10 @@ fn run() -> Result<(), String> {
     let registry = Registry::from_json(&json).map_err(|e| e.to_string())?;
     let env = dotenv::load(&args.env).map_err(|e| e.to_string())?;
     let config = AppConfig::resolve(&registry, &env).map_err(|e| e.to_string())?;
+    let private = config.endpoints_from_env();
+    if args.public_only && !private.is_empty() {
+        return Err(format!("endpoints from .env ({}): a release ships the registry's public ones only; clear them in .env", private.join(", ")));
+    }
     for id in &config.unavailable {
         eprintln!("warning: network '{id}' has no RPC endpoint and is left out");
     }
