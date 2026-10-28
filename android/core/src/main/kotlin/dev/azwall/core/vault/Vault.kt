@@ -6,11 +6,17 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.security.SecureRandom
 
-/** Encrypts and decrypts the vault file. [KeystoreSecretBox] on devices, a fake in tests. */
+/** Encrypts and decrypts the vault file. [UpgradingSecretBox] on devices, a fake in tests. */
 interface SecretBox {
     fun seal(plain: ByteArray): ByteArray
 
     fun open(sealed: ByteArray): ByteArray
+
+    /** Whether [sealed] is under a key the box replaces: the vault is sealed again with its own ([Vault.upgrade]). */
+    fun isLegacy(sealed: ByteArray): Boolean = false
+
+    /** Forgets the replaced key, once a vault sealed with the new one has been opened. */
+    fun dropLegacy() {}
 }
 
 /**
@@ -49,8 +55,44 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
         return contents
     }
 
-    /** Decrypts the vault. May throw an authentication-required error from the [SecretBox]. */
-    fun unlock(): VaultContents = json.decodeFromString(VaultContents.serializer(), box.open(file.readBytes()).decodeToString())
+    /** The vault before its last [upgrade], kept until the upgraded one has been opened once. */
+    private val previous = File(file.parentFile, file.name + ".previous")
+
+    /** Whether the vault is sealed with a key the box replaces: [upgrade] after unlocking it. */
+    fun needsUpgrade(): Boolean = exists() && box.isLegacy(file.readBytes())
+
+    /**
+     * Decrypts the vault. May throw an authentication-required error from the [SecretBox]. After an upgrade, the
+     * first unlock that works with the new key forgets the old vault and key; one that fails (the new key lost or
+     * refusing) goes back to the old vault, so an upgrade can never leave the wallet without a readable vault.
+     */
+    fun unlock(): VaultContents {
+        val sealed = file.readBytes()
+        if (box.isLegacy(sealed)) return decode(box.open(sealed))
+        val contents = try {
+            decode(box.open(sealed))
+        } catch (e: Exception) {
+            // The user declining is not a broken key: nothing to go back to.
+            if (e is AuthenticationCancelled || e is AuthenticationRequired || !previous.exists()) throw e
+            return decode(box.open(previous.readBytes())).also { check(previous.renameTo(file)) { "could not restore the vault" } }
+        }
+        if (previous.exists()) {
+            previous.delete()
+            box.dropLegacy()
+        }
+        return contents
+    }
+
+    /**
+     * Seals [contents] again with the box's current key, keeping the vault as it was until the new one has been
+     * opened ([unlock]).
+     */
+    fun upgrade(contents: VaultContents) {
+        check(needsUpgrade()) { "the vault is already sealed with the current key" }
+        write(contents)
+    }
+
+    private fun decode(plain: ByteArray): VaultContents = json.decodeFromString(VaultContents.serializer(), plain.decodeToString())
 
     fun addAccount(contents: VaultContents, account: AccountSecrets): VaultContents {
         require(contents.accounts.none { it.signingKey == account.signingKey }) { "this account is already in the wallet" }
@@ -67,9 +109,12 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
     /** Deletes the vault file. The keys are gone unless the user backed them up. */
     fun wipe() {
         file.delete()
+        previous.delete()
     }
 
     private fun write(contents: VaultContents) {
+        // Any write leaving the old key (an upgrade, or an account added before one) keeps the vault it replaces.
+        if (needsUpgrade()) file.copyTo(previous, overwrite = true)
         val sealed = box.seal(json.encodeToString(VaultContents.serializer(), contents).encodeToByteArray())
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeBytes(sealed)

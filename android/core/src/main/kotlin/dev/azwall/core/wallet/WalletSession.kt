@@ -3,6 +3,7 @@ package dev.azwall.core.wallet
 import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.pxe.PxeChannel
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.WalletBackend
@@ -332,7 +333,9 @@ class WalletSession(
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
     suspend fun addAccount(alias: String, importedKey: String? = null): AccountView {
         val secrets = Recovery.nextAccount(contents, alias, importedKey, backend)
-        contents = vault.addAccount(contents, secrets)
+        // Off the main thread: sealing the vault waits for the user to authenticate (PromptedSecretBox).
+        val current = contents
+        contents = withContext(Dispatchers.IO) { vault.addAccount(current, secrets) }
         val view = register(secrets)
         _state.update { it.copy(accounts = it.accounts + view) }
         // Like any switch: the previous account's balances and suggestions must not show under the new one.
@@ -340,9 +343,10 @@ class WalletSession(
         return view
     }
 
-    fun renameAccount(address: String, alias: String) {
+    suspend fun renameAccount(address: String, alias: String) {
         val account = _state.value.accounts.firstOrNull { it.address == address } ?: return
-        contents = vault.renameAccount(contents, account.signingKey, alias)
+        val current = contents
+        contents = withContext(Dispatchers.IO) { vault.renameAccount(current, account.signingKey, alias) }
         _state.update { s -> s.copy(accounts = s.accounts.map { if (it.address == address) it.copy(alias = alias.trim()) else it }) }
     }
 

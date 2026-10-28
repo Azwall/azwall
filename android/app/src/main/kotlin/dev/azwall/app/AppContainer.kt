@@ -1,5 +1,6 @@
 package dev.azwall.app
 
+import android.app.Application
 import android.app.KeyguardManager
 import android.content.Context
 import android.os.Handler
@@ -10,6 +11,8 @@ import dev.azwall.core.AzwallRuntime
 import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.KeystoreSecretBox
+import dev.azwall.core.vault.PromptedSecretBox
+import dev.azwall.core.vault.UpgradingSecretBox
 import dev.azwall.core.vault.Vault
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.PxeLauncher
@@ -38,7 +41,9 @@ interface AppDeps {
 
 class AppContainer(context: Context) : AppDeps {
     private val app = context.applicationContext
-    private val box = KeystoreSecretBox()
+    // The key that opens for two minutes after any authentication is replaced, at the next unlock, by one bound to
+    // each operation (PromptedSecretBox).
+    private val box = UpgradingSecretBox(KeystoreSecretBox(), PromptedSecretBox(PromptAuthorizer(app as Application)))
     private val prefs = app.getSharedPreferences("azwall", Context.MODE_PRIVATE)
 
     override val backend: WalletBackend by lazy { AzwallRuntime.create(app) }
@@ -62,7 +67,7 @@ class AppContainer(context: Context) : AppDeps {
 
     override fun wipe() {
         vault.wipe()
-        box.deleteKey()
+        box.deleteKeys()
         storeDir.deleteRecursively()
         prefs.edit().clear().apply()
         // The PXE stores (encrypted with the vault's store key, useless without it) and the browser's sites data.

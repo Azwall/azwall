@@ -6,6 +6,7 @@ import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
 import dev.azwall.core.vault.AuthenticationRequired
 import dev.azwall.core.vault.VaultKeyLost
+import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.VaultContents
 import dev.azwall.core.wallet.AutoLock
@@ -127,14 +128,28 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
      * the phone's own unlock included, so the wallet would open just because the phone was unlocked.
      */
     fun unlock(auth: Auth) = action {
-        if (!auth()) throw AuthCancelled()
+        // A vault under the old key would open without a prompt for a while after any authentication, the phone's
+        // own unlock included: asked first. Under the current key, opening it is what asks.
+        val legacy = withContext(io) { deps.vault.needsUpgrade() }
+        if (legacy && !auth()) throw AuthCancelled()
         val contents = try {
             withAuth(auth) { withContext(io) { deps.vault.unlock() } }
         } catch (e: VaultKeyLost) {
             _phase.value = AppPhase.KeyLost
             throw e
         }
+        if (legacy) upgradeVault(contents)
         start(contents)
+    }
+
+    /**
+     * Seals the vault again with the key bound to each operation (one more prompt, once). Declined or failed, the
+     * wallet opens anyway on the old key, and the next unlock tries again.
+     */
+    private suspend fun upgradeVault(contents: VaultContents) {
+        // Kept for the log; the user already has their wallet open, and is asked again at the next unlock.
+        runCatching { withContext(io) { deps.vault.upgrade(contents) } }
+            .onFailure { DiagnosticLog.shared.report("vault", it) }
     }
 
     /**
