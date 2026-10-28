@@ -27,6 +27,27 @@ struct DiagnosticLogTests {
         #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 
+    @Test func aLineSaidAgainAndAgainIsWrittenOnceEveryTenMinutes() {
+        let clock = Clock()
+        let log = DiagnosticLog(now: { clock.at })
+        for _ in 0...30 {
+            log.record(.warn, "feeJuice", "the bridge could not be read")
+            clock.at += 20
+        }
+        log.record(.error, "send", "proof failed")
+        // Every 20 s for 10 minutes: the first, then the one 10 minutes later, which counts the 29 in between.
+        #expect(log.entries == [
+            "1970-01-01T00:00:00Z WARN [feeJuice] the bridge could not be read",
+            "1970-01-01T00:10:00Z WARN [feeJuice] the bridge could not be read (also 29 more times before)",
+            "1970-01-01T00:10:20Z ERROR [send] proof failed",
+        ])
+    }
+
+    /// A time the test moves on.
+    private final class Clock: @unchecked Sendable {
+        var at = Date(timeIntervalSince1970: 0)
+    }
+
     @Test func theExportSaysWhereItComesFrom() {
         let log = DiagnosticLog(now: { Date(timeIntervalSince1970: 0) })
         log.report("feeJuice", PxeError("bridge deposits could not be read"))

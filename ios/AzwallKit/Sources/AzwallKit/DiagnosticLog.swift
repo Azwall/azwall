@@ -2,17 +2,23 @@ import Foundation
 
 /// What went wrong lately, kept on the device and shared only when the user exports it (Settings): no crash or
 /// analytics service sees a private wallet's addresses, amounts or habits. Warnings and errors only, the last
-/// `capacity` lines, with what could identify the user cut down (`redact`). The same format on Android.
+/// `capacity` lines, with what could identify the user cut down (`redact`). A line said again within `repeatWindow`
+/// (a node down fails every refresh) is counted, not written: it would push out the lines that tell what happened.
+/// The same format on Android.
 public final class DiagnosticLog: @unchecked Sendable {
     public enum Level: String, Sendable { case warn = "WARN", error = "ERROR" }
 
     /// The app's log; `attach(file:)` makes it last across launches.
     public static let shared = DiagnosticLog()
     public static let capacity = 500
+    /// How long a line said again is only counted.
+    public static let repeatWindow: TimeInterval = 10 * 60
 
     private let lock = NSLock()
     private var lines: [String] = []
     private var file: URL?
+    /// Each line recently written (without its time): when, and how often it was said again since.
+    private var recent: [String: (at: Date, again: Int)] = [:]
     private let now: @Sendable () -> Date
 
     public init(now: @escaping @Sendable () -> Date = Date.init) {
@@ -28,16 +34,24 @@ public final class DiagnosticLog: @unchecked Sendable {
         }
     }
 
+    /// Written under the lock: two lines recorded at once must not land on disk in the wrong order.
     public func record(_ level: Level, _ scope: String, _ message: String) {
-        let stamp = ISO8601DateFormatter().string(from: now())
-        let line = "\(stamp) \(level.rawValue) [\(scope)] \(Self.redact(message))"
-        let (text, file) = lock.withLock { () -> (String, URL?) in
-            lines.append(line)
+        let at = now()
+        let said = "\(level.rawValue) [\(scope)] \(Self.redact(message))"
+        lock.withLock {
+            let seen = recent[said]
+            if let seen, at.timeIntervalSince(seen.at) < Self.repeatWindow {
+                recent[said] = (seen.at, seen.again + 1)
+                return
+            }
+            if recent.count >= Self.capacity { recent = [:] }
+            recent[said] = (at, 0)
+            let again = seen.map { $0.again }.flatMap { $0 > 0 ? " (also \($0) more times before)" : nil } ?? ""
+            lines.append("\(ISO8601DateFormatter().string(from: at)) \(said)\(again)")
             if lines.count > Self.capacity { lines.removeFirst(lines.count - Self.capacity) }
-            return (lines.joined(separator: "\n"), self.file)
+            // Losing a diagnostic line must never fail what was being done: the line stays in memory.
+            if let file { try? lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8) }
         }
-        // Losing a diagnostic line must never fail what was being done: the line stays in memory.
-        if let file { try? text.write(to: file, atomically: true, encoding: .utf8) }
     }
 
     /// An error caught where the app carries on without it: kept for the export.
@@ -69,7 +83,7 @@ public final class DiagnosticLog: @unchecked Sendable {
     }
 
     public func clear() {
-        let file = lock.withLock { () -> URL? in lines = []; return self.file }
+        let file = lock.withLock { () -> URL? in lines = []; recent = [:]; return self.file }
         if let file { try? FileManager.default.removeItem(at: file) } // already gone is as good
     }
 

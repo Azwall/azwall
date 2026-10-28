@@ -1,6 +1,7 @@
 package dev.azwall.core
 
 import java.io.File
+import java.time.Duration
 import java.util.concurrent.CancellationException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -8,13 +9,17 @@ import java.time.temporal.ChronoUnit
 /**
  * What went wrong lately, kept on the device and shared only when the user exports it (Settings): no crash or
  * analytics service sees a private wallet's addresses, amounts or habits. Warnings and errors only, the last
- * [CAPACITY] lines, with what could identify the user cut down ([redact]). The same format on iOS.
+ * [CAPACITY] lines, with what could identify the user cut down ([redact]). A line said again within [REPEAT_WINDOW]
+ * (a node down fails every refresh) is counted, not written: it would push out the lines that tell what happened.
+ * The same format on iOS.
  */
 class DiagnosticLog(private val now: () -> Instant = Instant::now) {
     enum class Level { WARN, ERROR }
 
     private val lines = ArrayDeque<String>()
     private var file: File? = null
+    /** Each line recently written (without its time): when, and how often it was said again since. */
+    private val recent = HashMap<String, Pair<Instant, Int>>()
 
     /** Keeps the log in [file] and reads what an earlier launch left there. */
     @Synchronized
@@ -26,15 +31,23 @@ class DiagnosticLog(private val now: () -> Instant = Instant::now) {
         lines.addAll(previous.filter { it.isNotBlank() }.takeLast(CAPACITY))
     }
 
+    /** Written under the lock: two lines recorded at once must not land on disk in the wrong order. */
+    @Synchronized
     fun record(level: Level, scope: String, message: String) {
-        val line = "${now().truncatedTo(ChronoUnit.SECONDS)} ${level.name} [$scope] ${redact(message)}"
-        val (text, target) = synchronized(this) {
-            lines.addLast(line)
-            while (lines.size > CAPACITY) lines.removeFirst()
-            lines.joinToString("\n") to file
+        val at = now()
+        val said = "${level.name} [$scope] ${redact(message)}"
+        val seen = recent[said]
+        if (seen != null && Duration.between(seen.first, at) < REPEAT_WINDOW) {
+            recent[said] = seen.first to seen.second + 1
+            return
         }
+        if (recent.size >= CAPACITY) recent.clear()
+        recent[said] = at to 0
+        val again = seen?.second?.takeIf { it > 0 }?.let { " (also $it more times before)" } ?: ""
+        lines.addLast("${at.truncatedTo(ChronoUnit.SECONDS)} $said$again")
+        while (lines.size > CAPACITY) lines.removeFirst()
         // Losing a diagnostic line must never fail what was being done: the line stays in memory.
-        target?.let { runCatching { it.writeText(text) } }
+        file?.let { f -> runCatching { f.writeText(lines.joinToString("\n")) } }
     }
 
     /**
@@ -57,12 +70,16 @@ class DiagnosticLog(private val now: () -> Instant = Instant::now) {
     @Synchronized
     fun clear() {
         lines.clear()
+        recent.clear()
         // Already gone is as good.
         file?.delete()
     }
 
     companion object {
         const val CAPACITY = 500
+
+        /** How long a line said again is only counted. */
+        val REPEAT_WINDOW: Duration = Duration.ofMinutes(10)
 
         /** The app's log; [attach] makes it last across launches. */
         val shared = DiagnosticLog()

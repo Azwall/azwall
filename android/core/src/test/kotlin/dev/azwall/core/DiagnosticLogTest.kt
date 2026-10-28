@@ -36,6 +36,26 @@ class DiagnosticLogTest {
     }
 
     @Test
+    fun aLineSaidAgainAndAgainIsWrittenOnceEveryTenMinutes() {
+        var at = Instant.EPOCH
+        val log = DiagnosticLog { at }
+        repeat(31) {
+            log.record(DiagnosticLog.Level.WARN, "feeJuice", "the bridge could not be read")
+            at = at.plusSeconds(20)
+        }
+        log.record(DiagnosticLog.Level.ERROR, "send", "proof failed")
+        // Every 20 s for 10 minutes: the first, then the one 10 minutes later, which counts the 29 in between.
+        assertEquals(
+            listOf(
+                "1970-01-01T00:00:00Z WARN [feeJuice] the bridge could not be read",
+                "1970-01-01T00:10:00Z WARN [feeJuice] the bridge could not be read (also 29 more times before)",
+                "1970-01-01T00:10:20Z ERROR [send] proof failed",
+            ),
+            log.entries,
+        )
+    }
+
+    @Test
     fun theExportSaysWhereItComesFrom() {
         val log = DiagnosticLog { Instant.EPOCH }
         log.report("feeJuice", IllegalStateException("bridge deposits could not be read"))
