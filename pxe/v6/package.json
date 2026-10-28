@@ -1,6 +1,7 @@
 {
   "name": "@azwall/pxe-v6",
   "private": true,
+  "license": "Apache-2.0",
   "description": "PXE host for Aztec 6.0.0 (testnet v6)",
   "type": "module",
   "scripts": {

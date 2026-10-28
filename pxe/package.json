@@ -1,6 +1,7 @@
 {
   "name": "azwall-pxe",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Aztec PXE hosts, one per Aztec version, run by the native apps in a hidden web view",
   "type": "module",
   "scripts": {

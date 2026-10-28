@@ -144,3 +144,7 @@ LIVE=1 scripts/test-all.sh
 
 See [AGENTS.md](AGENTS.md): English everywhere, at most 600 lines per file and 50
 lines per function (`scripts/check-limits.py`).
+
+## License
+
+Azwall is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attributions.

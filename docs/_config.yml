@@ -17,7 +17,7 @@ aux_links_new_tab: true
 
 back_to_top: true
 back_to_top_text: Back to top
-footer_content: Azwall is MIT licensed.
+footer_content: Azwall is licensed under the Apache License 2.0.
 
 exclude:
   - bench/
