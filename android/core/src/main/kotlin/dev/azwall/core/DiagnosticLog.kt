@@ -86,9 +86,12 @@ class DiagnosticLog(private val now: () -> Instant = Instant::now) {
 
         private val URL = Regex("""(https?|wss?)://([^/\s"'?#]+)[^\s"']*""")
         private val HEX = Regex("""0x([0-9a-fA-F]{6})[0-9a-fA-F]{28,}([0-9a-fA-F]{4})""")
+        // A key or hash written without 0x, and long base64 (a sealed blob, a proof): never words, cut the same way.
+        private val BARE_HEX = Regex("""\b([0-9a-fA-F]{6})[0-9a-fA-F]{28,}([0-9a-fA-F]{4})\b""")
+        private val BASE64 = Regex("""([A-Za-z0-9+/]{6})[A-Za-z0-9+/]{34,}={0,2}""")
 
         /** Hex values (addresses, hashes, keys) cut to their ends, URLs to their host (an RPC URL may carry an API key). */
         fun redact(message: String): String =
-            message.replace('\n', ' ').replace(URL, "$1://$2").replace(HEX, "0x$1…$2")
+            message.replace('\n', ' ').replace(URL, "$1://$2").replace(HEX, "0x$1…$2").replace(BARE_HEX, "$1…$2").replace(BASE64, "$1…")
     }
 }

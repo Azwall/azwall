@@ -19,6 +19,10 @@ class DiagnosticLogTest {
         assertEquals("node https://lb.drpc.org is down", DiagnosticLog.redact("node https://lb.drpc.org/aztec/SECRETKEY?x=1 is down"))
         assertEquals("block 0x1f 12", DiagnosticLog.redact("block 0x1f 12"))
         assertEquals("two lines", DiagnosticLog.redact("two\nlines"))
+        // Store-release audit: a key without 0x, or base64, is cut too; ordinary words are not.
+        assertEquals("key ababab…abab", DiagnosticLog.redact("key " + "ab".repeat(32)))
+        assertEquals("blob QUJDRE…", DiagnosticLog.redact("blob " + "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0NTY3ODk="))
+        assertEquals("the wallet engine stopped: the system ended it", DiagnosticLog.redact("the wallet engine stopped: the system ended it"))
     }
 
     @Test
