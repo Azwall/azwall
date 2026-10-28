@@ -114,7 +114,7 @@ describe('bridged Fee Juice', () => {
   });
 
   it('refuses an Ethereum endpoint on another chain', async () => {
-    const bridge = { client: l1([], 1n, 11155111) as never, portal: portal as `0x${string}`, fromBlock: 0n, l1ChainId: 1 };
+    const bridge = { client: l1([], 1n, 11155111) as never, portal: portal as `0x${string}`, fromBlock: 0n, l1ChainId: 1, rollupVersion: 2070860440 };
     await expect(depositsFor(bridge, aztec(new Map(), []) as never, me)).rejects.toThrow('chain 11155111');
   });
 });
@@ -133,5 +133,31 @@ describe('the network pinned in the registry', () => {
     const wallet = (chainId: bigint, version: bigint) => ({ getChainInfo: async () => ({ chainId: new Fr(chainId), version: new Fr(version) }) });
     await expect(sameChainEverywhere(wallet(1n, 7n), network)).resolves.toBeUndefined();
     await expect(sameChainEverywhere(wallet(1n, 8n), network)).rejects.toThrow("not this network's");
+  });
+});
+
+describe('a deposit message', () => {
+  // Mainnet deposit 0x95d7106b…fa56 (2026-10-26), the vector the bridge site's tests use too.
+  const recorded = {
+    to: '0x15cd6b14759b315baf74cd8f5934fa951ad9a2336e2968038835e84e1261612b' as const,
+    amount: 5000n * 10n ** 18n,
+    secretHash: '0x23792a84f902ac3ce6c340ea12ce6bb2d3600e92b3b43babe053e71ce5112573',
+    index: 9n,
+  };
+  const mainnet = { l1ChainId: 1, rollupVersion: 2070860440 };
+
+  it('hashes as the portal and the Inbox do', async () => {
+    const { depositMessageHash } = await import('../src/fee_juice');
+    expect(depositMessageHash(recorded, mainnet)).toBe('0x00231a7d2ff08fde3eeadf3c09a09c72e6f7c7a833f14252b646ea9e35036043');
+  });
+
+  it('leaves out a deposit whose amount was changed on the way', async () => {
+    const { depositMessageHash } = await import('../src/fee_juice');
+    const chain = { l1ChainId: 1, rollupVersion: 7 };
+    const honest = await log(5n, 1n, 10n);
+    honest.args.key = depositMessageHash({ to: me.toString() as `0x${string}`, amount: 5n, secretHash: honest.args.secretHash, index: 1n }, chain);
+    const inflated = { ...honest, args: { ...honest.args, amount: 5000n } };
+    const found = await feeJuiceDeposits(l1([honest, inflated]) as never, aztec(new Map(), []) as never, portal, me, 0n, [], chain);
+    expect(found.map(d => d.amount)).toEqual([5n]);
   });
 });

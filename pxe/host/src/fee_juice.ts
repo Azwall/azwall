@@ -13,7 +13,12 @@ import { ProtocolContractAddress } from '@aztec/protocol-contracts';
 import type { AztecAddress } from '@aztec/stdlib/aztec-address';
 import { MerkleTreeId } from '@aztec/stdlib/trees';
 import { FeeJuicePaymentMethodWithClaim } from '@aztec/aztec.js/fee';
-import { createPublicClient, fallback, http, parseAbiItem, type PublicClient } from 'viem';
+import { EthAddress } from '@aztec/foundation/eth-address';
+import { AztecAddress as Address } from '@aztec/stdlib/aztec-address';
+import { L1Actor, L1ToL2Message, L2Actor } from '@aztec/stdlib/messaging';
+import { createPublicClient, encodeFunctionData, fallback, http, parseAbiItem, sha256, type PublicClient } from 'viem';
+
+import { log } from './log';
 
 /** The network's Ethereum side (networks.json `l1`, resolved by azwall-config): endpoints in the order they are tried. */
 export type L1Params = { rpcUrls: string[]; portal: string; portalFromBlock: number };
@@ -109,6 +114,43 @@ export async function depositsTo(client: Pick<PublicClient, 'getLogs' | 'getBloc
   return found;
 }
 
+/** The chain a deposit's message is bound to: Ethereum's chain id and the rollup's version. */
+export type MessageChain = { l1ChainId: number; rollupVersion: number };
+
+const CLAIM_ABI = [{ type: 'function', name: 'claim', inputs: [{ type: 'bytes32' }, { type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' }] as const;
+
+/**
+ * The L1 → L2 message hash of a portal deposit, as the portal and the Inbox build it: sender the address 0x…03 the
+ * Inbox puts for the Fee Juice portal (with the L1 chain id), recipient FeeJuice 0x…03 (with the rollup version),
+ * content sha256ToField(claim(to, amount)), then the secret hash and the leaf index. The bridge site computes it the
+ * same way (aztec-bridge, src/lib/deposit.ts), checked there against a recorded mainnet deposit.
+ */
+export function depositMessageHash(d: { to: `0x${string}`; amount: bigint; secretHash: string; index: bigint }, chain: MessageChain): string {
+  const calldata = encodeFunctionData({ abi: CLAIM_ABI, functionName: 'claim', args: [d.to, d.amount] });
+  // sha256ToField: sha256, its first 31 bytes, left-padded with a zero byte.
+  const content = Fr.fromHexString(`0x00${sha256(calldata).slice(2, 64)}`);
+  const message = new L1ToL2Message(
+    new L1Actor(EthAddress.fromString(`0x${'3'.padStart(40, '0')}`), chain.l1ChainId),
+    new L2Actor(Address.fromBigIntUnsafe(3n), chain.rollupVersion),
+    content,
+    Fr.fromHexString(d.secretHash),
+    new Fr(d.index),
+  );
+  return message.hash().toString();
+}
+
+/**
+ * Whether a deposit log's message hash is the one its fields make: an Ethereum endpoint that lies about the amount
+ * (or anything else the claim is bound to) is caught here, rather than when the claim fails.
+ */
+function bindsItsFields(entry: { args: unknown }, recipient: AztecAddress, chain: MessageChain): boolean {
+  const a = entry.args as { amount: bigint; secretHash: string; key: string; index: bigint };
+  const fields = { to: recipient.toString() as `0x${string}`, amount: a.amount, secretHash: a.secretHash, index: a.index };
+  const ok = depositMessageHash(fields, chain) === a.key.toLowerCase();
+  if (!ok) log('feeJuice', `a deposit read from Ethereum does not match its message hash (${a.key.slice(0, 10)}…): left out`, 'warn');
+  return ok;
+}
+
 /** The nullifier a claimed message leaves on chain: poseidon2([messageHash, secret]), siloed by the Fee Juice contract. */
 export async function claimNullifier(messageHash: Fr, secret: Fr): Promise<Fr> {
   const inner = await poseidon2HashWithSeparator([messageHash, secret], DomainSeparator.MESSAGE_NULLIFIER);
@@ -135,10 +177,11 @@ export async function feeJuiceDeposits(
   recipient: AztecAddress,
   fromBlock: bigint,
   entered: Fr[] = [],
+  chain?: MessageChain,
 ): Promise<Deposit[]> {
   const secrets = await knownSecrets(recipient, entered);
   const byHash = new Map(await Promise.all(secrets.map(async s => [(await computeSecretHash(s)).toString().toLowerCase(), s] as const)));
-  const logs = await depositsTo(l1, portal, recipient, fromBlock);
+  const logs = (await depositsTo(l1, portal, recipient, fromBlock)).filter(entry => !chain || bindsItsFields(entry, recipient, chain));
   return Promise.all(
     logs.map(async log => {
       const a = log.args as { amount: bigint; secretHash: string; key: string; index: bigint };
@@ -156,13 +199,14 @@ export function l1Client(params: L1Params): PublicClient {
 }
 
 /** Where a network's deposits are read: its Ethereum endpoint, its Fee Juice portal and the portal's first block. */
-export type FeeJuiceBridge = { client: PublicClient; portal: `0x${string}`; fromBlock: bigint; l1ChainId: number };
+export type FeeJuiceBridge = { client: PublicClient; portal: `0x${string}`; fromBlock: bigint; l1ChainId: number; rollupVersion: number };
 
 /** The deposits for `recipient`, after checking the Ethereum endpoint is on the network's chain. */
 export async function depositsFor(bridge: FeeJuiceBridge, node: NodeReads, recipient: AztecAddress, entered: Fr[] = []): Promise<Deposit[]> {
-  const chain = await bridge.client.getChainId();
-  if (chain !== bridge.l1ChainId) throw new Error(`the Ethereum endpoint is on chain ${chain}, the network on ${bridge.l1ChainId}`);
-  return feeJuiceDeposits(bridge.client, node, bridge.portal, recipient, bridge.fromBlock, entered);
+  const endpoint = await bridge.client.getChainId();
+  if (endpoint !== bridge.l1ChainId) throw new Error(`the Ethereum endpoint is on chain ${endpoint}, the network on ${bridge.l1ChainId}`);
+  const chain = { l1ChainId: bridge.l1ChainId, rollupVersion: bridge.rollupVersion };
+  return feeJuiceDeposits(bridge.client, node, bridge.portal, recipient, bridge.fromBlock, entered, chain);
 }
 
 /** Pays a transaction's fee with Fee Juice claimed in it: the deposit `leafIndex` of `amount` to `owner`. */

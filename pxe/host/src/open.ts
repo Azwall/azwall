@@ -214,7 +214,13 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   await sameChainEverywhere(wallet, network);
   if (network.l1) {
     const portal = pinnedPortal(l1ContractAddresses.feeJuicePortalAddress.toString(), network.l1);
-    wallet.bridge = { client: l1Client(network.l1), portal, fromBlock: BigInt(network.l1.portalFromBlock), l1ChainId: network.expected.l1ChainId };
+    wallet.bridge = {
+      client: l1Client(network.l1),
+      portal,
+      fromBlock: BigInt(network.l1.portalFromBlock),
+      l1ChainId: network.expected.l1ChainId,
+      rollupVersion: network.expected.rollupVersion,
+    };
     log('wallet', `bridged Fee Juice is read on Ethereum (${network.l1.rpcUrls.map(u => new URL(u).host).join(', then ')}) from block ${network.l1.portalFromBlock}`);
   } else {
     log('wallet', 'no Ethereum side declared: bridged Fee Juice is not looked for');
