@@ -34,9 +34,13 @@ struct ApprovalPanel: View {
     private var header: some View {
         Button { expanded.toggle() } label: {
             HStack {
-                // The site as the browser knows it comes first: what a page says about itself is only a detail below.
+                // The site as the browser knows it comes first: what a page says about itself is only a detail below. Its
+                // domain leads, the part a phishing host cannot choose; the whole host follows, cut in the middle.
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(siteOf(request.origin)).font(.headline).lineLimit(2)
+                    let domain = SiteName.domain(of: request.origin)
+                    let host = SiteName.host(of: request.origin)
+                    Text(domain).font(.headline.bold()).lineLimit(1).truncationMode(.middle)
+                    if host != domain { Text(host).font(.caption).lineLimit(1).truncationMode(.middle) }
                     Text(request.title).font(.subheadline).lineLimit(expanded ? 3 : 1)
                 }
                 Spacer()

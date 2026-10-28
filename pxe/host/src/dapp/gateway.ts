@@ -19,7 +19,7 @@ import { log } from '../log';
 import { shippedArtifact } from '../shipped';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
-import { describeAuthWit, describeTx, otherCallLines, readCall } from './calls';
+import { describeAuthWit, describeTx, oneLine, otherCallLines, readCall } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
 import { changeLines, feeLine, metaOf, type Payer, simulateEffects } from './effects';
@@ -154,7 +154,7 @@ export class DappGateway {
       tab: d.tabId,
       origin: d.origin,
       title: 'Connect this site to your wallet?',
-      details: [`It calls itself "${d.appName ?? d.appId}"`],
+      details: [`It calls itself "${oneLine(d.appName ?? d.appId)}"`],
       sections: connectSections(d.origin, d.appId, d.appName, d.chainInfo),
     });
     this.#connecting.delete(d.tabId);
@@ -247,10 +247,10 @@ export class DappGateway {
       const fees = feeLine(fee, await this.#payer(account, op.args), tip);
       if (!changes.length) return { lines: ['No change to the balances of the tokens the wallet knows', fees], callsToo: true };
       const others = await otherCallLines(op.args[0], a => this.wallet.artifactAt(a), new Set(changes.map(c => c.token)));
-      return { lines: [...changeLines(changes, meta), ...others, fees], callsToo: false };
+      return { lines: [...changeLines(changes, meta, this.wallet.followed), ...others, fees], callsToo: false };
     } catch (err) {
       log('dapp', `simulation before approval: ${errorMessage(err)}`, 'warn');
-      return { lines: [`The wallet could not simulate this transaction, it may fail: ${errorMessage(err).slice(0, 120)}`], callsToo: true };
+      return { lines: [`The wallet could not simulate this transaction, it may fail: ${oneLine(errorMessage(err), 120)}`], callsToo: true };
     }
   }
 
@@ -369,7 +369,7 @@ export class DappGateway {
     const nameOf = (address: string) => this.wallet.artifactAt(address).then(a => a?.name);
     const more = before && added(before, grantsOf(asked));
     if (!more || more.flags.length || more.scopes.length) {
-      const claim = obj(m.metadata).name ? [`It calls itself "${String(obj(m.metadata).name)}"`] : [];
+      const claim = obj(m.metadata).name ? [`It calls itself "${oneLine(obj(m.metadata).name)}"`] : [];
       const ok = await this.#ask({
         kind: 'capabilities',
         tab: session.tabId,

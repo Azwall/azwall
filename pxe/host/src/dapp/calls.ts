@@ -52,6 +52,15 @@ export function defaultFeePayer(): string {
   return feePayers.size ? "The network's sponsor (no fee for you)" : 'Your account, with its Fee Juice';
 }
 
+/**
+ * A site's own words, as one line: control and format characters (bidi overrides included) and line breaks out, spaces
+ * collapsed, at most `max` characters. A line break would let a site forge extra lines that read as the wallet's.
+ */
+export function oneLine(v: unknown, max = 80): string {
+  const s = String(v ?? '').replace(/[\p{C}\u2028\u2029]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
 export const short = (v: unknown) => {
   const s = String(v ?? '?');
   return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
@@ -112,7 +121,7 @@ export function readCall(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
 async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCall> {
   const c = obj(call);
   const to = String(c.to ?? '');
-  const label = String(c.name ?? 'unknown function');
+  const label = oneLine(c.name ?? 'unknown function', 60);
   const artifact = await artifactOf(to).catch(err => {
     log('dapp', `reading the artifact of ${short(to)}: ${err instanceof Error ? err.message : String(err)}`, 'warn');
     return undefined;

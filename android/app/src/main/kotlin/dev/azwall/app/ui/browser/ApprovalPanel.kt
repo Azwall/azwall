@@ -32,13 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.azwall.app.ui.siteOf
 import dev.azwall.app.ui.theme.WalletTheme
 import dev.azwall.core.wallet.ApprovalKind
 import dev.azwall.core.wallet.ApprovalRequest
+import dev.azwall.core.wallet.SiteName
 
 /**
  * A dApp request, docked under the page instead of over it: the page above stays fully usable (scroll it, read
@@ -72,9 +73,13 @@ fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
 @Composable
 private fun Header(request: ApprovalRequest, expanded: Boolean, onToggle: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
-        // The site as the browser knows it comes first: what a page says about itself is only a detail below.
+        // The site as the browser knows it comes first: what a page says about itself is only a detail below. Its domain
+        // leads, the part a phishing host cannot choose; the whole host follows, cut in the middle, never at its end.
         Column(Modifier.weight(1f)) {
-            Text(siteOf(request.origin), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val domain = SiteName.domainOf(request.origin)
+            val host = SiteName.hostOf(request.origin)
+            Text(domain, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+            if (host != domain) Text(host, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             Text(request.title, style = MaterialTheme.typography.bodyMedium, maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onToggle) {

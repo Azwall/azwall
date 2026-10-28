@@ -127,6 +127,13 @@ export class AzwallWallet extends EmbeddedWallet {
     return this.aztecNode;
   }
 
+  /** The tokens the user follows in the app (lower case): what the app reads balances of. */
+  readonly followed = new Set<string>();
+
+  follow(tokens: string[]): void {
+    for (const t of tokens) this.followed.add(t.toLowerCase());
+  }
+
   /** Authorizations signed while sending are for the senders only (senders.ts). */
   readonly #senders = new SenderGuard();
 

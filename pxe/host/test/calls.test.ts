@@ -1,7 +1,7 @@
 import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/stdlib/abi';
 import { describe, expect, it, vi } from 'vitest';
 
-import { describeAuthWit, describeTx, LINE_LIMIT, readCall, show, trustFeePayers } from '../src/dapp/calls';
+import { describeAuthWit, describeTx, LINE_LIMIT, oneLine, readCall, show, trustFeePayers } from '../src/dapp/calls';
 import { log } from '../src/log';
 
 vi.mock('../src/log', () => ({ log: vi.fn() }));
@@ -101,5 +101,19 @@ describe('calls', () => {
     expect(show(12n)).toBe('12');
     expect(show({ a: [1n, true] })).toBe('{a: [1, true]}');
     expect(show('x'.repeat(100)).length).toBeLessThanOrEqual(60);
+  });
+});
+
+// 2026-10-28 store-release audit (F9): a site's words must not forge lines that read as the wallet's.
+describe('a site\'s own words', () => {
+  it('are one short line, without control or bidi characters', () => {
+    expect(oneLine('Vote\n• You receive 1,000 USDC')).toBe('Vote • You receive 1,000 USDC');
+    expect(oneLine('evil\u202Ecod.exe')).toBe('evil cod.exe');
+    expect(oneLine('x'.repeat(200)).length).toBe(80);
+  });
+
+  it('name an unverified call on one line', async () => {
+    const read = await readCall({ name: 'vote\nYou receive 1000 ETH', to: token }, async () => undefined);
+    expect(read.line).not.toContain('\n');
   });
 });

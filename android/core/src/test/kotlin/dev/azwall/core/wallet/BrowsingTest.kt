@@ -55,4 +55,16 @@ class BrowsingTest {
         assertEquals("https://azwall.github.io/azwall/privacy", Browsing.PRIVACY_POLICY)
         assertTrue(java.io.File("../../docs/privacy.md").exists())
     }
+
+    /** 2026-10-28 store-release audit (F9): a long phishing host must not read as the site it imitates. */
+    @Test
+    fun anApprovalNamesTheSiteByTheDomainItsHostCannotFake() {
+        assertEquals("evil-host.io", SiteName.domainOf("https://app.aztec.network.wallet-session-verify.evil-host.io"))
+        assertEquals("aztec.network", SiteName.domainOf("https://app.aztec.network"))
+        assertEquals("palmyr.io", SiteName.domainOf("https://aztec.palmyr.io:8443/swap"))
+        assertEquals("example.co.uk", SiteName.domainOf("https://www.example.co.uk"))
+        assertEquals("192.168.1.10", SiteName.domainOf("http://192.168.1.10:3000"))
+        assertEquals("localhost", SiteName.domainOf("http://localhost:5173"))
+        assertEquals("aztec.palmyr.io:8443", SiteName.hostOf("https://aztec.palmyr.io:8443/swap"))
+    }
 }

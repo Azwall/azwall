@@ -10,6 +10,7 @@ import { log } from '../log';
 import { noteOrigin } from '../note_owners';
 import { tokenInfo } from '../token';
 import type { AzwallWallet } from '../wallet';
+import { oneLine } from './calls';
 import { parseArgs } from './raw_call';
 
 export type BalanceChange = { token: string; kind: 'public' | 'private'; delta: bigint };
@@ -60,12 +61,18 @@ export function formatAmount(v: bigint, decimals: number): string {
   return `${abs / unit}${fraction ? `.${fraction}` : ''}`;
 }
 
-/** The approval's lines: what leaves the account first, then what comes in. */
-export function changeLines(changes: BalanceChange[], meta: Map<string, TokenMeta>): string[] {
+/**
+ * The approval's lines: what leaves the account first, then what comes in. A token outside `followed` (the ones the
+ * user follows in the wallet) is marked: a fake "USDC" a site minted would otherwise make "You send 100 USDC / You
+ * receive 100 USDC" read as a round trip.
+ */
+export function changeLines(changes: BalanceChange[], meta: Map<string, TokenMeta>, followed: Set<string>): string[] {
   const line = (c: BalanceChange) => {
-    const m = meta.get(c.token) ?? { symbol: 'of an unknown token', decimals: 0 };
+    const known = meta.get(c.token);
+    const m = known ? { ...known, symbol: oneLine(known.symbol, 16) } : { symbol: 'of an unknown token', decimals: 0 };
     // A symbol is what the token's deployer chose: its address tells two "USDC" apart.
-    return `${c.delta < 0n ? 'You send' : 'You receive'} ${formatAmount(c.delta, m.decimals)} ${m.symbol} (${c.kind}, ${c.token.slice(0, 8)}…${c.token.slice(-4)})`;
+    const mark = followed.has(c.token.toLowerCase()) ? '' : ', not a token you follow';
+    return `${c.delta < 0n ? 'You send' : 'You receive'} ${formatAmount(c.delta, m.decimals)} ${m.symbol} (${c.kind}, ${c.token.slice(0, 8)}…${c.token.slice(-4)}${mark})`;
   };
   return [...changes.filter(c => c.delta < 0n), ...changes.filter(c => c.delta > 0n)].map(line);
 }

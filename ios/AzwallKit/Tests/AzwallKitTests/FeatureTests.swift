@@ -451,3 +451,16 @@ struct BrowsingTests {
         #expect(scan.tile.host == "explorer.example")
     }
 }
+
+/// 2026-10-28 store-release audit (F9): a long phishing host must not read as the site it imitates.
+struct SiteNameTests {
+    @Test func anApprovalNamesTheSiteByTheDomainItsHostCannotFake() {
+        #expect(SiteName.domain(of: "https://app.aztec.network.wallet-session-verify.evil-host.io") == "evil-host.io")
+        #expect(SiteName.domain(of: "https://app.aztec.network") == "aztec.network")
+        #expect(SiteName.domain(of: "https://aztec.palmyr.io:8443/swap") == "palmyr.io")
+        #expect(SiteName.domain(of: "https://www.example.co.uk") == "example.co.uk")
+        #expect(SiteName.domain(of: "http://192.168.1.10:3000") == "192.168.1.10")
+        #expect(SiteName.domain(of: "http://localhost:5173") == "localhost")
+        #expect(SiteName.host(of: "https://aztec.palmyr.io:8443/swap") == "aztec.palmyr.io:8443")
+    }
+}

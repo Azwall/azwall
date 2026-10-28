@@ -70,3 +70,24 @@ object Browsing {
         }
     }
 }
+
+/**
+ * How an approval names the site: its registrable domain first, the part a phishing host cannot choose. A host may be
+ * 253 characters long, and `app.aztec.network.wallet-verify-….evil-host.io` cut at its end reads as `app.aztec.network`.
+ */
+object SiteName {
+    /** Second-level labels under a two-letter country code that are not a domain of their own (`co.uk`, `com.au`). */
+    private val PUBLIC_SECOND_LEVEL = setOf("co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go")
+
+    /** `https://app.aztec.network.verify.evil-host.io:8443` → `evil-host.io`; an IP address or a single label stays whole. */
+    fun domainOf(origin: String): String {
+        val host = origin.substringAfter("://").substringBefore('/').substringBefore(':').trimEnd('.').lowercase()
+        val labels = host.split('.')
+        if (labels.size <= 2 || labels.all { it.all(Char::isDigit) }) return host
+        val countryCode = labels.last().length == 2 && labels[labels.size - 2] in PUBLIC_SECOND_LEVEL
+        return labels.takeLast(if (countryCode) 3 else 2).joinToString(".")
+    }
+
+    /** The host without the scheme, for the line under the domain. */
+    fun hostOf(origin: String): String = origin.substringAfter("://").substringBefore('/')
+}

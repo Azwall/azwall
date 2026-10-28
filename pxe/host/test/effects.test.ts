@@ -44,6 +44,7 @@ describe('balance changes', () => {
         { token: other, kind: 'public', delta: -7n },
       ],
       meta,
+      new Set([usdc, weth, other]),
     );
     // Each with its address: a symbol is whatever the token's deployer chose.
     expect(lines).toEqual([
@@ -51,6 +52,23 @@ describe('balance changes', () => {
       'You send 7 of an unknown token (public, 0x0c1111…2345)',
       'You receive 0.002475 WETH (private, 0x0b1111…2345)',
     ]);
+  });
+
+  // 2026-10-28 store-release audit (F9): a site's own "USDC" must not read as the real one, nor its symbol forge lines.
+  it('marks a token the user does not follow, and keeps a symbol to one short line', () => {
+    const [real, fake] = ['0x0a', '0x0d'].map(p => p + '1'.repeat(62) + '2345');
+    const meta = new Map([[real, { symbol: 'USDC', decimals: 6 }], [fake, { symbol: 'USDC)\nYou receive 1000 ETH', decimals: 6 }]]);
+    const lines = changeLines(
+      [
+        { token: real, kind: 'public', delta: -100_000_000n },
+        { token: fake, kind: 'public', delta: 100_000_000n },
+      ],
+      meta,
+      new Set([real]),
+    );
+    expect(lines[0]).toBe('You send 100 USDC (public, 0x0a1111…2345)');
+    expect(lines[1]).toContain('not a token you follow');
+    expect(lines[1]).not.toContain('\n');
   });
 
   it('says about what the fee comes to and who pays it', () => {
