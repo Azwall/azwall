@@ -19,12 +19,15 @@ public enum FeeJuice {
 /// account pays with its own Fee Juice, bridged from Ethereum as AZTEC to its address, activation included.
 public enum Fees {
     public static let sponsored = "None, paid by the network's sponsor"
+    /// Before the network said how it pays fees: "sponsored" would be a guess, wrong on mainnet.
+    public static let unknown = "Known once the wallet has reached the network"
     private static let decimals = 18
 
     public static func paysWithFeeJuice(_ check: NetworkCheck?) -> Bool { check?.fees == "feeJuice" }
 
     /// The Fee line of a confirmation; `feeJuice` is the account's balance in base units, when known.
     public static func line(_ check: NetworkCheck?, feeJuice: String?) -> String {
+        guard let check else { return unknown }
         guard paysWithFeeJuice(check) else { return sponsored }
         guard let feeJuice else { return "Paid with your Fee Juice" }
         if !Amounts.isPositive(feeJuice) { return "Paid with Fee Juice, which this account does not hold: the transaction will fail" }

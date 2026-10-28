@@ -30,7 +30,12 @@ public enum Amounts {
 
     /// `"1.5", 6` → `"1500000"`. Accepts `.` or `,`; rejects more decimals than the token has, and zero.
     public static func parse(_ input: String, decimals: Int) throws -> String {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // "1,000" is a thousand in English and one in French: refused rather than read the cheaper way.
+        if trimmed.range(of: #"^0*[1-9][0-9]*,[0-9]{3}$"#, options: .regularExpression) != nil {
+            throw InvalidAmount(message: "write it with a dot for decimals, and no thousands separator")
+        }
+        let text = trimmed.replacingOccurrences(of: ",", with: ".")
         let parts = text.split(separator: ".", omittingEmptySubsequences: false)
         guard !text.isEmpty, parts.count <= 2, parts.allSatisfy({ $0.allSatisfy(\.isASCIIDigit) }), parts.contains(where: { !$0.isEmpty }) else {
             throw InvalidAmount(message: "enter a number")

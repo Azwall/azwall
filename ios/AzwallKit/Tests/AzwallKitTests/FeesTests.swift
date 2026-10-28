@@ -10,6 +10,8 @@ struct FeesTests {
     @Test func sponsoredNetworksChargeNothing() {
         #expect(Fees.line(check("sponsored"), feeJuice: nil) == Fees.sponsored)
         #expect(Fees.line(check(nil), feeJuice: nil) == Fees.sponsored)
+        // Not before the network said so: on mainnet that would be wrong.
+        #expect(Fees.line(nil, feeJuice: nil) == Fees.unknown)
     }
 
     @Test func elsewhereTheAccountPaysWithItsFeeJuice() {

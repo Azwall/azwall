@@ -130,9 +130,9 @@ private fun ScanRequest(network: String, tokens: List<TokenView>, onDone: () -> 
 }
 
 /** What a scanned QR code fills in, and what to tell the user about it. */
-private data class Scan(val to: String? = null, val tokenIndex: Int? = null, val amount: String? = null, val note: String? = null)
+internal data class Scan(val to: String? = null, val tokenIndex: Int? = null, val amount: String? = null, val note: String? = null)
 
-private fun readScan(text: String, network: String, tokens: List<TokenView>): Scan {
+internal fun readScan(text: String, network: String, tokens: List<TokenView>): Scan {
     val request = PaymentRequest.parse(text) ?: return Scan(note = "This QR code is not an Aztec address")
     val index = request.token?.let { t -> tokens.indexOfFirst { it.info.address.equals(t, ignoreCase = true) }.takeIf { it >= 0 } }
     val note = when {
@@ -140,7 +140,9 @@ private fun readScan(text: String, network: String, tokens: List<TokenView>): Sc
         request.token != null && index == null -> "The requested token is not in your list: add it first"
         else -> null
     }
-    return Scan(to = request.address, tokenIndex = index, amount = request.amount, note = note)
+    // An amount for a token not in the list would land on whichever token is selected: left out.
+    val amount = request.amount.takeIf { request.token == null || index != null }
+    return Scan(to = request.address, tokenIndex = index, amount = amount, note = note)
 }
 
 private fun kindOf(mode: TransferMode, publicSide: Boolean): TransferKind = when (mode) {

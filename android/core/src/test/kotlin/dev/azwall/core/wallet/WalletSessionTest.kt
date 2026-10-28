@@ -471,6 +471,29 @@ class WalletSessionTest {
     }
 
     @Test
+    fun aSingleEarlyDroppedReadDoesNotFailATransaction() = runTest {
+        pxe.deployed = true
+        pxe.waitError = "waitForTx: fetch failed"
+        pxe.receiptOutcome = "dropped"
+        val s = session().apply { open() }
+        s.transactions.send(TransferKind.PRIVATE, TokenInfo("0xt", "Test", "TST", 6), "addr-x", BigInteger("1"))
+        advanceUntilIdle()
+        // Just sent: maybe not on the node that answered yet. Still pending, looked at again later.
+        assertEquals(ActivityStatus.PENDING, s.state.value.activity.single().status)
+        assertEquals(1, WalletStore(tmp.root, network.id).unsettled().size)
+    }
+
+    @Test
+    fun anOldTransactionStillDroppedIsFailed() = runTest {
+        WalletStore(tmp.root, network.id).upsert(ActivityItem("old", "addr-abab", ActivityKind.UNSHIELD, ActivityStatus.PENDING, 1, txHash = "0xold"))
+        pxe.waitError = "waitForTx: fetch failed"
+        pxe.receiptOutcome = "dropped"
+        val s = session().apply { open() }
+        advanceUntilIdle()
+        assertEquals(Transactions.DROPPED, s.state.value.activity.single().error)
+    }
+
+    @Test
     fun tokensFromDappsAreSuggestedAndFollowedInOneTap() = runTest {
         pxe.deployed = true
         val s = session().apply { open() }

@@ -28,8 +28,13 @@ object Amounts {
         return if (shown == 0) "< 1" else "< 0.${"0".repeat(shown - 1)}1"
     }
 
+    /** A non-zero whole part, a comma and exactly three digits: a thousands separator, or a decimal comma. */
+    private val AMBIGUOUS = Regex("^0*[1-9]\\d*,\\d{3}$")
+
     /** `"1.5", 6` → `1500000`. Accepts `.` or `,` as the decimal separator; rejects more decimals than the token has. */
     fun parse(input: String, decimals: Int): BigInteger {
+        // "1,000" is a thousand in English and one in French: refused rather than read the cheaper way.
+        require(!AMBIGUOUS.matches(input.trim())) { "write it with a dot for decimals, and no thousands separator" }
         val text = input.trim().replace(',', '.')
         require(Regex("^\\d+(\\.\\d*)?$|^\\.\\d+$").matches(text)) { "enter a number" }
         val value = BigDecimal(if (text.startsWith(".")) "0$text" else text)

@@ -157,7 +157,8 @@ struct TransferView: View {
         to = request.address
         let index = request.token.flatMap { t in session.tokens.firstIndex { $0.info.address.lowercased() == t.lowercased() } }
         if let index { tokenIndex = index }
-        if let amount = request.amount { amountText = amount }
+        // An amount for a token not in the list would land on whichever token is selected: left out.
+        if let amount = request.amount, request.token == nil || index != nil { amountText = amount }
         if let network = request.network, network != session.network.id {
             scanNote = "This request is for \(network), not \(session.network.id): check before sending"
         } else if request.token != nil && index == nil {

@@ -69,3 +69,18 @@ describe('authorizations signed while sending', () => {
     expect(() => guard.check(other)).not.toThrow();
   });
 });
+
+describe('a transfer recipient', () => {
+  it('must be an address funds can be spent from', async () => {
+    const { checkRecipient } = await import('../src/token');
+    const tokenAddress = AztecAddress.fromBigIntUnsafe(0xcc0n);
+    const valid = await AztecAddress.random();
+    await expect(checkRecipient(valid, tokenAddress)).resolves.toBeUndefined();
+    await expect(checkRecipient(AztecAddress.ZERO, tokenAddress)).rejects.toThrow('zero address');
+    await expect(checkRecipient(tokenAddress, tokenAddress)).rejects.toThrow('token contract itself');
+    // Off the curve: find one among small values.
+    let off = 1n;
+    while (await AztecAddress.fromBigIntUnsafe(off).isValid()) off++;
+    await expect(checkRecipient(AztecAddress.fromBigIntUnsafe(off), tokenAddress)).rejects.toThrow('not a valid Aztec address');
+  });
+});

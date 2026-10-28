@@ -20,6 +20,17 @@ export function addr(s: string): AztecAddress {
   return AztecAddress.fromStringUnsafe(s);
 }
 
+/**
+ * Throws unless `to` can receive `token`: an address must be a point of the Grumpkin curve to be encrypted to (about
+ * half of all mistyped addresses are not, and notes sent there can never be spent), and the zero address or the
+ * token contract itself would only burn what is sent.
+ */
+export async function checkRecipient(to: AztecAddress, token: AztecAddress): Promise<void> {
+  if (to.isZero()) throw new Error('the recipient is the zero address: what is sent there is lost');
+  if (to.equals(token)) throw new Error('the recipient is the token contract itself: what is sent there is lost');
+  if (!(await to.isValid())) throw new Error('this is not a valid Aztec address (check it for a typo): what is sent there could never be spent');
+}
+
 /** Makes a token deployed elsewhere known to this PXE (instance + artifact). */
 export async function registerToken(wallet: AzwallWallet, token: string): Promise<TokenContract> {
   const address = addr(token);
@@ -102,6 +113,7 @@ export async function balances(wallet: AzwallWallet, owner: string, tokens: stri
 export async function transfer(wallet: AzwallWallet, kind: TransferKind, from: string, to: string, token: string, amount: bigint) {
   const sender = addr(from);
   const recipient = addr(to);
+  await checkRecipient(recipient, addr(token));
   const m = TokenContract.at(addr(token), wallet).methods;
   const call = {
     private: () => m.transfer(recipient, amount),
@@ -123,6 +135,7 @@ export async function deployToken(wallet: AzwallWallet, admin: string, name: str
 }
 
 export async function mint(wallet: AzwallWallet, admin: string, token: string, to: string, amount: bigint, toPrivate: boolean) {
+  await checkRecipient(addr(to), addr(token));
   const m = TokenContract.at(addr(token), wallet).methods;
   const call = toPrivate ? m.mint_to_private(addr(to), amount) : m.mint_to_public(addr(to), amount);
   const { txHash } = await call.send({ from: addr(admin), wait: NO_WAIT });

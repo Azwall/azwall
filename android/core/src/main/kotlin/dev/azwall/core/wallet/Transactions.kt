@@ -132,6 +132,8 @@ class Transactions internal constructor(private val session: WalletSession) {
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
     private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
+        // Its review could not say how its fee is paid (Fees.UNKNOWN): nothing is sent on a guess.
+        checkNotNull(session.state.value.check) { "the wallet is still reaching the network: try again in a moment" }
         // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
         check(session.state.value.activity.none { it.kind == ActivityKind.DAPP && it.status == ActivityStatus.PROVING }) {
             "a dApp transaction is being proven; try again once it is sent"
@@ -204,12 +206,22 @@ class Transactions internal constructor(private val session: WalletSession) {
         } catch (e: Exception) {
             // No receipt leaves the item pending for resume() to look again; the log keeps why.
             runCatching { session.client.txReceipt(hash) }.onFailure { DiagnosticLog.shared.report("transactions", it) }.getOrNull()
+                ?.takeUnless { droppedTooSoon(sent, it) }
         }
         settled(sent, receipt ?: return)?.let {
             session.recordActivity(it)
             session.refresh()
         }
     }
+
+    /**
+     * A node answers "dropped" for a transaction it has not seen yet: behind a load balancer, one read can reach a
+     * node the transaction has not reached. waitForTx allows for that; a single read does not, so its "dropped" only
+     * counts once the transaction is old enough to have been mined. Until then the item stays pending: a transaction
+     * shown failed while it was mined would be sent again, and paid twice.
+     */
+    private fun droppedTooSoon(sent: ActivityItem, receipt: Receipt): Boolean =
+        receipt.outcome == TxOutcome.DROPPED && System.currentTimeMillis() - sent.createdAt < DROP_GRACE_MS
 
     /** Looks again at transactions sent but not settled by a receipt, e.g. when the app closed while waiting. */
     internal fun resume() {
@@ -227,5 +239,8 @@ class Transactions internal constructor(private val session: WalletSession) {
         /** Failures read from a receipt: final, never looked at again. */
         const val REVERTED = "reverted on chain"
         const val DROPPED = "dropped by the network"
+
+        /** How old a transaction must be before a single "dropped" read is believed. */
+        const val DROP_GRACE_MS = 15 * 60_000L
     }
 }

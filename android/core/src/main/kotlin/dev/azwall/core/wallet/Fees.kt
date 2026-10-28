@@ -26,12 +26,15 @@ object FeeJuice {
  */
 object Fees {
     const val SPONSORED = "None, paid by the network's sponsor"
+    /** Before the network said how it pays fees: "sponsored" would be a guess, wrong on mainnet. */
+    const val UNKNOWN = "Known once the wallet has reached the network"
     private const val DECIMALS = 18
 
     fun paysWithFeeJuice(check: NetworkCheck?): Boolean = check?.fees == "feeJuice"
 
     /** The Fee line of a confirmation; `feeJuice` is the account's balance in base units, when known. */
     fun line(check: NetworkCheck?, feeJuice: String?): String = when {
+        check == null -> UNKNOWN
         !paysWithFeeJuice(check) -> SPONSORED
         feeJuice == null -> "Paid with your Fee Juice"
         isEmpty(feeJuice) -> "Paid with Fee Juice, which this account does not hold: the transaction will fail"

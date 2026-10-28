@@ -22,6 +22,7 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embed
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
 import { SenderGuard } from './senders';
+import { confirmSubmissions } from './submit';
 import type { FeeJuiceBridge } from './fee_juice';
 import type { FeeMode } from './fees';
 import { log } from './log';
@@ -106,6 +107,7 @@ export class AzwallWallet extends EmbeddedWallet {
     const store = (args[2] as unknown as { store: AztecAsyncKVStore }).store;
     this.walletDB = new InMemoryAccountsDB(store, m => log('walletdb', m));
     this.gas.instrument(this);
+    confirmSubmissions(this.aztecNode);
   }
 
   get node(): AztecNode {

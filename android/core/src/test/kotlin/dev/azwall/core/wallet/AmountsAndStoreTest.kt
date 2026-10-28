@@ -32,13 +32,15 @@ class AmountsTest {
     fun parsesHumanInput() {
         assertEquals(BigInteger("1500000"), Amounts.parse("1.5", 6))
         assertEquals(BigInteger("1500000"), Amounts.parse(" 1,5 ", 6))
+        assertEquals(BigInteger("500000"), Amounts.parse("0,500", 6))
         assertEquals(BigInteger("500000"), Amounts.parse(".5", 6))
         assertEquals(BigInteger("10").pow(24), Amounts.parse("1000000", 18))
     }
 
     @Test
     fun rejectsInvalidAmounts() {
-        listOf("", "abc", "-1", "0", "0.0", "1.1234567", "1e5").forEach { input ->
+        // "1,000" and "12,345": a thousands separator or a decimal comma, refused rather than guessed.
+        listOf("", "abc", "-1", "0", "0.0", "1.1234567", "1e5", "1,000", "12,345").forEach { input ->
             assertThrows(input, IllegalArgumentException::class.java) { Amounts.parse(input, 6) }
         }
     }

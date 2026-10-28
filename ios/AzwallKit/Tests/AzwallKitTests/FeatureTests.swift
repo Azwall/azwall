@@ -140,6 +140,18 @@ struct FeatureTests {
     }
 }
 
+struct DropGraceTests {
+    @Test func aSingleDroppedReadIsBelievedOnlyForAnOldTransaction() {
+        let dropped = Receipt(txHash: "0x1", status: "dropped", blockNumber: nil, outcome: .dropped)
+        let sent = Date()
+        let item = ActivityItem(account: "a", kind: .sendPrivate, status: .pending, createdAt: sent)
+        #expect(Settlement.droppedTooSoon(item, dropped, now: sent.addingTimeInterval(60)))
+        #expect(!Settlement.droppedTooSoon(item, dropped, now: sent.addingTimeInterval(Settlement.dropGrace + 1)))
+        let mined = Receipt(txHash: "0x1", status: "proposed", blockNumber: 3, outcome: .success)
+        #expect(!Settlement.droppedTooSoon(item, mined, now: sent))
+    }
+}
+
 @MainActor
 struct HeroTests {
     @Test func theHeroIsTheChosenTokenElseFeeJuice() async throws {

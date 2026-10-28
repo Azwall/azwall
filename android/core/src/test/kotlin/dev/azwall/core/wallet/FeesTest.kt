@@ -12,7 +12,8 @@ class FeesTest {
     @Test
     fun sponsoredNetworksChargeNothing() {
         assertEquals(Fees.SPONSORED, Fees.line(check("sponsored"), null))
-        assertEquals(Fees.SPONSORED, Fees.line(null, null))
+        // Not before the network said so: on mainnet that would be wrong.
+        assertEquals(Fees.UNKNOWN, Fees.line(null, null))
     }
 
     @Test

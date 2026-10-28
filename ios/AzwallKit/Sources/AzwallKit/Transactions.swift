@@ -111,6 +111,8 @@ extension WalletSession {
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
     private func track(_ draft: ActivityItem, _ send: @escaping (PxeClient) async throws -> String) async throws {
         guard proving == nil else { throw PxeError("another transaction is being proven") }
+        // Its review could not say how its fee is paid (Fees.unknown): nothing is sent on a guess.
+        guard check != nil else { throw PxeError("the wallet is still reaching the network: try again in a moment") }
         // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
         guard !activity.contains(where: { $0.kind == .dapp && $0.status == .proving }) else {
             throw PxeError("a dApp transaction is being proven; try again once it is sent")
@@ -179,7 +181,8 @@ extension WalletSession {
         } catch is CancellationError {
             return
         } catch {
-            receipt = await DiagnosticLog.shared.attempt("tx") { try await client.txReceipt(hash) }
+            let read = await DiagnosticLog.shared.attempt("tx") { try await client.txReceipt(hash) }
+            receipt = read.flatMap { Settlement.droppedTooSoon(sent, $0) ? nil : $0 }
         }
         guard let receipt, let done = Settlement.settle(sent, receipt) else { return }
         record(done)
@@ -197,6 +200,16 @@ public enum Settlement {
     /// Failures read from a receipt: final, never looked at again.
     public static let reverted = "reverted on chain"
     public static let dropped = "dropped by the network"
+    /// How old a transaction must be before a single "dropped" read is believed.
+    public static let dropGrace: TimeInterval = 15 * 60
+
+    /// A node answers "dropped" for a transaction it has not seen yet: behind a load balancer, one read can reach a
+    /// node the transaction has not reached. waitForTx allows for that; a single read does not, so its "dropped" only
+    /// counts once the transaction is old enough to have been mined. Until then the item stays pending: a
+    /// transaction shown failed while it was mined would be sent again, and paid twice.
+    public static func droppedTooSoon(_ sent: ActivityItem, _ receipt: Receipt, now: Date = Date()) -> Bool {
+        receipt.settled == .dropped && now.timeIntervalSince(sent.createdAt) < dropGrace
+    }
 
     /// The item once `receipt` is known, or nil while the transaction is still pending.
     public static func settle(_ item: ActivityItem, _ receipt: Receipt) -> ActivityItem? {

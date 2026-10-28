@@ -34,12 +34,14 @@ struct AmountsTests {
     @Test func parsesHumanInput() throws {
         #expect(try Amounts.parse("1.5", decimals: 6) == "1500000")
         #expect(try Amounts.parse(" 1,5 ", decimals: 6) == "1500000")
+        #expect(try Amounts.parse("0,500", decimals: 6) == "500000") // a decimal comma, unambiguous before zero
         #expect(try Amounts.parse("1.5\n", decimals: 6) == "1500000") // pasted with its line break, as on Android
         #expect(try Amounts.parse(".5", decimals: 6) == "500000")
         #expect(try Amounts.parse("1000000", decimals: 18) == "1" + String(repeating: "0", count: 24))
     }
 
-    @Test(arguments: ["", "abc", "-1", "0", "0.0", "1.1234567", "1e5", "."])
+    // "1,000" and "12,345": a thousands separator or a decimal comma, refused rather than guessed.
+    @Test(arguments: ["", "abc", "-1", "0", "0.0", "1.1234567", "1e5", ".", "1,000", "12,345"])
     func rejectsInvalidAmounts(_ input: String) {
         #expect(throws: Amounts.InvalidAmount.self) { try Amounts.parse(input, decimals: 6) }
     }
