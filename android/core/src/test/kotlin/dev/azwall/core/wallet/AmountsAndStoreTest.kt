@@ -2,6 +2,7 @@ package dev.azwall.core.wallet
 
 import dev.azwall.core.pxe.TokenInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Rule
@@ -102,5 +103,21 @@ class WalletStoreTest {
         store.removeToken("0xweth")
         store.seed(listOf(weth))
         assertTrue(store.tokens.isEmpty())
+    }
+
+    @Test
+    fun aStoreWriteThatDoesNotLandIsSaid() {
+        val store = WalletStore(tmp.root, "testnet-v6")
+        // A directory where the file goes: neither the rename nor the copy can replace it.
+        tmp.root.resolve("wallet-testnet-v6.json").resolve("blocked").mkdirs()
+        store.addToken(TokenInfo("0xbbb", "B", "B", 6))
+        assertTrue(store.unsaved)
+        assertEquals("kept in memory", "0xbbb", store.tokens.single().address)
+        assertTrue(dev.azwall.core.DiagnosticLog.shared.entries.any { "could not be written" in it })
+        // Once the file can be written again, the next change lands and the flag clears.
+        tmp.root.resolve("wallet-testnet-v6.json").deleteRecursively()
+        store.addToken(TokenInfo("0xccc", "C", "C", 6))
+        assertFalse(store.unsaved)
+        assertEquals(2, WalletStore(tmp.root, "testnet-v6").tokens.size)
     }
 }

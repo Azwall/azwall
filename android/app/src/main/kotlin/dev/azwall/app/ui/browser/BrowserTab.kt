@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.JavaScriptReplyProxy
@@ -27,6 +29,8 @@ data class PageState(
     val canGoForward: Boolean = false,
     /** The native start page (suggested dApps) shows instead of the web view. */
     val start: Boolean = true,
+    /** Why the start page shows instead of the page: the page's renderer stopped. */
+    val stopped: String? = null,
 )
 
 /** Receives what a tab's page sends to the wallet: its page id, its origin (from the web view) and the message. */
@@ -39,8 +43,15 @@ fun interface PageMessages {
  * dApp gateway ties its sessions to: when the tab loads another page, [onPageClosed] ends the previous page's
  * sessions and pending requests, and replies for it are no longer delivered.
  */
-class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int, private val onPageClosed: (Int) -> Unit) {
-    val webView: WebView = createWebView(context)
+class BrowserTab(private val context: Context, val id: Int, private val nextPage: () -> Int, private val onPageClosed: (Int) -> Unit) {
+    /** Replaced when its renderer stops: a web view whose renderer is gone cannot be used again. */
+    var webView: WebView = createWebView(context)
+        private set
+    /** Counts the web views this tab had: the screen shows the new one when it changes. */
+    private val _generation = MutableStateFlow(0)
+    val generation: StateFlow<Int> = _generation.asStateFlow()
+    /** What [install] was last given, for a replacement web view. */
+    private var installed: Pair<String, PageMessages>? = null
     private val _page = MutableStateFlow(PageState())
     val page: StateFlow<PageState> = _page.asStateFlow()
 
@@ -53,6 +64,7 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
     /** Installs the content script and the bridge; called again with another network's script. */
     @SuppressLint("RequiresFeature")
     fun install(contentScript: String, messages: PageMessages) {
+        installed = contentScript to messages
         script?.remove()
         script = WebViewCompat.addDocumentStartJavaScript(webView, contentScript, setOf("*"))
         WebViewCompat.removeWebMessageListener(webView, BRIDGE)
@@ -77,7 +89,7 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
         val url = Browsing.addressOf(input, engine) ?: return home()
         // Typed addresses skip shouldOverrideUrlLoading: the PXE's origin is refused here too.
         if (BrowserTabs.originOf(url) == "https://${PxeHost.HOST}") return home()
-        _page.value = _page.value.copy(start = false)
+        _page.value = _page.value.copy(start = false, stopped = null)
         webView.loadUrl(url)
     }
 
@@ -93,6 +105,25 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
     fun forward() = if (_page.value.start && webView.url != null) _page.value = _page.value.copy(start = false) else webView.goForward()
 
     fun reload() = webView.reload()
+
+    /**
+     * The system ended the page's renderer (memory): without handling it, Android ends the whole app. The page ends
+     * like on a navigation (its dApp sessions and pending requests with it), and a new web view takes the tab.
+     */
+    private fun rendererGone(view: WebView) {
+        if (view !== webView) return
+        val gone = pageId
+        pageId = 0
+        reply = null
+        if (gone != 0) onPageClosed(gone)
+        (view.parent as? ViewGroup)?.removeView(view)
+        view.destroy()
+        script = null
+        webView = createWebView(context)
+        installed?.let { (contentScript, messages) -> install(contentScript, messages) }
+        _page.value = PageState(stopped = "The page stopped: the system ended it, often to free memory. Open it again.")
+        _generation.value++
+    }
 
     /** The tab closes: its page ends like on a navigation. */
     fun destroy() {
@@ -127,7 +158,8 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
         )
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    // MissingOnRenderProcessGone: implemented below (rendererGone); the check does not see it in an anonymous object.
+    @SuppressLint("SetJavaScriptEnabled", "MissingOnRenderProcessGone")
     private fun createWebView(context: Context) = WebView(context).apply {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
@@ -141,6 +173,11 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
             }
 
             override fun onPageFinished(view: WebView, url: String) = update()
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                rendererGone(view)
+                return true
+            }
 
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 // The page committed (after any redirect): its own origin from now on, the old one is gone.

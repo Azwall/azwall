@@ -76,16 +76,22 @@ fun BrowserScreen(
     val tab by browser.current.collectAsStateWithLifecycle()
     val tabs by browser.tabs.collectAsStateWithLifecycle()
     val page by tab.page.collectAsStateWithLifecycle()
+    val generation by tab.generation.collectAsStateWithLifecycle()
     var switching by remember { mutableStateOf(false) }
     val open = { input: String -> tab.open(input, engine) }
     BackHandler(enabled = !page.start) { tab.back() }
     Column(modifier.fillMaxSize().statusBarsPadding()) {
         AddressBar(if (page.start) "" else page.url, sessions.size, onMenu = onMenu, onOpen = open, onConnections = onConnections)
         if (page.start) {
-            Box(Modifier.weight(1f)) { StartPage(network.dapps, network.explorers, sessions, engine, open) }
+            Box(Modifier.weight(1f)) {
+                Column {
+                    page.stopped?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
+                    StartPage(network.dapps, network.explorers, sessions, engine, open)
+                }
+            }
         } else {
             if (page.progress < 100) LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
-            key(tab.id) {
+            key(tab.id, generation) {
                 AndroidView(
                     factory = { tab.webView.also { (it.parent as? ViewGroup)?.removeView(it) } },
                     modifier = Modifier.weight(1f).fillMaxWidth(),

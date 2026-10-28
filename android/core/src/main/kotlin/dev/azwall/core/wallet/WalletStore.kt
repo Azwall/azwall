@@ -183,13 +183,32 @@ class WalletStore(private val dir: File, private val networkId: String) {
         }
     }
 
+    /**
+     * Writes [next] (a temporary file, then an atomic rename). The wallet goes on with it in memory either way, but
+     * a write that did not land is said: after a restart the old history and tokens would come back without a word.
+     */
     private fun save(next: StoredNetwork) {
         data = next
         dir.mkdirs()
         val tmp = File(dir, "${file.name}.tmp")
-        tmp.writeText(json.encodeToString(StoredNetwork.serializer(), next))
-        tmp.renameTo(file)
+        // Reported, then said again below as a write that did not land.
+        val written = runCatching {
+            tmp.writeText(json.encodeToString(StoredNetwork.serializer(), next))
+            // A rename can fail where a copy works (another file system's rules): tried before giving up.
+            tmp.renameTo(file) || runCatching { tmp.copyTo(file, overwrite = true); tmp.delete() }.isSuccess
+        }.onFailure { DiagnosticLog.shared.report("store", it) }.getOrDefault(false)
+        if (!written) {
+            unsaved = true
+            DiagnosticLog.shared.record(DiagnosticLog.Level.ERROR, "store", "${file.name} could not be written: the last changes are kept in memory only")
+        } else {
+            unsaved = false
+        }
     }
+
+    /** The last write did not land: what the wallet shows is not on disk (see [save]). */
+    @Volatile
+    var unsaved = false
+        private set
 
     companion object {
         const val MAX_ACTIVITY = 200
