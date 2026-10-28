@@ -1,8 +1,8 @@
 // The methods native code calls on this PXE host. Parameters and results are plain JSON; amounts are
 // decimal strings of base units, addresses and keys are 0x-prefixed hex.
 import { NO_FROM } from '@aztec/aztec.js/account';
-import { NO_WAIT } from '@aztec/aztec.js/contracts';
-import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
+import { type DeployOptions, NO_WAIT, type NoWait } from '@aztec/aztec.js/contracts';
+import { type FeePaymentMethod, SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
 import { getFeeJuiceBalance } from '@aztec/aztec.js/utils';
 import { Fq, Fr } from '@aztec/aztec.js/fields';
 import { type Bridge, type Handlers, type Params, amount, asParams, bool, hex, int, object, str, strings } from '@azwall/pxe-shared';
@@ -168,6 +168,16 @@ async function deployAccount(wallet: AzwallWallet, acc: AccountSecrets, claim?: 
   const deploy = await manager.getDeployMethod();
   const sponsor = wallet.fees === 'sponsored' ? new SponsoredFeePaymentMethod((await sponsoredFpc()).instance.address) : undefined;
   const paymentMethod = claim ? claimPayment(manager.address, claim.amount, claim.leafIndex, claim.secret) : sponsor;
-  const { txHash } = await deploy.send({ from: NO_FROM, fee: paymentMethod && { paymentMethod }, wait: NO_WAIT });
+  const { txHash } = await deploy.send<NoWait>(accountDeployOptions(paymentMethod));
   return { txHash: txHash.toString() };
+}
+
+/**
+ * How an account is deployed. The kernel runs a contract's private functions only once its class is published, and
+ * aztec.js skips class publication for accounts by default: where nobody published the account class yet (mainnet v6),
+ * the first activation publishes it, in the same transaction, before the constructor. aztec.js leaves it out where it
+ * is published already.
+ */
+export function accountDeployOptions(paymentMethod?: FeePaymentMethod): DeployOptions<NoWait> {
+  return { from: NO_FROM, fee: paymentMethod && { paymentMethod }, wait: NO_WAIT, skipClassPublication: false };
 }

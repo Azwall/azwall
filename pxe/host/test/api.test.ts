@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Bridge } from '@azwall/pxe-shared';
 
-import { createHandlers } from '../src/api';
+import { accountDeployOptions, createHandlers } from '../src/api';
 import { compatibilityProblems, type NetworkParams } from '../src/open';
 import { addr } from '../src/token';
 import { AZTEC_VERSION } from '../src/version';
@@ -54,5 +54,12 @@ describe('handlers', () => {
   it('generate valid signing keys', async () => {
     const { signingKey } = (await handlers().newSigningKey({})) as { signingKey: string };
     expect(signingKey).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+});
+
+describe('accountDeployOptions', () => {
+  it('publishes the account class where nobody did yet (aztec.js skips it for accounts by default)', () => {
+    expect(accountDeployOptions().skipClassPublication).toBe(false);
+    expect(accountDeployOptions().fee).toBeUndefined();
   });
 });
