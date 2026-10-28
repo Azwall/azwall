@@ -84,6 +84,16 @@ class BrowserTabs(private val context: Context, private val onPageClosed: (Int) 
             WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
                 WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
 
+        /** `scheme://host[:port]` of a URL or origin, lower-case; null when it does not parse. */
+        fun originOf(url: String): String? {
+            // A URL that does not parse has no origin, and matches none.
+            val uri = runCatching { URI(url) }.getOrNull() ?: return null
+            val scheme = uri.scheme?.lowercase() ?: return null
+            val host = uri.host?.lowercase() ?: return null
+            val defaultPort = (scheme == "https" && uri.port == 443) || (scheme == "http" && uri.port == 80)
+            return if (uri.port == -1 || defaultPort) "$scheme://$host" else "$scheme://$host:${uri.port}"
+        }
+
         /**
          * dApps must be served over https; http on this device only in debug builds, for local development: in a
          * release, any app on the phone could serve a "dApp" there.

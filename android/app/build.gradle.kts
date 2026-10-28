@@ -94,7 +94,18 @@ val buildPxeHosts by tasks.registering(Exec::class) {
     outputs.dir(repoRoot.resolve("assets/pxe"))
 }
 
-tasks.named("preBuild") { dependsOn(generateAzwallConfig, buildPxeHosts) }
+// The CRS proofs are made with: the files bundled must be the ones scripts/crs.sha256 names (scripts/fetch-crs.sh).
+val checkCrs by tasks.registering(Exec::class) {
+    workingDir = repoRoot.resolve("assets/crs")
+    // sha256sum on Linux, shasum on macOS, as scripts/fetch-crs.sh does.
+    val check = "if command -v sha256sum >/dev/null; then sha256sum --check --quiet \"$0\"; else shasum -a 256 --check --quiet \"$0\"; fi"
+    commandLine("sh", "-c", check, repoRoot.resolve("scripts/crs.sha256").path)
+    inputs.dir(repoRoot.resolve("assets/crs"))
+    inputs.file(repoRoot.resolve("scripts/crs.sha256"))
+    outputs.upToDateWhen { true }
+}
+
+tasks.named("preBuild") { dependsOn(generateAzwallConfig, buildPxeHosts, checkCrs) }
 
 // What reaches a store must be built for it: the Rust core in release mode for every architecture shipped, and only
 // the registry's public endpoints (an RPC URL from .env may carry its owner's API key, readable by anyone in the APK).

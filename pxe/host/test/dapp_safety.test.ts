@@ -84,3 +84,29 @@ describe('a transfer recipient', () => {
     await expect(checkRecipient(AztecAddress.fromBigIntUnsafe(off), tokenAddress)).rejects.toThrow('not a valid Aztec address');
   });
 });
+
+describe('a real transaction request', () => {
+  it('keeps its meaning through the canonical form, which is stable', async () => {
+    const { FunctionCall, FunctionSelector, FunctionType } = await import('@aztec/stdlib/abi');
+    const { AuthWitness } = await import('@aztec/stdlib/auth-witness');
+    const call = FunctionCall.from({
+      name: 'swap_exact_tokens_for_tokens',
+      to: AztecAddress.fromBigIntUnsafe(0xddn),
+      selector: FunctionSelector.fromField(new Fr(0x12345678n)),
+      type: FunctionType.PRIVATE,
+      hideMsgSender: false,
+      isStatic: false,
+      args: [new Fr(1n), new Fr(2n)],
+      returnType: undefined,
+    });
+    const payload = new ExecutionPayload([call], [new AuthWitness(new Fr(9n), [new Fr(1n)])], [], []);
+    const sent = [json(payload), { from: me, additionalScopes: [token], wait: 'NO_WAIT' }];
+    const once = await canonicalArgs('sendTx', sent);
+    const twice = await canonicalArgs('sendTx', once);
+    expect(twice).toEqual(once);
+    const calls = (once[0] as { calls: { name: string; to: string; args: string[] }[] }).calls;
+    expect(calls[0]).toMatchObject({ name: 'swap_exact_tokens_for_tokens', to: address(0xdd) });
+    expect(calls[0].args).toHaveLength(2);
+    expect((once[1] as { additionalScopes: string[] }).additionalScopes).toEqual([token]);
+  });
+});

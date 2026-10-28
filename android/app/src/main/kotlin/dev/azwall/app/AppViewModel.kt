@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 sealed interface AppPhase {
@@ -163,14 +165,25 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     }
 
     private val autoLock = AutoLock()
+    /** Locks once the app has been in the background for the auto-lock delay, without waiting for it to come back. */
+    private var backgroundLock: Job? = null
 
     fun onBackground() {
         autoLock.backgrounded()
         (_phase.value as? AppPhase.Unlocked)?.session?.let { session -> viewModelScope.launch { session.flush() } }
+        // The keys would otherwise stay in memory, in the PXE's web view too, for as long as the process lives.
+        backgroundLock?.cancel()
+        backgroundLock = viewModelScope.launch {
+            delay(AutoLock.DEFAULT_MS)
+            val session = (_phase.value as? AppPhase.Unlocked)?.session
+            if (session != null && session.transactions.proving.value == null) lock()
+        }
     }
 
     /** Back from the background: locks if away too long, unless a transaction is being proven or sent. */
     fun onForeground() {
+        backgroundLock?.cancel()
+        backgroundLock = null
         val session = (_phase.value as? AppPhase.Unlocked)?.session
         if (autoLock.foregrounded() && session != null && session.transactions.proving.value == null) lock()
     }

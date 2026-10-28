@@ -21,20 +21,26 @@ object AzwallRuntime {
     }
 
     /**
-     * Barretenberg reads the CRS from files, so the bundled assets are copied once to app storage.
+     * Barretenberg reads the CRS from files, so the bundled assets are copied to app storage: once per install or
+     * update of the app (a same-size file changed by an update is copied too), and again if a copy was cut short.
      * Missing assets are skipped: the prover then reports which file to fetch.
      */
     private fun installCrs(context: Context): File {
         val dir = File(context.filesDir, CRS_ASSET_DIR).apply { mkdirs() }
         val bundled = context.assets.list(CRS_ASSET_DIR).orEmpty().toSet()
+        val stamp = File(dir, "installed-from")
+        @Suppress("DEPRECATION") // lastUpdateTime is not deprecated; getPackageInfo(String, Int) is, from API 33.
+        val build = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime.toString()
+        val fresh = stamp.exists() && stamp.readText() == build
         for (name in CRS_FILES.filter { it in bundled }) {
             val target = File(dir, name)
             val size = context.assets.openFd("$CRS_ASSET_DIR/$name").use { it.length }
-            if (target.length() == size) continue
+            if (fresh && target.length() == size) continue
             context.assets.open("$CRS_ASSET_DIR/$name").use { input ->
                 target.outputStream().use { input.copyTo(it) }
             }
         }
+        stamp.writeText(build)
         return dir
     }
 }

@@ -11,6 +11,7 @@ import android.webkit.WebViewClient
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
+import dev.azwall.core.pxe.PxeHost
 import dev.azwall.core.wallet.Browsing
 import dev.azwall.core.wallet.SearchEngine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +59,8 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
         WebViewCompat.addWebMessageListener(webView, BRIDGE, setOf("*")) { _, message, origin, isMainFrame, replyProxy ->
             val o = origin.toString()
             if (!isMainFrame || !BrowserTabs.allowedOrigin(o) || pageId == 0) return@addWebMessageListener
+            val from = BrowserTabs.originOf(o)
+            if (from != null && from == leftOrigin && from != pageOrigin) return@addWebMessageListener
             reply = pageId to replyProxy
             message.data?.let { messages.received(pageId, o, it) }
         }
@@ -72,6 +75,8 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
     /** Opens a URL, or searches the text with [engine] when it does not look like one; nothing typed: the start page. */
     fun open(input: String, engine: SearchEngine) {
         val url = Browsing.addressOf(input, engine) ?: return home()
+        // Typed addresses skip shouldOverrideUrlLoading: the PXE's origin is refused here too.
+        if (BrowserTabs.originOf(url) == "https://${PxeHost.HOST}") return home()
         _page.value = _page.value.copy(start = false)
         webView.loadUrl(url)
     }
@@ -96,9 +101,19 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
     }
 
     /** A new document in the main frame: a new page id, and the previous page's sessions end. */
-    private fun newPage() {
+    /**
+     * The id changes when a navigation starts, before the new page replaces the old one: a message the old page sends
+     * meanwhile must not pass for the new page's. Messages from the origin being left are dropped then (unless the
+     * new page has the same origin); a redirect to a third origin is not affected.
+     */
+    private var pageOrigin: String? = null
+    private var leftOrigin: String? = null
+
+    private fun newPage(url: String? = null) {
         val previous = pageId
         pageId = nextPage()
+        leftOrigin = pageOrigin
+        pageOrigin = url?.let(BrowserTabs::originOf)
         reply = null
         if (previous != 0) onPageClosed(previous)
     }
@@ -121,17 +136,25 @@ class BrowserTab(context: Context, val id: Int, private val nextPage: () -> Int,
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                newPage()
+                newPage(url)
                 update()
             }
 
             override fun onPageFinished(view: WebView, url: String) = update()
 
-            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) = update()
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                // The page committed (after any redirect): its own origin from now on, the old one is gone.
+                pageOrigin = BrowserTabs.originOf(url)
+                leftOrigin = null
+                update()
+            }
 
-            /** Only web pages: no intent://, file:// or other schemes leave the browser. */
+            /**
+             * Only web pages: no intent://, file:// or other schemes leave the browser. Nor the PXE's own origin: the
+             * tabs share the web view profile, and so that origin's storage, with the hidden PXE page.
+             */
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                request.url.scheme !in setOf("https", "http")
+                request.url.scheme !in setOf("https", "http") || request.url.host == PxeHost.HOST
         }
         webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {

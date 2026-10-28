@@ -1,6 +1,8 @@
 package dev.azwall.app
 
 import dev.azwall.app.ui.browser.BrowserTabs.Companion.allowedOrigin
+import dev.azwall.app.ui.browser.BrowserTabs.Companion.originOf
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,5 +18,13 @@ class BrowserRulesTest {
         assertFalse(allowedOrigin("http://vote.example.org"))
         assertFalse(allowedOrigin("file:///sdcard/x.html"))
         assertFalse(allowedOrigin("not an origin"))
+    }
+
+    @Test
+    fun aPageUrlAndTheOriginItsMessagesCarryCompareEqual() {
+        assertEquals("https://app.example", originOf("https://App.example/swap?x=1"))
+        assertEquals(originOf("https://app.example:443/a"), originOf("https://app.example"))
+        assertEquals("http://localhost:5180", originOf("http://localhost:5180/"))
+        assertEquals(null, originOf("not a url"))
     }
 }

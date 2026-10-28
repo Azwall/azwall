@@ -53,7 +53,8 @@ class PxeHost private constructor(
 
     companion object {
         private const val TAG = "AzwallPxe"
-        private const val HOST = "appassets.androidplatform.net"
+        /** The origin the bundle is served on; never a page of the browser's (BrowserTab). */
+        const val HOST = "appassets.androidplatform.net"
         private const val READY_TIMEOUT_MS = 60_000L
         private val main = Handler(Looper.getMainLooper())
 

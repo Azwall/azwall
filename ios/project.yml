@@ -55,6 +55,11 @@ targets:
             echo "error: the Rust core is older than ${newer:-its sources}: run scripts/build-ios.sh"
             exit 1
           fi
+      - name: Check the CRS
+        script: |
+          # The CRS proofs are made with: the bundled files must be the ones scripts/crs.sha256 names (fetch-crs.sh).
+          cd "$SRCROOT/../assets/crs"
+          shasum -a 256 --check --quiet "$SRCROOT/../scripts/crs.sha256" || { echo "error: assets/crs does not match scripts/crs.sha256: run scripts/fetch-crs.sh"; exit 1; }
       - name: Resolve network config
         script: |
           # Xcode runs scripts without the login shell's PATH: add rustup's and Homebrew's.
