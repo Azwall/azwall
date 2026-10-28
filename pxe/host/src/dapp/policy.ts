@@ -13,7 +13,8 @@ const UNSCOPED = new Set(['getChainInfo', 'getContractMetadata', 'getContractCla
 export class NotGranted extends Error {}
 
 /**
- * The arguments with which `method` may run for a site granted `account`. `others` are the wallet's other accounts:
+ * The arguments with which `method` may run for a site granted `account`, read in their canonical form (raw_call.ts:
+ * one spelling per address, so a comparison cannot be dodged by writing an address another way). `others` are the wallet's other accounts:
  * they are removed from the scopes a site asks for (a contract's own scope stays), and acting as one is refused.
  */
 export function confine(method: string, args: unknown[], account: string, others: string[]): unknown[] {
@@ -24,6 +25,10 @@ export function confine(method: string, args: unknown[], account: string, others
   };
   const opts = obj(args[1]);
   if (UNSCOPED.has(method)) return args;
+  // Messages sent as another account would be signed, and read, with its keys.
+  if (opts.sendMessagesAs !== undefined && !same(opts.sendMessagesAs, account)) {
+    throw new NotGranted('this site may only send messages as the account you connected');
+  }
   switch (method) {
     case 'simulateTx':
     case 'profileTx':

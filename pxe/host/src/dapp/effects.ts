@@ -59,8 +59,9 @@ export function formatAmount(v: bigint, decimals: number): string {
 /** The approval's lines: what leaves the account first, then what comes in. */
 export function changeLines(changes: BalanceChange[], meta: Map<string, TokenMeta>): string[] {
   const line = (c: BalanceChange) => {
-    const m = meta.get(c.token) ?? { symbol: `token ${c.token.slice(0, 8)}…`, decimals: 0 };
-    return `${c.delta < 0n ? 'You send' : 'You receive'} ${formatAmount(c.delta, m.decimals)} ${m.symbol} (${c.kind})`;
+    const m = meta.get(c.token) ?? { symbol: 'of an unknown token', decimals: 0 };
+    // A symbol is what the token's deployer chose: its address tells two "USDC" apart.
+    return `${c.delta < 0n ? 'You send' : 'You receive'} ${formatAmount(c.delta, m.decimals)} ${m.symbol} (${c.kind}, ${c.token.slice(0, 8)}…${c.token.slice(-4)})`;
   };
   return [...changes.filter(c => c.delta < 0n), ...changes.filter(c => c.delta > 0n)].map(line);
 }

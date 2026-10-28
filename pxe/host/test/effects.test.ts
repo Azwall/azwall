@@ -35,16 +35,22 @@ describe('balance changes', () => {
   });
 
   it('lists what leaves the account, then what comes in', () => {
-    const meta = new Map([['0x1', { symbol: 'USDC', decimals: 6 }], ['0x2', { symbol: 'WETH', decimals: 18 }]]);
+    const [usdc, weth, other] = ['0x0a', '0x0b', '0x0c'].map(p => p + '1'.repeat(62) + '2345');
+    const meta = new Map([[usdc, { symbol: 'USDC', decimals: 6 }], [weth, { symbol: 'WETH', decimals: 18 }]]);
     const lines = changeLines(
       [
-        { token: '0x2', kind: 'private', delta: 2_475_000_000_000_000n },
-        { token: '0x1', kind: 'public', delta: -5_000_000n },
-        { token: '0x3', kind: 'public', delta: -7n },
+        { token: weth, kind: 'private', delta: 2_475_000_000_000_000n },
+        { token: usdc, kind: 'public', delta: -5_000_000n },
+        { token: other, kind: 'public', delta: -7n },
       ],
       meta,
     );
-    expect(lines).toEqual(['You send 5 USDC (public)', 'You send 7 token 0x3… (public)', 'You receive 0.002475 WETH (private)']);
+    // Each with its address: a symbol is whatever the token's deployer chose.
+    expect(lines).toEqual([
+      'You send 5 USDC (public, 0x0a1111…2345)',
+      'You send 7 of an unknown token (public, 0x0c1111…2345)',
+      'You receive 0.002475 WETH (private, 0x0b1111…2345)',
+    ]);
   });
 
   it('says about what the fee comes to and who pays it', () => {

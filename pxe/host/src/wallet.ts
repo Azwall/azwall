@@ -21,6 +21,7 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embed
 
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
+import { SenderGuard } from './senders';
 import type { FeeJuiceBridge } from './fee_juice';
 import type { FeeMode } from './fees';
 import { log } from './log';
@@ -111,8 +112,16 @@ export class AzwallWallet extends EmbeddedWallet {
     return this.aztecNode;
   }
 
+  /** Authorizations signed while sending are for the senders only (senders.ts). */
+  readonly #senders = new SenderGuard();
+
   override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
-    return this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
+    return this.#senders.sending(opts.from.toString(), () => this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o)));
+  }
+
+  override async createAuthWit(from: AztecAddress, intent: Parameters<EmbeddedWallet['createAuthWit']>[1]) {
+    this.#senders.check(from.toString());
+    return super.createAuthWit(from, intent);
   }
 
   /**

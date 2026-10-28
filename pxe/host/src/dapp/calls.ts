@@ -7,6 +7,7 @@ import { type AbiType, type ContractArtifact, type FunctionAbi, FunctionSelector
 import { decodeStruct } from '../version';
 import { log } from '../log';
 import { type Json, list, obj } from './json';
+import { isSiteRegistered } from './provenance';
 
 /** The artifact of the contract at an address, if the PXE knows it. */
 export type ArtifactOf = (address: string) => Promise<ContractArtifact | undefined>;
@@ -115,9 +116,33 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
   } catch { // Arguments that do not fit the function's parameters are shown as `…`; the raw request is in the details.
     values = undefined;
   }
-  const line = summary(fn.name, args, `${artifact.name} ${short(to)}`);
+  const named = isSiteRegistered(to) ? `${artifact.name} (as this site names it)` : artifact.name;
+  const line = summary(fn.name, args, `${named} ${short(to)}`);
   const fee = FEE_FUNCTIONS.has(fn.name) && feePayers.has(to.toLowerCase());
   return { name: fn.name, line, fee, contract: artifact.name, fn, values };
+}
+
+/**
+ * The calls of a transaction the summary must still show next to its balance changes: every call but its fee payment
+ * and those to the tokens whose changes it lists (`shown`); then what it attaches. A visible "You send 1 USDC" must
+ * not hide an authorization given to someone else in the same transaction.
+ */
+export async function otherCallLines(payload: unknown, artifactOf: ArtifactOf, shown: Set<string>): Promise<string[]> {
+  const p = obj(payload);
+  const calls = list(p.calls);
+  const read = await Promise.all(calls.map(c => readCall(c, artifactOf)));
+  const lines = calls.flatMap((c, i) => {
+    const to = String(obj(c).to ?? '').toLowerCase();
+    if (read[i].fee || shown.has(to)) return [];
+    return [obj(c).hideMsgSender === true ? `${read[i].line} (hides that you call it)` : read[i].line];
+  });
+  const authwits = list(p.authWitnesses).length;
+  const capsules = list(p.capsules).length;
+  return [
+    ...lines,
+    ...(authwits ? [`${authwits} authorization(s) attached`] : []),
+    ...(capsules ? [`${capsules} data capsule(s) attached`] : []),
+  ];
 }
 
 /** The lines of a transaction: what it does first, its fee payment last, then its attached authorizations. */

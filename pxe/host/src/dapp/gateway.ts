@@ -10,20 +10,22 @@
 // the calls really run (calls.ts).
 import { BackgroundConnectionHandler, type ActiveSession, type PendingDiscovery } from '@aztec/wallet-sdk/extension/handlers';
 import { hashToEmoji } from '@aztec/wallet-sdk/crypto';
+import { computeContractAddressFromInstance, type ContractInstancePreimage } from '@aztec/stdlib/contract';
 import type { WalletMessage } from '@aztec/wallet-sdk/types';
 import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { log } from '../log';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
-import { describeAuthWit, describeTx, readCall } from './calls';
+import { describeAuthWit, describeTx, otherCallLines, readCall } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
 import { changeLines, feeLine, metaOf, type Payer, simulateEffects } from './effects';
 import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
 import { confine, samePage } from './policy';
-import { rawCall } from './raw_call';
+import { markSiteRegistered } from './provenance';
+import { canonicalArgs, parseArgs, rawCall } from './raw_call';
 
 const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.8.0' };
 
@@ -37,6 +39,17 @@ type Op = { name: string; args: unknown[] };
 type ContentListener = (message: unknown, sender: { tab: { id: number; url: string } }) => void;
 type ChainLike = { chainId?: { toString(): string }; version?: { toString(): string } } | undefined;
 
+/**
+ * An op of a site's request in the form the wallet runs it (canonicalArgs): from here on, what the review shows, what
+ * the checks allow and what runs are the same request.
+ */
+async function canonical(op: Op): Promise<Op> {
+  const name = String(op.name);
+  if (name === 'batch' || name === 'requestCapabilities') throw new Error(`${name} cannot be batched`);
+  const args = Array.isArray(op.args) ? op.args : [];
+  return { name, args: name === 'getAccounts' || name === 'getAddressBook' ? [] : await canonicalArgs(name, args) };
+}
+
 export class DappGateway {
   readonly #handler: BackgroundConnectionHandler;
   /** What each session's site may do, as the user accepted it (grants.ts). */
@@ -49,6 +62,8 @@ export class DappGateway {
   readonly #verified = new Map<string, Promise<boolean>>();
   /** Pages with a connection prompt open: a page cannot stack them. */
   readonly #connecting = new Set<number>();
+  /** Sessions with a signing request waiting for the user: each its own simulation first, so one at a time. */
+  readonly #signing = new Set<string>();
   #selected = '';
   #listener: ContentListener | null = null;
 
@@ -84,8 +99,14 @@ export class DappGateway {
    * A message from the content script of page `tabId` at `origin`, while `account` is selected in the app. A
    * message for a session or discovery of another page, or of another origin, is dropped.
    */
-  receive(tabId: number, origin: string, message: unknown, account: string): void {
+  receive(tabId: number, origin: string, parsed: unknown, account: string, text: string): void {
     this.#selected = account;
+    // Parsed already when small; a large one only for a page with a session (STRANGER_MESSAGE in api.ts).
+    const message = parsed ?? this.#fromConnected(tabId, origin, text);
+    if (message === undefined) {
+      log('dapp', `${origin} sent a large message without a session; dropped`, 'warn');
+      return;
+    }
     const sessionId = (message as { sessionId?: unknown } | null)?.sessionId;
     if (typeof sessionId === 'string') {
       const owner = this.#handler.getSession(sessionId) ?? this.#handler.getPendingDiscovery(sessionId);
@@ -95,6 +116,12 @@ export class DappGateway {
       }
     }
     this.#listener?.(message, { tab: { id: tabId, url: origin } });
+  }
+
+  /** A large message, parsed only when page `tabId` at `origin` holds a session. */
+  #fromConnected(tabId: number, origin: string, text: string): unknown {
+    const connected = this.#handler.getActiveSessions().some(s => samePage(s, tabId, origin));
+    return connected ? JSON.parse(text) : undefined;
   }
 
   /** The page navigated away or its tab closed: its sessions and pending connections end. */
@@ -187,26 +214,39 @@ export class DappGateway {
    */
   async #approved(session: ActiveSession, account: string, ops: Op[]): Promise<unknown[]> {
     const others = (await this.wallet.getAccounts()).map(a => a.item.toString()).filter(a => a.toLowerCase() !== account.toLowerCase());
-    const confined = ops.map(op => ({ name: String(op.name), args: Array.isArray(op.args) ? op.args : [] }));
+    const confined = await Promise.all(ops.map(op => canonical(op)));
     for (const op of confined) {
-      if (op.name === 'batch' || op.name === 'requestCapabilities') throw new Error(`${op.name} cannot be batched`);
       if (op.name !== 'getAccounts' && op.name !== 'getAddressBook') op.args = confine(op.name, op.args, account, others);
       await permit(this.#granted.get(session.sessionId) ?? grantsOf([]), op.name, op.args, a => this.wallet.artifactAt(a));
     }
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
-    if (signing.length) {
-      const details = (await Promise.all(signing.map(op => this.#detailsOf(account, op)))).flat();
-      const sections = await this.#sections(signing);
-      const authwit = signing.every(op => op.name === 'createAuthWit');
-      const title = authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?';
-      const kind = authwit ? 'authwit' : 'transaction';
-      if (!(await this.#ask({ kind, tab: session.tabId, origin: session.origin, title, details, sections }))) {
-        throw new Error('the user rejected the request');
-      }
-    }
+    if (signing.length) await this.#oneSigning(session.sessionId, () => this.#review(session, account, signing));
     const results: unknown[] = [];
     for (const op of confined) results.push(await this.#run(session, account, op));
     return results;
+  }
+
+  /** Runs `review` unless the session already has a signing request waiting: a site cannot queue them up. */
+  async #oneSigning(sessionId: string, review: () => Promise<void>): Promise<void> {
+    if (this.#signing.has(sessionId)) throw new Error('another request from this site is waiting for your approval');
+    this.#signing.add(sessionId);
+    try {
+      await review();
+    } finally {
+      this.#signing.delete(sessionId);
+    }
+  }
+
+  /** Asks the user to approve the signing ops; throws when they reject them. */
+  async #review(session: ActiveSession, account: string, signing: Op[]): Promise<void> {
+    const details = (await Promise.all(signing.map(op => this.#detailsOf(account, op)))).flat();
+    const sections = await this.#sections(signing);
+    const authwit = signing.every(op => op.name === 'createAuthWit');
+    const title = authwit ? 'Authorize an action on your behalf?' : 'Prove and send this transaction?';
+    const kind = authwit ? 'authwit' : 'transaction';
+    if (!(await this.#ask({ kind, tab: session.tabId, origin: session.origin, title, details, sections }))) {
+      throw new Error('the user rejected the request');
+    }
   }
 
   /**
@@ -220,7 +260,8 @@ export class DappGateway {
       const meta = await metaOf(this.wallet, account, changes);
       const fees = feeLine(fee, await this.#payer(account, op.args));
       if (!changes.length) return { lines: ['No change to the balances of the tokens the wallet knows', fees], callsToo: true };
-      return { lines: [...changeLines(changes, meta), fees], callsToo: false };
+      const others = await otherCallLines(op.args[0], a => this.wallet.artifactAt(a), new Set(changes.map(c => c.token)));
+      return { lines: [...changeLines(changes, meta), ...others, fees], callsToo: false };
     } catch (err) {
       log('dapp', `simulation before approval: ${errorMessage(err)}`, 'warn');
       return { lines: [`The wallet could not simulate this transaction, it may fail: ${errorMessage(err).slice(0, 120)}`], callsToo: true };
@@ -265,10 +306,19 @@ export class DappGateway {
 
   async #run(session: ActiveSession, account: string, op: Op): Promise<unknown> {
     if (op.name === 'getAccounts') return [{ alias: 'main', item: account }];
+    if (op.name === 'registerContract') await this.#noteRegistration(op.args);
     // The wallet's contacts are not the site's business.
     if (op.name === 'getAddressBook') return [];
     if (op.name !== 'sendTx') return rawCall(this.wallet, op.name, op.args);
     return this.#send(session, account, op.args);
+  }
+
+  /** A contract a site registers that the wallet did not know: its names are the site's, and shown as such. */
+  async #noteRegistration(args: unknown[]): Promise<void> {
+    const [instance] = (await parseArgs('registerContract', args)) as [ContractInstancePreimage];
+    const address = (await computeContractAddressFromInstance(instance)).toString();
+    // Unreadable counts as unknown: the contract is then marked as named by the site, the safe side.
+    if (!(await this.wallet.artifactAt(address).catch(() => undefined))) markSiteRegistered(address);
   }
 
   /**
