@@ -75,6 +75,10 @@ struct VaultStateTests {
             try inner.write(data)
         }
         func delete() throws { try inner.delete() }
+
+        /// Blocks until a held write has entered `write`. Synchronous on purpose: Swift refuses a semaphore's `wait()`
+        /// in an async context, a detached task's closure included, so the test calls this from one instead.
+        func waitForHeldWrite() { entered.wait() }
     }
 
     let first = AccountSecrets(alias: "first", signingKey: "0x" + String(repeating: "01", count: 32), salt: Vault.zeroSalt)
@@ -86,7 +90,7 @@ struct VaultStateTests {
         let state = VaultState(vault: vault, unlocked: try vault.create(first: first))
         let second = second
         let adding = Task { try await state.change { vault, current in (try vault.addAccount(current, second), ()) } }
-        await Task.detached { storage.entered.wait() }.value
+        await Task.detached { storage.waitForHeldWrite() }.value
         let third = AccountSecrets(alias: "third", signingKey: "0x" + String(repeating: "03", count: 32), salt: Vault.zeroSalt)
         let addingThird = Task { try await state.change { vault, current in (try vault.addAccount(current, third), ()) } }
         storage.released.signal()
@@ -102,7 +106,7 @@ struct VaultStateTests {
         let state = VaultState(vault: vault, unlocked: try vault.create(first: first))
         let second = second
         let adding = Task { try await state.change { vault, current in (try vault.addAccount(current, second), ()) } }
-        await Task.detached { storage.entered.wait() }.value
+        await Task.detached { storage.waitForHeldWrite() }.value
         let erasing = Task { try await state.erase { try vault.wipe() } }
         storage.released.signal()
         try await adding.value

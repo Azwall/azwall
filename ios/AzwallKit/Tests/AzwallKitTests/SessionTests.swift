@@ -67,7 +67,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         case "deployAccount", "transfer", "claimFeeJuice":
             await whileProving?()
             try gate.release()
-            await whileSending?()
+            try await whileSending?()
             sent.append(params)
             return .object(["txHash": .string("0xhash\(sent.count)")])
         case "waitForTx":
