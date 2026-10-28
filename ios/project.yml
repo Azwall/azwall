@@ -64,7 +64,11 @@ targets:
         script: |
           # Xcode runs scripts without the login shell's PATH: add rustup's and Homebrew's.
           export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-          cd "$SRCROOT/.." && cargo run --quiet -p azwall-core --bin azwall-config -- --out assets/azwall-config.json
+          # A Release build (an archive for the App Store) ships the registry's public endpoints only: an RPC URL set in
+          # .env may carry its API key, readable by anyone in the IPA. azwall-config refuses one, as Android's build does.
+          public=""
+          [ "$CONFIGURATION" = Release ] && public=--public-only
+          cd "$SRCROOT/.." && cargo run --quiet -p azwall-core --bin azwall-config -- --out assets/azwall-config.json $public
           cd "$SRCROOT/../pxe" && pnpm install --frozen-lockfile --silent && pnpm build
         outputFiles:
           - $(SRCROOT)/../assets/azwall-config.json
