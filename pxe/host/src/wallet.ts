@@ -178,6 +178,12 @@ export class AzwallWallet extends EmbeddedWallet {
   }
 
   /** The artifact of the contract at `address` (the class it was deployed with), if this PXE has it. */
+  /** The class of the contract at `address` (the one artifactAt reads), if the PXE knows the contract. */
+  async classOf(address: string): Promise<string | undefined> {
+    const instance = await this.pxe.getContractInstance(AztecAddress.fromStringUnsafe(address));
+    return instance?.originalContractClassId.toString();
+  }
+
   async artifactAt(address: string): Promise<ContractArtifact | undefined> {
     const instance = await this.pxe.getContractInstance(AztecAddress.fromStringUnsafe(address));
     return instance && this.pxe.getContractArtifact(instance.originalContractClassId);

@@ -10,6 +10,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
 import { trustFeePayers } from './dapp/calls';
+import { keepMarksIn, type MarkStore } from './dapp/provenance';
 import { type L1Params, l1Client, pinnedPortal } from './fee_juice';
 import { type FeeMode, feeModeOf } from './fees';
 import { generationName, nextGeneration } from './generation';
@@ -206,6 +207,8 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   }).finally(() => clearInterval(heartbeat));
   log('open', `PXE created in ${Math.round(performance.now() - t0)} ms`);
   wallet.stores = stores;
+  // The contracts sites registered stay marked as named by them (dapp/provenance.ts).
+  await keepMarksIn((walletStore as unknown as { openMap(name: string): MarkStore }).openMap('azwall-site-contracts'));
   const fpc = await sponsoredFpc();
   wallet.fees = await feeModeOf(network.fees, node, fpc.instance.address);
   if (wallet.fees === 'sponsored') await wallet.registerContract(fpc.instance, fpc.artifact);

@@ -128,13 +128,26 @@ public final class AppModel {
 
     @ObservationIgnored private var autoLock = AutoLock()
 
+    /// Locks once the app has been in the background for the auto-lock delay, if iOS lets it run that long.
+    @ObservationIgnored private var backgroundLock: Task<Void, Never>?
+
     public func onBackground() async {
         autoLock.backgrounded()
+        // The keys would otherwise stay in memory, in the PXE's web view too, while the app is kept alive.
+        backgroundLock?.cancel()
+        backgroundLock = Task { [weak self] in
+            // Cancelled when the app comes back first: then nothing is locked.
+            try? await Task.sleep(for: .seconds(AutoLock.defaultTimeout))
+            guard !Task.isCancelled, let self, let session = self.session, session.proving == nil else { return }
+            await self.lock()
+        }
         await session?.flush()
     }
 
     /// Back from the background: locks if away too long, unless a transaction is being proven or sent.
     public func onForeground() async {
+        backgroundLock?.cancel()
+        backgroundLock = nil
         if autoLock.foregrounded(), let session, session.proving == nil { await lock() }
     }
 

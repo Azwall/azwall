@@ -113,12 +113,6 @@ export function createHandlers(bridge: Bridge): Handlers {
   return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
 }
 
-/**
- * The largest message a page may send before it has a session: a discovery or key exchange is small. Larger ones (a
- * contract artifact to register, several megabytes) only from a connected site, parsed then.
- */
-const STRANGER_MESSAGE = 64_000;
-
 /** Fees where there is no sponsor (fees.ts). */
 function feeHandlers(w: () => AzwallWallet): Record<string, (p: Params) => Promise<unknown>> {
   return {
@@ -158,10 +152,7 @@ function feeHandlers(w: () => AzwallWallet): Record<string, (p: Params) => Promi
 function dappHandlers(dapps: () => DappGateway | null): Record<string, (p: Params) => Promise<unknown>> {
   return {
     // A message from the content script of the page at `origin` (taken from the native web view, not the page).
-    dappMessage: async p => {
-      const message = str(p, 'message');
-      return dapps()?.receive(int(p, 'tabId'), str(p, 'origin'), message.length > STRANGER_MESSAGE ? undefined : JSON.parse(message), str(p, 'account'), message);
-    },
+    dappMessage: async p => dapps()?.receive(int(p, 'tabId'), str(p, 'origin'), str(p, 'message'), str(p, 'account')),
     dappDisconnect: async p => dapps()?.disconnect(str(p, 'sessionId')),
     dappClosePage: async p => dapps()?.closePage(int(p, 'tabId')),
   };

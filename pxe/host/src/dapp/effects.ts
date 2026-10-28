@@ -3,6 +3,7 @@
 // from the transaction's own effects, never from what a site says, and shown first in its approval.
 import { AztecAddress } from '@aztec/aztec.js/addresses';
 import type { ExecutionPayload } from '@aztec/aztec.js/tx';
+import type { GasFees } from '@aztec/stdlib/gas';
 import { computePublicDataTreeLeafSlot, deriveStorageSlotInMap } from '@aztec/stdlib/hash';
 
 import { log } from '../log';
@@ -12,8 +13,11 @@ import type { AzwallWallet } from '../wallet';
 import { parseArgs } from './raw_call';
 
 export type BalanceChange = { token: string; kind: 'public' | 'private'; delta: bigint };
-/** A transaction's effects on the account: its balance changes and about what its fee comes to, in Fee Juice units. */
-export type Effects = { changes: BalanceChange[]; fee: bigint };
+/**
+ * A transaction's effects on the account: its balance changes, about what its fee comes to, and the most the
+ * priority fee the site set can add to it (0 without one), in Fee Juice units.
+ */
+export type Effects = { changes: BalanceChange[]; fee: bigint; tip: bigint };
 /** Who pays a transaction's fee: the network's sponsor, the account, or another contract (its address). */
 export type Payer = 'sponsor' | 'account' | string;
 export type TokenMeta = { symbol: string; decimals: number };
@@ -94,9 +98,12 @@ async function spentBy(wallet: AzwallWallet, token: string, me: string, slots: S
     .reduce((sum, n) => sum + (n.note.items[0]?.toBigInt() ?? 0n), 0n);
 }
 
-async function simulate(wallet: AzwallWallet, args: unknown[]): Promise<Simulated> {
-  const [payload, opts] = (await parseArgs('sendTx', args)) as [ExecutionPayload, { from: AztecAddress; fee?: unknown; additionalScopes?: AztecAddress[] }];
-  return wallet.simulateTx(payload, { from: opts.from, fee: opts.fee as never, additionalScopes: opts.additionalScopes, skipTxValidation: true });
+type SendOpts = { from: AztecAddress; fee?: { gasSettings?: { maxPriorityFeesPerGas?: GasFees } }; additionalScopes?: AztecAddress[] };
+
+async function simulate(wallet: AzwallWallet, args: unknown[]): Promise<{ sim: Simulated; opts: SendOpts }> {
+  const [payload, opts] = (await parseArgs('sendTx', args)) as [ExecutionPayload, SendOpts];
+  const sim = await wallet.simulateTx(payload, { from: opts.from, fee: opts.fee as never, additionalScopes: opts.additionalScopes, skipTxValidation: true });
+  return { sim, opts };
 }
 
 const FEE_JUICE_DECIMALS = 18;
@@ -110,11 +117,13 @@ export function roughly(v: bigint, decimals: number): string {
 }
 
 /** The fee line of an approval: about how much Fee Juice the transaction costs at today's fees, and who pays it. */
-export function feeLine(fee: bigint, payer: Payer): string {
+export function feeLine(fee: bigint, payer: Payer, tip = 0n): string {
   const shown = roughly(fee, FEE_JUICE_DECIMALS);
   const amount = shown === '0' && fee > 0n ? 'less than 0.00000001' : `about ${shown}`;
+  // The site's priority fee goes on top of the network's: said as the most it can come to.
+  const upTo = tip > 0n ? `, up to ${roughly(fee + tip, FEE_JUICE_DECIMALS)} with the priority fee this site set` : '';
   const by = payer === 'sponsor' ? "paid by the network's sponsor" : payer === 'account' ? 'paid from your account' : `paid by ${payer.slice(0, 10)}…`;
-  return `Fee: ${amount} Fee Juice, ${by}`;
+  return `Fee: ${amount} Fee Juice${upTo}, ${by}`;
 }
 
 /**
@@ -126,7 +135,7 @@ export async function simulateEffects(wallet: AzwallWallet, me: string, args: un
   const tokens = (await wallet.registeredTokens()).map(t => t.toLowerCase());
   const found = await Promise.all(tokens.map(async t => [t, await slotsOf(wallet, t, account)] as const));
   const slots = new Map(found.filter((e): e is readonly [string, Slots] => e[1] !== undefined));
-  const sim = await simulate(wallet, args);
+  const { sim, opts } = await simulate(wallet, args);
   const nullifiers = new Set(sim.publicInputs.getNonEmptyNullifiers().map(n => n.toBigInt()));
   const created = createdFor(me, sim.privateExecutionResult.entrypoint as unknown as CallNotes, slots);
   const changes = await Promise.all(
@@ -137,7 +146,9 @@ export async function simulateEffects(wallet: AzwallWallet, me: string, args: un
     }),
   );
   const fee = sim.gasUsed.billedGas.computeFee(await wallet.node.getCurrentMinFees()).toBigInt();
-  return { changes: changes.flat(), fee };
+  const priority = opts.fee?.gasSettings?.maxPriorityFeesPerGas;
+  const tip = priority ? sim.gasUsed.billedGas.computeFee(priority).toBigInt() : 0n;
+  return { changes: changes.flat(), fee, tip };
 }
 
 const metas = new Map<string, TokenMeta>();

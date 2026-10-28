@@ -57,6 +57,8 @@ describe('balance changes', () => {
     expect(feeLine(4_970_975_790_000_000_000n, 'sponsor')).toBe("Fee: about 4.97 Fee Juice, paid by the network's sponsor");
     expect(feeLine(1_235_500_000_000_000n, 'sponsor')).toBe("Fee: about 0.00124 Fee Juice, paid by the network's sponsor");
     expect(feeLine(2n * 10n ** 18n, 'account')).toBe('Fee: about 2 Fee Juice, paid from your account');
+    // A priority fee set by the site: the most it can add, said next to the network's fee.
+    expect(feeLine(2n * 10n ** 18n, 'account', 10n ** 18n)).toBe('Fee: about 2 Fee Juice, up to 3 with the priority fee this site set, paid from your account');
     expect(feeLine(5n, `0x${'ab'.repeat(32)}`)).toBe('Fee: less than 0.00000001 Fee Juice, paid by 0xabababab…');
   });
 

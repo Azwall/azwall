@@ -10,7 +10,8 @@
 // the calls really run (calls.ts).
 import { BackgroundConnectionHandler, type ActiveSession, type PendingDiscovery } from '@aztec/wallet-sdk/extension/handlers';
 import { hashToEmoji } from '@aztec/wallet-sdk/crypto';
-import { computeContractAddressFromInstance, type ContractInstancePreimage } from '@aztec/stdlib/contract';
+import type { ContractArtifact } from '@aztec/stdlib/abi';
+import { computeContractAddressFromInstance, type ContractInstancePreimage, getContractClassFromArtifact } from '@aztec/stdlib/contract';
 import type { WalletMessage } from '@aztec/wallet-sdk/types';
 import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
@@ -23,8 +24,9 @@ import { NEEDS_APPROVAL, txHashOf } from './describe';
 import { changeLines, feeLine, metaOf, type Payer, simulateEffects } from './effects';
 import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
+import { messageFrom, SigningGate } from './limits';
 import { confine, samePage } from './policy';
-import { markSiteRegistered } from './provenance';
+import { isSiteClass, markSiteClass, markSiteRegistered } from './provenance';
 import { canonicalArgs, parseArgs, rawCall } from './raw_call';
 
 const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.8.0' };
@@ -62,8 +64,8 @@ export class DappGateway {
   readonly #verified = new Map<string, Promise<boolean>>();
   /** Pages with a connection prompt open: a page cannot stack them. */
   readonly #connecting = new Set<number>();
-  /** Sessions with a signing request waiting for the user: each its own simulation first, so one at a time. */
-  readonly #signing = new Set<string>();
+  /** One signing request waiting for the user per session (limits.ts). */
+  readonly #signing = new SigningGate();
   #selected = '';
   #listener: ContentListener | null = null;
 
@@ -99,10 +101,9 @@ export class DappGateway {
    * A message from the content script of page `tabId` at `origin`, while `account` is selected in the app. A
    * message for a session or discovery of another page, or of another origin, is dropped.
    */
-  receive(tabId: number, origin: string, parsed: unknown, account: string, text: string): void {
+  receive(tabId: number, origin: string, text: string, account: string): void {
     this.#selected = account;
-    // Parsed already when small; a large one only for a page with a session (STRANGER_MESSAGE in api.ts).
-    const message = parsed ?? this.#fromConnected(tabId, origin, text);
+    const message = messageFrom(text, () => this.#handler.getActiveSessions().some(s => samePage(s, tabId, origin)));
     if (message === undefined) {
       log('dapp', `${origin} sent a large message without a session; dropped`, 'warn');
       return;
@@ -116,12 +117,6 @@ export class DappGateway {
       }
     }
     this.#listener?.(message, { tab: { id: tabId, url: origin } });
-  }
-
-  /** A large message, parsed only when page `tabId` at `origin` holds a session. */
-  #fromConnected(tabId: number, origin: string, text: string): unknown {
-    const connected = this.#handler.getActiveSessions().some(s => samePage(s, tabId, origin));
-    return connected ? JSON.parse(text) : undefined;
   }
 
   /** The page navigated away or its tab closed: its sessions and pending connections end. */
@@ -220,25 +215,15 @@ export class DappGateway {
       await permit(this.#granted.get(session.sessionId) ?? grantsOf([]), op.name, op.args, a => this.wallet.artifactAt(a));
     }
     const signing = confined.filter(op => NEEDS_APPROVAL.has(op.name));
-    if (signing.length) await this.#oneSigning(session.sessionId, () => this.#review(session, account, signing));
+    if (signing.length) await this.#signing.run(session.sessionId, () => this.#review(session, account, signing));
     const results: unknown[] = [];
     for (const op of confined) results.push(await this.#run(session, account, op));
     return results;
   }
 
-  /** Runs `review` unless the session already has a signing request waiting: a site cannot queue them up. */
-  async #oneSigning(sessionId: string, review: () => Promise<void>): Promise<void> {
-    if (this.#signing.has(sessionId)) throw new Error('another request from this site is waiting for your approval');
-    this.#signing.add(sessionId);
-    try {
-      await review();
-    } finally {
-      this.#signing.delete(sessionId);
-    }
-  }
-
   /** Asks the user to approve the signing ops; throws when they reject them. */
   async #review(session: ActiveSession, account: string, signing: Op[]): Promise<void> {
+    await this.#markSiteClasses(signing);
     const details = (await Promise.all(signing.map(op => this.#detailsOf(account, op)))).flat();
     const sections = await this.#sections(signing);
     const authwit = signing.every(op => op.name === 'createAuthWit');
@@ -256,9 +241,9 @@ export class DappGateway {
    */
   async #summary(account: string, op: Op): Promise<{ lines: string[]; callsToo: boolean }> {
     try {
-      const { changes, fee } = await simulateEffects(this.wallet, account, op.args);
+      const { changes, fee, tip } = await simulateEffects(this.wallet, account, op.args);
       const meta = await metaOf(this.wallet, account, changes);
-      const fees = feeLine(fee, await this.#payer(account, op.args));
+      const fees = feeLine(fee, await this.#payer(account, op.args), tip);
       if (!changes.length) return { lines: ['No change to the balances of the tokens the wallet knows', fees], callsToo: true };
       const others = await otherCallLines(op.args[0], a => this.wallet.artifactAt(a), new Set(changes.map(c => c.token)));
       return { lines: [...changeLines(changes, meta), ...others, fees], callsToo: false };
@@ -307,6 +292,7 @@ export class DappGateway {
   async #run(session: ActiveSession, account: string, op: Op): Promise<unknown> {
     if (op.name === 'getAccounts') return [{ alias: 'main', item: account }];
     if (op.name === 'registerContract') await this.#noteRegistration(op.args);
+    if (op.name === 'registerContractClass') await this.#noteClass(op.args);
     // The wallet's contacts are not the site's business.
     if (op.name === 'getAddressBook') return [];
     if (op.name !== 'sendTx') return rawCall(this.wallet, op.name, op.args);
@@ -319,6 +305,22 @@ export class DappGateway {
     const address = (await computeContractAddressFromInstance(instance)).toString();
     // Unreadable counts as unknown: the contract is then marked as named by the site, the safe side.
     if (!(await this.wallet.artifactAt(address).catch(() => undefined))) markSiteRegistered(address);
+  }
+
+  /** A contract class a site registers that the wallet did not know: contracts of that class are named by the site. */
+  async #noteClass(args: unknown[]): Promise<void> {
+    const [artifact] = (await parseArgs('registerContractClass', args)) as [ContractArtifact];
+    const { id } = await getContractClassFromArtifact(artifact);
+    if (!(await this.wallet.getContractClassMetadata(id)).isArtifactRegistered) markSiteClass(id.toString());
+  }
+
+  /** Marks the contracts `ops` call whose class a site registered, before they are described for the review. */
+  async #markSiteClasses(ops: Op[]): Promise<void> {
+    const targets = ops.flatMap(op => (op.name === 'sendTx' ? list(obj(op.args[0]).calls) : [obj(op.args[1]).call]).map(c => obj(c).to));
+    for (const to of new Set(targets.filter((t): t is string => typeof t === 'string'))) {
+      const classId = await this.wallet.classOf(to);
+      if (classId && isSiteClass(classId)) markSiteRegistered(to);
+    }
   }
 
   /**
