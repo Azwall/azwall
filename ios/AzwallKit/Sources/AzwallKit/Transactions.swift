@@ -129,12 +129,17 @@ extension WalletSession {
             sent.txHash = try await proveAndSend(draft, client, send)
             sent.status = .pending
         } catch {
-            sent.status = .failed
-            // A hash told before sending (followSubmission) stays, so the history can be checked against the chain.
-            sent.txHash = store.item(id: draft.id)?.txHash
-            sent.error = error is CancelledByUser ? "Cancelled" : error.localizedDescription
-            record(sent)
-            throw error
+            // Told before sending (followSubmission): the node may have it, so it is followed until a receipt says how it
+            // ended, never called failed (and sent again).
+            guard !(error is CancelledByUser), let hash = store.item(id: draft.id)?.txHash else {
+                sent.status = .failed
+                sent.error = error is CancelledByUser ? "Cancelled" : error.localizedDescription
+                record(sent)
+                throw error
+            }
+            DiagnosticLog.shared.report("transactions", error)
+            sent.txHash = hash
+            sent.status = .pending
         }
         record(sent)
         Task { await confirm(sent, client) }

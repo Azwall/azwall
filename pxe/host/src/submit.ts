@@ -19,6 +19,29 @@ export type SubmitOptions = {
   submitting?: (txHash: string) => void;
 };
 
+/**
+ * The hash the send under way handed to the node, once it did. A failure of that send after that point (a wait that
+ * times out, an answer lost) is thrown with the hash as `txHash`: the transaction may be mined, so it is followed rather
+ * than called failed. Sends run one at a time (senders.ts), so the hash noted is always the current send's.
+ */
+export class Told {
+  #hash: string | undefined;
+
+  note(hash: string): void {
+    this.#hash = hash;
+  }
+
+  async during<T>(send: () => Promise<T>): Promise<T> {
+    this.#hash = undefined;
+    try {
+      return await send();
+    } catch (err) {
+      if (this.#hash === undefined) throw err;
+      throw Object.assign(err instanceof Error ? err : new Error(String(err)), { txHash: this.#hash });
+    }
+  }
+}
+
 const ASKS = 3;
 const PAUSE_MS = 2_000;
 

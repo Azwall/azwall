@@ -96,6 +96,22 @@ struct FeatureTests {
         #expect(item.blockNumber == 11)
     }
 
+    /// 2026-10-28 store-release audit (F7, F8): a dApp send that failed once the node had it, or whose result carries no
+    /// hash, keeps the hash told before sending and is followed to its receipt.
+    @Test func aDappTransactionKeepsTheHashToldBeforeSending() async throws {
+        let pxe = FakePxe()
+        let s = try base.session(pxe)
+        await s.open()
+        let tx = #""id":"t5","account":"addr-abab","origin":"https://vote.example","summary":"vote""#
+        pxe.emit.yield(PxeEvent(name: "dappTx", data: try JSONValue.parse("{\(tx),\"status\":\"proving\"}")))
+        await eventually { s.activity.first?.status == .proving }
+        pxe.emit.yield(PxeEvent(name: "txSubmitting", data: try JSONValue.parse(#"{"from":"addr-abab","txHash":"0xtold"}"#)))
+        await eventually { s.activity.first?.txHash == "0xtold" }
+        pxe.emit.yield(PxeEvent(name: "dappTx", data: try JSONValue.parse("{\(tx),\"status\":\"failed\",\"error\":\"wait timed out\"}")))
+        await eventually { s.activity.first?.status == .confirmed }
+        #expect(s.activity.first?.txHash == "0xtold")
+    }
+
     @Test func aDisconnectTheGatewayFailsIsReportedNotDropped() async throws {
         let pxe = FakePxe()
         let s = try base.session(pxe)

@@ -15,6 +15,7 @@ import type { LogFn } from '@aztec/foundation/log';
 import type { AztecAsyncKVStore } from '@aztec/kv-store';
 import { SponsoredFPCContractArtifact } from '@aztec/noir-contracts.js/SponsoredFPC';
 import type { ContractArtifact } from '@aztec/stdlib/abi';
+import type { ContractInstancePreimage } from '@aztec/stdlib/contract';
 import { TxHash } from '@aztec/stdlib/tx';
 import type { CompleteFeeOptionsConfig, FeeOptions } from '@aztec/wallet-sdk/base-wallet';
 import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embedded';
@@ -22,7 +23,8 @@ import { type AccountType, EmbeddedWallet, WalletDB } from '@aztec/wallets/embed
 import { looksLikeToken } from './discover';
 import { GasCache } from './gas';
 import { SenderGuard } from './senders';
-import { confirmSubmissions } from './submit';
+import { shippedArtifact, trustedArtifact } from './shipped';
+import { confirmSubmissions, Told } from './submit';
 import type { FeeJuiceBridge } from './fee_juice';
 import type { FeeMode } from './fees';
 import { log } from './log';
@@ -107,7 +109,12 @@ export class AzwallWallet extends EmbeddedWallet {
     const store = (args[2] as unknown as { store: AztecAsyncKVStore }).store;
     this.walletDB = new InMemoryAccountsDB(store, m => log('walletdb', m));
     this.gas.instrument(this);
-    confirmSubmissions(this.aztecNode, { submitting: hash => this.submitting?.(this.#senders.current, hash) });
+    confirmSubmissions(this.aztecNode, {
+      submitting: hash => {
+        this.#told.note(hash);
+        this.submitting?.(this.#senders.current, hash);
+      },
+    });
   }
 
   /**
@@ -123,8 +130,13 @@ export class AzwallWallet extends EmbeddedWallet {
   /** Authorizations signed while sending are for the senders only (senders.ts). */
   readonly #senders = new SenderGuard();
 
+  /** The hash the send under way handed to the node (submit.ts). */
+  readonly #told = new Told();
+
+  /** A send that fails after its transaction reached the node throws with its `txHash` (submit.ts). */
   override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
-    return this.#senders.sending(opts.from.toString(), () => this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o)));
+    const send = () => this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
+    return this.#senders.sending(opts.from.toString(), () => this.#told.during(send));
   }
 
   override async createAuthWit(from: AztecAddress, intent: Parameters<EmbeddedWallet['createAuthWit']>[1]) {
@@ -190,9 +202,20 @@ export class AzwallWallet extends EmbeddedWallet {
     return instance?.originalContractClassId.toString();
   }
 
+  /** The artifact of the contract at `address`: the wallet's own for a class it ships (shipped.ts), else the PXE's. */
   async artifactAt(address: string): Promise<ContractArtifact | undefined> {
     const instance = await this.pxe.getContractInstance(AztecAddress.fromStringUnsafe(address));
-    return instance && this.pxe.getContractArtifact(instance.originalContractClassId);
+    if (!instance) return undefined;
+    return (await shippedArtifact(instance.originalContractClassId.toString())) ?? this.pxe.getContractArtifact(instance.originalContractClassId);
+  }
+
+  /** A site's artifact for a class the wallet ships is never stored: the wallet's own is (shipped.ts). */
+  override async registerContract(instance: ContractInstancePreimage, artifact?: ContractArtifact, secretKeyOrKeys?: Parameters<EmbeddedWallet['registerContract']>[2]) {
+    return super.registerContract(instance, artifact && (await trustedArtifact(artifact)), secretKeyOrKeys);
+  }
+
+  override async registerContractClass(artifact: ContractArtifact) {
+    return super.registerContractClass(await trustedArtifact(artifact));
   }
 
   /** Contracts registered in this PXE (by the wallet or by dApps) whose artifact is a token's. */
@@ -200,8 +223,7 @@ export class AzwallWallet extends EmbeddedWallet {
     const addresses = await this.pxe.getContracts();
     const tokens = await Promise.all(
       addresses.map(async address => {
-        const instance = await this.pxe.getContractInstance(address);
-        const artifact = instance && (await this.pxe.getContractArtifact(instance.originalContractClassId));
+        const artifact = await this.artifactAt(address.toString());
         return looksLikeToken(artifact) ? address.toString() : null;
       }),
     );

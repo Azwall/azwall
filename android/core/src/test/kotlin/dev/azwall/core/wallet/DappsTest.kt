@@ -252,4 +252,38 @@ class DappLinkTest {
         assertEquals(ActivityStatus.FAILED, item.status)
         assertEquals("out of gas", item.error)
     }
+
+    /** 2026-10-28 store-release audit (F8): the SDK's default result carries no top-level hash; the one told is kept. */
+    @Test
+    fun aDappTransactionSentWithoutAHashInItsResultKeepsTheOneToldBeforeSending() = runTest {
+        val s = session()
+        advanceUntilIdle()
+        val tx = """"id":"t3","account":"0xme","origin":"https://vote.example","summary":"vote""""
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
+        advanceUntilIdle()
+        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold"}""")))
+        advanceUntilIdle()
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"sent"}""")))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals("0xtold", item.txHash)
+        assertEquals("settled by its receipt, not assumed", 42L, item.blockNumber)
+    }
+
+    /** 2026-10-28 store-release audit (F7): a send that failed once the node had it is followed, never shown failed. */
+    @Test
+    fun aDappTransactionThatFailsAfterReachingTheNodeIsFollowed() = runTest {
+        val s = session()
+        advanceUntilIdle()
+        val tx = """"id":"t4","account":"0xme","origin":"https://vote.example","summary":"vote""""
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
+        advanceUntilIdle()
+        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold"}""")))
+        advanceUntilIdle()
+        pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"failed","error":"wait timed out"}""")))
+        advanceUntilIdle()
+        val item = s.state.value.activity.single()
+        assertEquals(ActivityStatus.CONFIRMED, item.status)
+        assertEquals("0xtold", item.txHash)
+    }
 }

@@ -152,11 +152,15 @@ class Transactions internal constructor(private val session: WalletSession) {
         val sent = try {
             draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, send, stop))
         } catch (e: Exception) {
-            val cancelled = e is CancelledByUser
-            // A hash told before sending (followSubmissions) stays, so the history can be checked against the chain.
-            val hash = session.store.item(draft.id)?.txHash
-            session.recordActivity(draft.copy(status = ActivityStatus.FAILED, txHash = hash, error = if (cancelled) "Cancelled" else e.message))
-            throw e
+            // Told before sending (followSubmissions): the node may have it, so it is followed until a receipt says how it
+            // ended, never called failed (and sent again).
+            val hash = session.store.item(draft.id)?.txHash.takeIf { e !is CancelledByUser }
+            if (hash == null) {
+                session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = if (e is CancelledByUser) "Cancelled" else e.message))
+                throw e
+            }
+            DiagnosticLog.shared.report("transactions", e)
+            draft.copy(status = ActivityStatus.PENDING, txHash = hash)
         } finally {
             _proving.value = null
             this.stop = null

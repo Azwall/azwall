@@ -239,11 +239,18 @@ private data class DappTx(
         summary = summary,
     )
 
-    /** A sent transaction without a hash cannot be followed: it is shown as done rather than pending forever. */
-    fun applyTo(item: ActivityItem): ActivityItem = when (status) {
-        "sent" -> item.copy(status = if (txHash != null) ActivityStatus.PENDING else ActivityStatus.CONFIRMED, txHash = txHash)
-        "failed" -> item.copy(status = ActivityStatus.FAILED, error = error)
-        else -> item
+    /**
+     * A hash known for the item (told before sending) is never dropped, and with one the item is pending until its
+     * receipt says how it ended, even when the send failed after it: it may be mined. A sent transaction without any hash
+     * cannot be followed: it is shown as done rather than pending forever.
+     */
+    fun applyTo(item: ActivityItem): ActivityItem {
+        val hash = txHash ?: item.txHash
+        return when (status) {
+            "sent" -> item.copy(status = if (hash != null) ActivityStatus.PENDING else ActivityStatus.CONFIRMED, txHash = hash)
+            "failed" -> if (hash != null) item.copy(status = ActivityStatus.PENDING, txHash = hash) else item.copy(status = ActivityStatus.FAILED, error = error)
+            else -> item
+        }
     }
 }
 

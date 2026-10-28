@@ -1,7 +1,7 @@
 import { TxStatus } from '@aztec/stdlib/tx';
 import { describe, expect, it } from 'vitest';
 
-import { confirmSubmissions } from '../src/submit';
+import { confirmSubmissions, Told } from '../src/submit';
 
 const tx = { getTxHash: () => ({ toString: () => '0xabc' }) };
 
@@ -46,5 +46,26 @@ describe('a submission', () => {
     const n = node([], told);
     await n.sendTx(tx).catch(() => undefined);
     expect(told).toEqual(['0xabc']);
+  });
+});
+
+describe('a send that fails', () => {
+  it('carries the hash it handed to the node, so the transaction is followed instead of called failed', async () => {
+    const told = new Told();
+    const err = await told.during(async () => {
+      told.note('0xsent');
+      throw new Error('wait timed out');
+    }).catch(e => e);
+    expect(err.message).toBe('wait timed out');
+    expect(err.txHash).toBe('0xsent');
+  });
+
+  it('carries no hash when nothing reached the node, nor one from an earlier send', async () => {
+    const told = new Told();
+    await told.during(async () => told.note('0xearlier'));
+    const err = await told.during(async () => {
+      throw new Error('simulation failed');
+    }).catch(e => e);
+    expect(err.txHash).toBeUndefined();
   });
 });

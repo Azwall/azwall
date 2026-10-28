@@ -8,8 +8,8 @@ export const NEEDS_APPROVAL = new Set(['sendTx', 'createAuthWit']);
 const TX_HASH = /^0x[0-9a-f]{64}$/i;
 
 /**
- * The hash of the transaction a dApp call sent: sendTx returns a TxHash or a receipt (with `wait`), and a batch
- * returns its results in a list. Only a few levels deep: results are dApp-shaped, not trusted.
+ * The hash of the transaction a dApp call sent: sendTx returns `{ txHash }`, or `{ receipt }` when it waited (the SDK's
+ * default), and a batch returns its results in a list. Only a few levels deep: results are dApp-shaped, not trusted.
  */
 export function txHashOf(result: unknown, depth = 0): string | undefined {
   if (result === null || result === undefined || depth > 4) return undefined;
@@ -18,5 +18,5 @@ export function txHashOf(result: unknown, depth = 0): string | undefined {
   if (TX_HASH.test(text)) return text;
   if (typeof result !== 'object') return undefined;
   const o = result as Json;
-  return txHashOf(o.txHash, depth + 1) ?? txHashOf(o.result, depth + 1);
+  return txHashOf(o.txHash, depth + 1) ?? txHashOf(o.receipt, depth + 1) ?? txHashOf(o.result, depth + 1);
 }

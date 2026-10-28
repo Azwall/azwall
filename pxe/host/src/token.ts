@@ -8,6 +8,7 @@ import { TokenContract, TokenContractArtifact } from '@aztec/noir-contracts.js/T
 import { errorMessage } from '@azwall/pxe-shared';
 
 import { log } from './log';
+import { shippedArtifact } from './shipped';
 import type { AzwallWallet } from './wallet';
 
 export type TokenInfo = { address: string; name: string; symbol: string; decimals: number };
@@ -36,9 +37,11 @@ export async function registerToken(wallet: AzwallWallet, token: string): Promis
   const address = addr(token);
   const instance = await wallet.node.getContract(address);
   if (!instance) throw new Error(`no contract at ${token} on this network`);
-  // A token a dApp registered keeps its own artifact (its class may differ from this package's Token).
+  // A token a dApp registered keeps its own artifact (its class may differ from this package's Token), unless it is of
+  // a class the wallet ships: that one is always the wallet's own (shipped.ts), replacing any a site stored.
+  const ours = await shippedArtifact(instance.currentContractClassId.toString());
   const { isArtifactRegistered } = await wallet.getContractClassMetadata(instance.currentContractClassId);
-  await wallet.registerContract(instance, isArtifactRegistered ? undefined : TokenContractArtifact);
+  await wallet.registerContract(instance, ours ?? (isArtifactRegistered ? undefined : TokenContractArtifact));
   return TokenContract.at(address, wallet);
 }
 

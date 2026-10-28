@@ -16,6 +16,7 @@ import type { WalletMessage } from '@aztec/wallet-sdk/types';
 import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { log } from '../log';
+import { shippedArtifact } from '../shipped';
 import type { NetworkParams } from '../open';
 import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx, otherCallLines, readCall } from './calls';
@@ -302,6 +303,8 @@ export class DappGateway {
   /** A contract a site registers that the wallet did not know: its names are the site's, and shown as such. */
   async #noteRegistration(args: unknown[]): Promise<void> {
     const [instance] = (await parseArgs('registerContract', args)) as [ContractInstancePreimage];
+    // A class the wallet ships is read through the wallet's own artifact, whatever the site sent (shipped.ts).
+    if (await shippedArtifact(instance.originalContractClassId.toString())) return;
     const address = (await computeContractAddressFromInstance(instance)).toString();
     // Unreadable counts as unknown: the contract is then marked as named by the site, the safe side.
     if (!(await this.wallet.artifactAt(address).catch(() => undefined))) markSiteRegistered(address);
@@ -311,6 +314,7 @@ export class DappGateway {
   async #noteClass(args: unknown[]): Promise<void> {
     const [artifact] = (await parseArgs('registerContractClass', args)) as [ContractArtifact];
     const { id } = await getContractClassFromArtifact(artifact);
+    if (await shippedArtifact(id.toString())) return;
     if (!(await this.wallet.getContractClassMetadata(id)).isArtifactRegistered) markSiteClass(id.toString());
   }
 
@@ -325,7 +329,8 @@ export class DappGateway {
 
   /**
    * An approved transaction, reported to the app as it goes (`dappTx` events) so it lands in the wallet's
-   * activity like the wallet's own: proving, then sent with its hash (the app follows it to a block) or failed.
+   * activity like the wallet's own: proving, then sent with its hash (the app follows it to a block) or failed. One
+   * that fails once the node has it is reported sent: only its receipt can say how it ended.
    */
   async #send(session: ActiveSession, account: string, args: unknown[]): Promise<unknown> {
     const described = await describeTx(args[0], a => this.wallet.artifactAt(a)).catch(err => {
@@ -340,8 +345,15 @@ export class DappGateway {
       this.bridge.emit('dappTx', { ...tx, status: 'sent', txHash: txHashOf(result) });
       return result;
     } catch (err) {
-      this.bridge.emit('dappTx', { ...tx, status: 'failed', error: errorMessage(err) });
-      throw err;
+      // Handed to the node before it failed (wallet.ts): it may be mined, so it is followed, and the site is told not
+      // to send it again.
+      const txHash = (err as { txHash?: string } | null)?.txHash;
+      if (!txHash) {
+        this.bridge.emit('dappTx', { ...tx, status: 'failed', error: errorMessage(err) });
+        throw err;
+      }
+      this.bridge.emit('dappTx', { ...tx, status: 'sent', txHash });
+      throw new Error(`transaction ${txHash} was sent but ${errorMessage(err)}: it may still be mined, do not send it again`);
     }
   }
 

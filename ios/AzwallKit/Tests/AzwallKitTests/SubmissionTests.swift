@@ -25,7 +25,8 @@ struct SubmissionTests {
         #expect(s.activity.first?.txHash == "0xhash1")
     }
 
-    @Test func aSendThatFailsAfterTheHashWasToldKeepsIt() async throws {
+    /// And the store-release audit (F7): failing once the node has it, the send is followed, not called failed.
+    @Test func aSendThatFailsAfterTheHashWasToldIsFollowed() async throws {
         let pxe = FakePxe()
         pxe.deployed = true
         let s = try SessionTests().session(pxe)
@@ -33,11 +34,11 @@ struct SubmissionTests {
         pxe.whileSending = {
             pxe.emit.yield(PxeEvent(name: "txSubmitting", data: try JSONValue.parse(#"{"from":"ADDR-ABAB","txHash":"0xtold"}"#)))
             try await Task.sleep(for: .milliseconds(50))
-            throw PxeError("the wallet engine stopped")
+            throw PxeError("the answer was lost")
         }
-        await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "1") }
-        #expect(s.activity.first?.status == .failed)
+        try await s.send(.private, token: token, to: recipient, amount: "1")
         #expect(s.activity.first?.txHash == "0xtold")
+        #expect(s.activity.first?.status != .failed)
     }
 
     @Test func aTransactionInterruptedWhileSendingIsFollowedAfterARestart() throws {

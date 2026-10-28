@@ -135,11 +135,15 @@ struct DappTx: Codable {
     let txHash: String?
     let error: String?
 
+    /// A hash known for the item (told before sending) is never dropped, and with one the item is pending until its
+    /// receipt says how it ended, even when the send failed after it: it may be mined. A sent transaction without any
+    /// hash cannot be followed: shown as done rather than pending forever.
     func applied(to item: ActivityItem) -> ActivityItem {
         var next = item
+        let hash = txHash ?? item.txHash
         switch status {
-        // A sent transaction without a hash cannot be followed: shown as done rather than pending forever.
-        case "sent": next.status = txHash == nil ? .confirmed : .pending; next.txHash = txHash
+        case "sent": next.status = hash == nil ? .confirmed : .pending; next.txHash = hash
+        case "failed" where hash != nil: next.status = .pending; next.txHash = hash
         case "failed": next.status = .failed; next.error = error
         default: break
         }

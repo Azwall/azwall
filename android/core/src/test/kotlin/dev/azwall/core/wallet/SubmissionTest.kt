@@ -88,23 +88,25 @@ class SubmissionTest {
         assertTrue(pxe.sent.isEmpty())
     }
 
+    /** And the store-release audit (F7): failing once the node has it, the send is followed, not called failed. */
     @Test
-    fun aSendThatFailsAfterTheHashWasToldKeepsIt() = runTest {
+    fun aSendThatFailsAfterTheHashWasToldIsFollowed() = runTest {
         val s = session().apply { open() }
         val stops = CompletableDeferred<Unit>()
         pxe.whileSending = {
             events.emit(submitting("0xtold"))
             stops.await()
-            error("the wallet engine stopped")
+            error("the answer was lost")
         }
-        val sending = async { runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) } }
+        val sending = async { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
         runCurrent()
         stops.complete(Unit)
-        sending.await()
-        val item = s.state.value.activity.first()
-        assertEquals(ActivityStatus.FAILED, item.status)
-        assertEquals("0xtold", item.txHash)
-        assertTrue("it is looked at again on the chain", item in s.store.unsettled())
+        val sent = sending.await()
+        assertEquals(ActivityStatus.PENDING, sent.status)
+        assertEquals("0xtold", sent.txHash)
+        pxe.mined.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(ActivityStatus.CONFIRMED, s.state.value.activity.first().status)
     }
 
     @Test
