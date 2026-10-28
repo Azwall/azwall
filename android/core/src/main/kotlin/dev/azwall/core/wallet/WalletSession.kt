@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -241,8 +242,10 @@ class WalletSession(
 
     fun close() {
         closed = true
-        // Closing only lets the PXE finish its writes: the host is stopped right after either way.
-        pxe?.let { host -> parent.launch { runCatching { host.client.close() }; host.stop() } }
+        // Closing only lets the PXE finish its writes: the host is stopped right after either way. With the app's scope
+        // already gone (its screen destroyed), it is stopped at once: left running, it would keep the keys in memory and
+        // its stores locked, and the wallet could not open again.
+        pxe?.let { host -> if (parent.isActive) parent.launch { runCatching { host.client.close() }; host.stop() } else host.stop() }
         running.value = null
         scope.cancel()
     }

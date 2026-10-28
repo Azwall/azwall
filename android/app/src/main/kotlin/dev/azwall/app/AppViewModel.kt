@@ -205,6 +205,16 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         if (autoLock.foregrounded() && session != null && session.transactions.proving.value == null) lock()
     }
 
+    /**
+     * The screen is gone for good (the back gesture, or the system finishing it): the wallet locks, and its PXE host
+     * stops with it rather than running on with the keys in memory and its stores held open.
+     */
+    override fun onCleared() {
+        (_phase.value as? AppPhase.Unlocked)?.session?.close()
+        deps.approvals.rejectAll()
+        vaultState.forget()
+    }
+
     fun lock() {
         (_phase.value as? AppPhase.Unlocked)?.session?.close()
         // A site's request must not outlive the lock, as on iOS.

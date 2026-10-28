@@ -51,8 +51,14 @@ fun ProvingOverlay(job: ProvingJob, onCancel: () -> Unit) {
     var cancelling by remember(job) { mutableStateOf(false) }
     // Once the proof is handed over, the transaction may reach the network at any moment: no cancel promises otherwise.
     val sending by ProofGate.released.collectAsState()
-    // The overlay covers the app while proving: the system back gesture cancels, like the button.
-    BackHandler(enabled = !cancelling && !sending) { cancelling = true; onCancel() }
+    // The overlay covers the app while proving: the system back gesture cancels, like the button. While sending it does
+    // nothing: let through, it would close the app in the middle of the send.
+    BackHandler(enabled = !cancelling) {
+        if (!sending) {
+            cancelling = true
+            onCancel()
+        }
+    }
     LaunchedEffect(job) {
         while (true) {
             now = System.currentTimeMillis()
