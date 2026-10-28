@@ -1,5 +1,8 @@
 package dev.azwall.app.ui.components
 
+import dev.azwall.core.wallet.Browsing
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -157,4 +160,11 @@ fun SecondaryButton(text: String, enabled: Boolean = true, onClick: () -> Unit) 
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large, content = content)
+}
+
+/** The privacy policy, opened in the phone's browser (not the wallet's: it is no dApp). */
+@Composable
+fun PrivacyPolicyLink(modifier: Modifier = Modifier) {
+    val links = LocalUriHandler.current
+    TextButton(onClick = { links.openUri(Browsing.PRIVACY_POLICY) }, modifier = modifier) { Text("Privacy policy") }
 }

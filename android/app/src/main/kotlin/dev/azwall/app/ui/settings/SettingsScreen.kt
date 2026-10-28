@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
+import dev.azwall.app.ui.components.PrivacyPolicyLink
 import dev.azwall.app.ui.components.Panel
 import dev.azwall.app.ui.onboarding.PhraseGrid
 import dev.azwall.app.ui.theme.MonoStyle
@@ -157,6 +158,7 @@ private fun AboutSection(info: SettingsInfo) = Section("About") {
     Line("Azwall", info.appVersion)
     Line("Rust core", info.coreVersion)
     Line("Provers", info.releases.joinToString(", "))
+    PrivacyPolicyLink()
 }
 
 /** Shows the recovery phrase once, until dismissed; no copy button: it is meant to be written down. */

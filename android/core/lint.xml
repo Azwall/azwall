@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- UniFFI's generated bindings call java.lang.ref.Cleaner (API 33) only after checking it exists at run time,
+         and fall back to JNA's cleaner below API 33: not the defect NewApi looks for. Everything else stays checked. -->
+    <issue id="NewApi">
+        <ignore path="src/generated/**" />
+    </issue>
+</lint>

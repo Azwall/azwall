@@ -36,7 +36,8 @@ enum class SearchEngine(val label: String, private val query: String) {
     STARTPAGE("Startpage", "https://www.startpage.com/do/search?q="),
     ;
 
-    fun search(text: String): String = query + URLEncoder.encode(text, Charsets.UTF_8)
+    // The String overload: the Charset one only exists from API 33, the app runs from API 30.
+    fun search(text: String): String = query + URLEncoder.encode(text, "UTF-8")
 
     companion object {
         val DEFAULT = DUCKDUCKGO
@@ -47,6 +48,9 @@ enum class SearchEngine(val label: String, private val query: String) {
 }
 
 object Browsing {
+    /** The privacy policy (docs/privacy.md, published with the documentation): linked from the app, as Play requires. */
+    const val PRIVACY_POLICY = "https://azwall.github.io/azwall/privacy"
+
     /** Said when this build lacks the network's content script: sites open, but no dApp can reach the wallet. */
     fun noConnectionScript(network: String) =
         "Apps cannot connect to the wallet on $network: this version of Azwall lacks the connection script for it. Update the app."

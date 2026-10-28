@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.ui.components.PrivacyPolicyLink
 import dev.azwall.app.R
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.components.SecondaryButton
@@ -98,6 +99,8 @@ private fun Welcome(onCreate: () -> Unit, onImport: () -> Unit) = Screen {
     PrimaryButton("Create a new wallet", onClick = onCreate)
     Spacer(Modifier.height(12.dp))
     SecondaryButton("Restore a wallet", onClick = onImport)
+    // Before anything is created: what the wallet sends where, and what stays on the phone.
+    PrivacyPolicyLink(Modifier.align(Alignment.CenterHorizontally))
     Spacer(Modifier.height(24.dp))
 }
 

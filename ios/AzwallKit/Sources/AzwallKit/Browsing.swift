@@ -94,6 +94,9 @@ public enum SearchEngine: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum Browsing {
+    /// The privacy policy (docs/privacy.md, published with the documentation): linked from the app, as stores require.
+    public static let privacyPolicy = URL(string: "https://azwall.github.io/azwall/privacy")!
+
     /// Said when this build lacks the network's content script: sites open, but no dApp can reach the wallet.
     public static func noConnectionScript(network: String) -> String {
         "Apps cannot connect to the wallet on \(network): this version of Azwall lacks the connection script for it. Update the app."

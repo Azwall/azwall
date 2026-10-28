@@ -397,6 +397,10 @@ struct PaymentRequestTests {
 }
 
 struct BrowsingTests {
+    @Test func thePrivacyPolicyIsTheOnePublishedWithTheDocs() {
+        #expect(Browsing.privacyPolicy.absoluteString == "https://azwall.github.io/azwall/privacy")
+    }
+
     @Test func aBuildWithoutTheConnectionScriptSaysSoAndWhatToDo() {
         #expect(Browsing.noConnectionScript(network: "Mainnet (v6)")
             == "Apps cannot connect to the wallet on Mainnet (v6): this version of Azwall lacks the connection script for it. Update the app.")

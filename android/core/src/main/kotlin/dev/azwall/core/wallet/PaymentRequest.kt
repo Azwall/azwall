@@ -22,7 +22,7 @@ data class PaymentRequest(val address: String, val network: String? = null, val 
 
         /** Percent-decoding only (a `+` stays a `+`, as on iOS); malformed escapes leave the text as it was. */
         // Malformed escapes in a scanned or pasted URI are expected input, not an error.
-        private fun percentDecoded(v: String): String = runCatching { URLDecoder.decode(v.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(v)
+        private fun percentDecoded(v: String): String = runCatching { URLDecoder.decode(v.replace("+", "%2B"), "UTF-8") }.getOrDefault(v)
 
         /** The request in [text], or null when it is neither an address nor an `aztec:` URI with one. */
         fun parse(text: String): PaymentRequest? {

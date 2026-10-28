@@ -30,6 +30,8 @@ struct SettingsView: View {
                 LabeledContent("Azwall", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
                 LabeledContent("Rust core", value: AzwallRuntime.coreVersion)
                 LabeledContent("Provers", value: AzwallRuntime.proverReleases.joined(separator: ", "))
+                // Opens in Safari, not the wallet's browser: it is no dApp.
+                Link("Privacy policy", destination: Browsing.privacyPolicy)
             }
         }
         .navigationTitle("Settings")

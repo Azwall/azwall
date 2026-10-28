@@ -1,6 +1,7 @@
 package dev.azwall.core.wallet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -46,5 +47,12 @@ class BrowsingTest {
         assertEquals("https://explorer.example/tx/0x0a1B?network=testnet", scan.pageOfTx("0x0a1B"))
         listOf("0x", "0a1b", "0x12/../admin", "0x12?network=mainnet").forEach { assertNull(it, scan.pageOfTx(it)) }
         assertEquals("explorer.example", scan.tile.host)
+    }
+
+    @Test
+    fun thePrivacyPolicyTheAppLinksToIsTheOnePublishedWithTheDocs() {
+        // docs/privacy.md, published at azwall.github.io/azwall: the address Play Console gets too.
+        assertEquals("https://azwall.github.io/azwall/privacy", Browsing.PRIVACY_POLICY)
+        assertTrue(java.io.File("../../docs/privacy.md").exists())
     }
 }

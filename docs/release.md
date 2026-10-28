@@ -58,8 +58,11 @@ Create a test wallet in it, open each network, send a transaction and connect a 
   developer accounts must run a closed test with at least 12 testers for 14 days before open testing and production
   become available.
 - **Privacy policy**: the [privacy policy](privacy.md) page of this site.
-- **Data safety**: no data collected or shared by the developer; data is encrypted in transit; users cannot request
-  deletion because nothing is held (deleting the app deletes everything).
+- **Data safety**: the developer runs no server and receives nothing. The app itself sends data to third parties,
+  though: your account addresses and transactions to the Aztec node's RPC provider (dRPC by default), your address
+  to the Ethereum endpoints (Tenderly, MEV Blocker, 0xrpc.io) to find bridged Fee Juice, and pages to the sites you
+  browse. Check these flows against Google's definitions of "collected" and "shared" before answering; the privacy
+  policy lists them. All of it is encrypted in transit (https); deleting the app deletes everything on the phone.
 - **App category**: Finance. Google Play's policy on cryptocurrency wallets applies: Azwall is a non-custodial
   software wallet.
 - **Content rating**: questionnaire, no objectionable content.

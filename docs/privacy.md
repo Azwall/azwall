@@ -13,7 +13,11 @@ no advertising. Nobody behind Azwall can see your keys, balances, addresses or t
 - **Your recovery phrase and keys.** They are encrypted on the device with a key held by the phone's secure hardware
   (Android Keystore, iOS Keychain), unlocked with your fingerprint, face or device code. They are never sent anywhere
   and are not included in device backups.
-- **Your balances, notes and history.** The wallet computes them on the device, in an encrypted store.
+- **Your balances, notes and history.** The wallet computes them on the device. The PXE's database (your notes and
+  what it syncs from the chain) is encrypted with a key kept in the vault. A cache of what the screen shows (account
+  addresses, the last balances read, the transaction history and the tokens you follow) is kept in the app's private
+  storage, unencrypted by the wallet itself: Android and iOS keep it from other apps, the phone's own encryption
+  protects it at rest, and it is excluded from backups.
 - **Proofs.** Every transaction is proven on the device; what you send is the finished proof, never your keys.
 - **A diagnostic log** of recent errors, with addresses and hashes shortened and web addresses cut to their host. It
   leaves the phone only if you export it yourself from Settings, and only to where you choose to share it.
