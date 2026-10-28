@@ -1,24 +1,36 @@
 // EmbeddedWallet.sendTx signs, without asking, an authorization for every one its simulation requests, on behalf of
-// whichever account the request names. A transaction from one account must never spend another's: while
-// transactions are being sent, an authorization may only be signed for one of their senders.
+// whichever account the request names. A transaction from one account must never spend another's: while a
+// transaction is being sent, an authorization may only be signed for its sender. Sends run one at a time, so "its
+// sender" is never ambiguous: with two in flight, one account's simulation could ask for the other's authorization
+// and pass as one of the senders.
 
 export class SenderGuard {
-  readonly #sending: string[] = [];
+  #sender: string | undefined;
+  #queue: Promise<unknown> = Promise.resolve();
 
-  /** Runs the sending of a transaction from `from`. */
-  async sending<T>(from: string, send: () => Promise<T>): Promise<T> {
-    const who = from.toLowerCase();
-    this.#sending.push(who);
-    try {
-      return await send();
-    } finally {
-      this.#sending.splice(this.#sending.indexOf(who), 1);
-    }
+  /** The account whose transaction is being sent, if any. */
+  get current(): string | undefined {
+    return this.#sender;
+  }
+
+  /** Runs the sending of a transaction from `from`, once every send started before it has ended. */
+  sending<T>(from: string, send: () => Promise<T>): Promise<T> {
+    const turn = this.#queue.then(async () => {
+      this.#sender = from.toLowerCase();
+      try {
+        return await send();
+      } finally {
+        this.#sender = undefined;
+      }
+    });
+    // Its caller gets its failure; the next send only waits for it to end.
+    this.#queue = turn.catch(() => undefined);
+    return turn;
   }
 
   /** Throws when an authorization for `onBehalfOf` would be signed for a transaction another account sends. */
   check(onBehalfOf: string): void {
-    if (this.#sending.length && !this.#sending.includes(onBehalfOf.toLowerCase())) {
+    if (this.#sender !== undefined && this.#sender !== onBehalfOf.toLowerCase()) {
       throw new Error(`a transaction asked to authorize an action for another account (${onBehalfOf.slice(0, 10)}…): refused`);
     }
   }

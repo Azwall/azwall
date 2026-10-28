@@ -2,6 +2,7 @@
 import { Fr } from '@aztec/foundation/curves/bn254';
 import { jsonStringify } from '@aztec/foundation/json-rpc';
 import { AztecAddress } from '@aztec/stdlib/aztec-address';
+import { FunctionSelector, FunctionType, type ContractArtifact } from '@aztec/stdlib/abi';
 import { ExecutionPayload } from '@aztec/stdlib/tx';
 import { describe, expect, it } from 'vitest';
 
@@ -41,19 +42,32 @@ describe('a site request, in the form the wallet runs it', () => {
 });
 
 describe('a transaction summary', () => {
+  const fn = (name: string) => ({ name, functionType: FunctionType.PUBLIC, parameters: [] });
+  const artifact = { name: 'Token', functions: [], nonDispatchPublicFunctions: [fn('transfer_in_public'), fn('set_admin')] } as unknown as ContractArtifact;
+  const known = async (a: string) => (a === token ? artifact : undefined);
+  const call = async (name: string, to = token) => ({ name, to, selector: (await FunctionSelector.fromNameAndParameters(name, [])).toString(), args: [] });
+
   it('still lists the calls next to the balance changes it shows', async () => {
     const payload = {
-      calls: [
-        { name: 'transfer', to: token },
-        { name: 'set_authorized', to: address(0xdd), hideMsgSender: true },
-      ],
+      calls: [await call('transfer_in_public'), { name: 'set_authorized', to: address(0xdd), hideMsgSender: true }],
       authWitnesses: [{}],
     };
-    const lines = await otherCallLines(payload, async () => undefined, new Set([token]));
+    const lines = await otherCallLines(payload, known, new Set([token]));
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain('set_authorized');
     expect(lines[0]).toContain('hides that you call it');
     expect(lines[1]).toBe('1 authorization(s) attached');
+  });
+
+  it('does not hide another call to a token behind that token\'s balance change', async () => {
+    const lines = await otherCallLines({ calls: [await call('transfer_in_public'), await call('set_admin')] }, known, new Set([token]));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('set_admin');
+  });
+
+  it('shows a transfer to a listed token the wallet cannot verify', async () => {
+    const lines = await otherCallLines({ calls: [{ name: 'transfer_in_public', to: token }] }, async () => undefined, new Set([token]));
+    expect(lines[0]).toContain('unverified');
   });
 });
 
@@ -67,6 +81,30 @@ describe('authorizations signed while sending', () => {
     });
     await guard.sending('NO_FROM', async () => expect(() => guard.check(me)).toThrow('another account'));
     expect(() => guard.check(other)).not.toThrow();
+  });
+
+  it('are for the sender of the send under way, even while another account\'s send waits', async () => {
+    const guard = new SenderGuard();
+    let finishOther!: () => void;
+    const held = new Promise<void>(resolve => { finishOther = resolve; });
+    const sendingOther = guard.sending(other, () => held);
+    let ran = false;
+    const sendingMe = guard.sending(me, async () => {
+      ran = true;
+      expect(() => guard.check(other)).toThrow('another account');
+    });
+    await Promise.resolve();
+    expect(ran).toBe(false); // waits for the other account's send to end
+    expect(() => guard.check(me)).toThrow('another account');
+    finishOther();
+    await Promise.all([sendingOther, sendingMe]);
+    expect(ran).toBe(true);
+  });
+
+  it('go on after a send that failed', async () => {
+    const guard = new SenderGuard();
+    await expect(guard.sending(other, async () => { throw new Error('rejected'); })).rejects.toThrow('rejected');
+    await expect(guard.sending(me, async () => guard.current)).resolves.toBe(me);
   });
 });
 

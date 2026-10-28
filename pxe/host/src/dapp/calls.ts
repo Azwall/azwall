@@ -22,6 +22,21 @@ export type ReadCall = { name: string; line: string; fee: boolean; contract?: st
 export const FEE_FUNCTIONS = new Set(['sponsor_unconditionally', 'fee_entrypoint_private', 'fee_entrypoint_public']);
 
 /**
+ * Token functions whose whole effect is a change of balances: next to the balance changes a summary lists, they say
+ * nothing more. Any other call to the same token (an admin change, a minter, an unknown function) is still shown.
+ */
+const BALANCE_FUNCTIONS = new Set([
+  'transfer',
+  'transfer_in_private',
+  'transfer_in_public',
+  'transfer_to_private',
+  'transfer_to_public',
+  'transfer_to_public_and_prepare_private_balance_increase',
+  'burn_private',
+  'burn_public',
+]);
+
+/**
  * The contracts whose fee functions really pay fees: the network's Sponsored FPC (open.ts). A function name proves
  * nothing, since a site can register its own contract with a function named like these; only these addresses count.
  */
@@ -124,7 +139,7 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
 
 /**
  * The calls of a transaction the summary must still show next to its balance changes: every call but its fee payment
- * and those to the tokens whose changes it lists (`shown`); then what it attaches. A visible "You send 1 USDC" must
+ * and the transfers and burns of the tokens whose changes it lists (`shown`); then what it attaches. A visible "You send 1 USDC" must
  * not hide an authorization given to someone else in the same transaction.
  */
 export async function otherCallLines(payload: unknown, artifactOf: ArtifactOf, shown: Set<string>): Promise<string[]> {
@@ -133,7 +148,9 @@ export async function otherCallLines(payload: unknown, artifactOf: ArtifactOf, s
   const read = await Promise.all(calls.map(c => readCall(c, artifactOf)));
   const lines = calls.flatMap((c, i) => {
     const to = String(obj(c).to ?? '').toLowerCase();
-    if (read[i].fee || shown.has(to)) return [];
+    // Only a verified balance function of a listed token is said by its changes; an unverified call is shown as it is.
+    const said = shown.has(to) && read[i].fn !== undefined && BALANCE_FUNCTIONS.has(read[i].name);
+    if (read[i].fee || said) return [];
     return [obj(c).hideMsgSender === true ? `${read[i].line} (hides that you call it)` : read[i].line];
   });
   const authwits = list(p.authWitnesses).length;
