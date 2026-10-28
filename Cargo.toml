@@ -23,3 +23,5 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 codegen-units = 1
+# The shipped library carries no symbol table: smaller, and no source paths or internal names in the store upload.
+strip = "symbols"

@@ -1,5 +1,6 @@
 package dev.azwall.app.ui.browser
 
+import dev.azwall.app.BuildConfig
 import android.content.Context
 import androidx.webkit.WebViewFeature
 import dev.azwall.core.DiagnosticLog
@@ -83,11 +84,14 @@ class BrowserTabs(private val context: Context, private val onPageClosed: (Int) 
             WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
                 WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
 
-        /** dApps must be served over https; http only for local development. */
-        fun allowedOrigin(origin: String): Boolean {
+        /**
+         * dApps must be served over https; http on this device only in debug builds, for local development: in a
+         * release, any app on the phone could serve a "dApp" there.
+         */
+        fun allowedOrigin(origin: String, local: Boolean = BuildConfig.DEBUG): Boolean {
             // An origin that does not parse is simply not allowed.
             val uri = runCatching { URI(origin) }.getOrNull() ?: return false
-            return uri.scheme == "https" || (uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1"))
+            return uri.scheme == "https" || (local && uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1"))
         }
     }
 }

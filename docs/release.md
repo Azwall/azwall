@@ -32,12 +32,13 @@ Without this file the release is built unsigned.
 2. Build the native libraries and the bundle:
 
    ```bash
-   scripts/build-android.sh
+   scripts/build-android.sh --release arm64-v8a
    cd android && ./gradlew :app:bundleRelease
    ```
 
-   The bundle is `android/app/build/outputs/bundle/release/app-release.aab`. Google Play delivers each phone only its
-   own architecture.
+   The bundle is `android/app/build/outputs/bundle/release/app-release.aab`. The build refuses to go on with a debug
+   Rust core, or with an RPC endpoint from `.env` (it may carry an API key, which anyone could read in the bundle):
+   empty those keys for a release.
 
 ## Trying the release build first
 

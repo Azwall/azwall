@@ -36,4 +36,8 @@ for abi in "${ABIS[@]}"; do
 done
 
 scripts/gen-bindings.sh kotlin
-echo "Android native libraries staged in $JNI"
+# What was staged, for the release build to check (android/app/build.gradle.kts): never a debug Rust core in a store
+# upload, and every architecture it ships.
+mkdir -p build
+echo "${PROFILE[0]:-debug} ${ABIS[*]}" | sed 's/^--release/release/' > build/android-natives
+echo "Android native libraries staged in $JNI ($(cat build/android-natives))"

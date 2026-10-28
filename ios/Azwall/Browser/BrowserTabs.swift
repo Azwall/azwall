@@ -97,9 +97,16 @@ final class BrowserTabs {
         if let link { Task { await link.closePage(page) } }
     }
 
-    /// dApps must be served over https; plain http only from this device (dApp development).
-    static func allowedOrigin(_ origin: String) -> Bool {
+    /// dApps must be served over https; plain http from this device only in debug builds, for dApp development: in
+    /// a release, any app on the phone could serve a "dApp" there.
+    static func allowedOrigin(_ origin: String, local: Bool = debugBuild) -> Bool {
         guard let url = URL(string: origin), let host = url.host() else { return false }
-        return url.scheme == "https" || (url.scheme == "http" && (host == "localhost" || host == "127.0.0.1"))
+        return url.scheme == "https" || (local && url.scheme == "http" && (host == "localhost" || host == "127.0.0.1"))
     }
+
+    #if DEBUG
+    static let debugBuild = true
+    #else
+    static let debugBuild = false
+    #endif
 }

@@ -6,11 +6,13 @@ import android.content.pm.ApplicationInfo
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebChromeClient
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
 import dev.azwall.core.DiagnosticLog
@@ -65,7 +67,7 @@ class PxeHost private constructor(
             val verbose = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
             scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect { logEvent(it, verbose) } }
             val ready = scope.async(start = CoroutineStart.UNDISPATCHED) { channel.events.first { it.name == "ready" } }
-            webView = withContext(Dispatchers.Main) { createWebView(context.applicationContext, channel, bundle) }
+            webView = withContext(Dispatchers.Main) { createWebView(context.applicationContext, channel, bundle, verbose) }
             val host = PxeHost(bundle, webView, channel, scope)
             val event = try {
                 withTimeout(READY_TIMEOUT_MS) { ready.await() }
@@ -79,7 +81,7 @@ class PxeHost private constructor(
         }
 
         @SuppressLint("SetJavaScriptEnabled")
-        private fun createWebView(context: Context, channel: PxeChannel, bundle: String): WebView {
+        private fun createWebView(context: Context, channel: PxeChannel, bundle: String, verbose: Boolean): WebView {
             val loader = WebViewAssetLoader.Builder()
                 .setDomain(HOST)
                 .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
@@ -91,6 +93,10 @@ class PxeHost private constructor(
                 settings.allowContentAccess = false
                 // The system may end the web view's process (memory): the app goes on, the host is stopped.
                 webViewClient = AssetClient(loader) { channel.close("the wallet engine stopped: the system ended it, often to free memory") }
+                // The WebView copies the page's console to logcat, addresses and hashes included: debug builds only.
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(message: ConsoleMessage): Boolean = !verbose
+                }
                 addJavascriptInterface(Bridge(channel), "AzwallAndroid")
                 loadUrl("https://$HOST/assets/pxe/$bundle/index.html")
             }
@@ -103,8 +109,9 @@ class PxeHost private constructor(
             val message = data?.get("message")?.jsonPrimitive?.content ?: event.data.toString()
             val scope = data?.get("scope")?.jsonPrimitive?.content ?: "pxe"
             when (data?.get("level")?.jsonPrimitive?.content) {
-                "error" -> Log.e(TAG, "[$scope] $message").also { DiagnosticLog.shared.record(DiagnosticLog.Level.ERROR, "pxe $scope", message) }
-                "warn" -> Log.w(TAG, "[$scope] $message").also { DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "pxe $scope", message) }
+                // Logcat is readable over adb and by bug reports: the same redaction as the exportable log.
+                "error" -> Log.e(TAG, "[$scope] ${DiagnosticLog.redact(message)}").also { DiagnosticLog.shared.record(DiagnosticLog.Level.ERROR, "pxe $scope", message) }
+                "warn" -> Log.w(TAG, "[$scope] ${DiagnosticLog.redact(message)}").also { DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "pxe $scope", message) }
                 else -> if (verbose) Log.i(TAG, "[$scope] $message")
             }
         }
