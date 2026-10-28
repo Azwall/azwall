@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -209,8 +210,11 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         backgroundLock?.cancel()
         backgroundLock = viewModelScope.launch {
             delay(AutoLock.DEFAULT_MS)
-            val session = (_phase.value as? AppPhase.Unlocked)?.session
-            if (session != null && session.transactions.proving.value == null) lock()
+            val session = (_phase.value as? AppPhase.Unlocked)?.session ?: return@launch
+            // A transaction on its way (the wallet's or a dApp's) ends first: locking would stop it midway. Then the
+            // wallet locks, still in the background, rather than staying open until the app comes back.
+            session.sending.first { !it }
+            lock()
         }
     }
 
@@ -219,7 +223,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         backgroundLock?.cancel()
         backgroundLock = null
         val session = (_phase.value as? AppPhase.Unlocked)?.session
-        if (autoLock.foregrounded() && session != null && session.transactions.proving.value == null) lock()
+        if (autoLock.foregrounded() && session != null && !session.isSending) lock()
     }
 
     /**

@@ -25,6 +25,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,10 +49,20 @@ import dev.azwall.core.wallet.SiteName
  * its emojis), and nothing but the two buttons answers the request. The panel collapses to its title and
  * buttons, like an accordion, to give the page back most of the screen.
  */
+/** How long a new request's buttons ignore taps. */
+private const val ARM_DELAY_MS = 500L
+
 @Composable
 fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
     var expanded by rememberSaveable(request.id) { mutableStateOf(true) }
     var showsAll by rememberSaveable(request.id) { mutableStateOf(false) }
+    // A request a page raised under the user's finger (timed to a tap on its own button) must not be answered by that
+    // tap: the buttons wait half a second after each new request.
+    var armed by remember(request.id) { mutableStateOf(false) }
+    LaunchedEffect(request.id) {
+        delay(ARM_DELAY_MS)
+        armed = true
+    }
     if (showsAll) {
         ApprovalDetailsSheet(request, onDecide = { showsAll = false; onDecide(it) }, onDismiss = { showsAll = false })
     }
@@ -63,8 +76,8 @@ fun ApprovalPanel(request: ApprovalRequest, onDecide: (Boolean) -> Unit) {
             Header(request, expanded) { expanded = !expanded }
             if (expanded) Body(request) { showsAll = true }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { onDecide(false) }, modifier = Modifier.weight(1f).height(48.dp)) { Text(rejectLabel(request.kind)) }
-                Button(onClick = { onDecide(true) }, modifier = Modifier.weight(1f).height(48.dp)) { Text(approveLabel(request.kind)) }
+                OutlinedButton(onClick = { onDecide(false) }, enabled = armed, modifier = Modifier.weight(1f).height(48.dp)) { Text(rejectLabel(request.kind)) }
+                Button(onClick = { onDecide(true) }, enabled = armed, modifier = Modifier.weight(1f).height(48.dp)) { Text(approveLabel(request.kind)) }
             }
         }
     }

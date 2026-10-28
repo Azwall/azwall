@@ -19,6 +19,12 @@ describe('confine', () => {
     expect(confine('createAuthWit', [me, {}], me, [other])).toEqual([me, {}]);
   });
 
+  // 2026-10-28 store-release audit (F18): a profile needs no approval, so it never runs the phone's prover.
+  it('lets a site profile a transaction without proving it', () => {
+    const [, opts] = confine('profileTx', [{ calls: [] }, { from: me, skipProofGeneration: false }], me, [other]);
+    expect(opts).toMatchObject({ from: me, skipProofGeneration: true });
+  });
+
   it('reads for its account only', () => {
     expect(confine('getPrivateEvents', [{}, { scopes: [other] }], me, [other])[1]).toEqual({ scopes: [me] });
     expect(confine('executeUtility', [{}, { scopes: [contract, other] }], me, [other])[1]).toEqual({ scopes: [contract] });

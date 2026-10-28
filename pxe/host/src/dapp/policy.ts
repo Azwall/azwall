@@ -34,7 +34,13 @@ export function confine(method: string, args: unknown[], account: string, others
     case 'profileTx':
     case 'sendTx':
       if (opts.from !== 'NO_FROM' && !same(opts.from, account)) throw new NotGranted('this site may only act as the account you connected');
-      return [args[0], { ...opts, additionalScopes: Array.isArray(opts.additionalScopes) ? list(opts.additionalScopes).filter(a => !isOther(a)) : opts.additionalScopes }];
+      return [args[0], {
+        ...opts,
+        additionalScopes: Array.isArray(opts.additionalScopes) ? list(opts.additionalScopes).filter(a => !isOther(a)) : opts.additionalScopes,
+        // A profile asks for no approval: it may count gates, never run the phone's prover (which also holds the user's
+        // own Cancel while it does).
+        ...(method === 'profileTx' ? { skipProofGeneration: true } : {}),
+      }];
     case 'executeUtility':
     case 'getPrivateEvents':
       return [args[0], { ...opts, scopes: scopes(opts.scopes) }];

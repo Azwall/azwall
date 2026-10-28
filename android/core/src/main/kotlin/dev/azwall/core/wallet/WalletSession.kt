@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
@@ -162,6 +163,18 @@ class WalletSession(
     private var arrivalsOf: String? = null
     val transactions = Transactions(this)
     val dapps = DappLink(this)
+
+    /**
+     * Whether a transaction is on its way, the wallet's own or a dApp's: being proven or handed to the node. Locking then
+     * would stop it midway, so the auto-lock waits for it (AppViewModel).
+     */
+    val sending: Flow<Boolean> get() = combine(transactions.proving, state) { proving, s -> isSending(proving, s) }
+
+    /** [sending], now. */
+    val isSending: Boolean get() = isSending(transactions.proving.value, state.value)
+
+    private fun isSending(proving: ProvingJob?, s: SessionState) =
+        proving != null || s.activity.any { it.kind == ActivityKind.DAPP && it.status == ActivityStatus.PROVING }
 
     /** Events of the running PXE host (they restart with it). */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
