@@ -330,12 +330,24 @@ class WalletSession(
         }
     }
 
+    /**
+     * The vault as it is now, accounts added or renamed in this session included: what a session started after this
+     * one (Retry, another network) must start from, or its next write would drop them.
+     */
+    val vaultContents: VaultContents get() = contents
+
+    /** One vault write at a time: each starts from what the one before wrote. */
+    private val vaultWrites = Mutex()
+
     /** Creates a fresh account, or imports one from its signing key, and saves it in the vault. */
     suspend fun addAccount(alias: String, importedKey: String? = null): AccountView {
-        val secrets = Recovery.nextAccount(contents, alias, importedKey, backend)
-        // Off the main thread: sealing the vault waits for the user to authenticate (PromptedSecretBox).
-        val current = contents
-        contents = withContext(Dispatchers.IO) { vault.addAccount(current, secrets) }
+        val secrets = vaultWrites.withLock {
+            val secrets = Recovery.nextAccount(contents, alias, importedKey, backend)
+            // Off the main thread: sealing the vault waits for the user to authenticate (PromptedSecretBox).
+            val current = contents
+            contents = withContext(Dispatchers.IO) { vault.addAccount(current, secrets) }
+            secrets
+        }
         val view = register(secrets)
         _state.update { it.copy(accounts = it.accounts + view) }
         // Like any switch: the previous account's balances and suggestions must not show under the new one.
@@ -345,8 +357,10 @@ class WalletSession(
 
     suspend fun renameAccount(address: String, alias: String) {
         val account = _state.value.accounts.firstOrNull { it.address == address } ?: return
-        val current = contents
-        contents = withContext(Dispatchers.IO) { vault.renameAccount(current, account.signingKey, alias) }
+        vaultWrites.withLock {
+            val current = contents
+            contents = withContext(Dispatchers.IO) { vault.renameAccount(current, account.signingKey, alias) }
+        }
         _state.update { s -> s.copy(accounts = s.accounts.map { if (it.address == address) it.copy(alias = alias.trim()) else it }) }
     }
 

@@ -168,7 +168,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         current.close()
         deps.approvals.rejectAll()
         deps.lastNetwork = id
-        start(contents ?: error("the wallet is locked"))
+        // The session's contents, not the copy taken at unlock: accounts added or renamed since are in them.
+        start(current.vaultContents)
     }
 
     /** Starts the network's session again: after it failed to open, or its PXE host stopped. */
@@ -176,7 +177,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         val current = (_phase.value as? AppPhase.Unlocked)?.session ?: return@action
         current.close()
         deps.approvals.rejectAll()
-        start(contents ?: error("the wallet is locked"))
+        start(current.vaultContents)
     }
 
     private val autoLock = AutoLock()

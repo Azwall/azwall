@@ -39,6 +39,8 @@ class LifecycleTest {
     @After
     fun reset() = Dispatchers.resetMain()
 
+    private lateinit var saved: Vault
+
     private val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0", "6.0.0", "node", "v6", true)
 
     private val backend = object : WalletBackend {
@@ -62,6 +64,7 @@ class LifecycleTest {
             override fun open(sealed: ByteArray) = sealed
         }
         val vault = Vault(tmp.root.resolve("vault"), plain).apply { create(AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT)) }
+        saved = vault
         val vm = AppViewModel(object : AppDeps {
             override val backend: WalletBackend get() = this@LifecycleTest.backend
             override val vault = vault
@@ -111,5 +114,19 @@ class LifecycleTest {
         advanceUntilIdle()
         val again = (vm.phase.value as AppPhase.Unlocked).session
         assertNotSame(failed, again)
+    }
+
+    @Test
+    fun accountsAddedBeforeARetryAreKeptByTheNextWrite() = runTest {
+        // From the 2026-10-28 audit (docs/audits): an imported key was dropped from the vault after a retry.
+        val vm = unlocked()
+        vm.addAccount("second", "0x" + "02".repeat(32)) { true }.join()
+        advanceUntilIdle()
+        vm.restart()
+        advanceUntilIdle()
+        vm.renameAccount("unknown", "x") { true }.join()
+        vm.addAccount("third", "0x" + "03".repeat(32)) { true }.join()
+        advanceUntilIdle()
+        assertEquals(listOf("main", "second", "third"), saved.unlock().accounts.map { it.alias })
     }
 }
