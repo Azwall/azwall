@@ -179,6 +179,15 @@ struct SessionTests {
         #expect(s.tokens.first?.total == "2500000")
     }
 
+    @Test func anAccountNotActivatedYetShowsWhatItReceived() async throws {
+        let pxe = FakePxe()
+        let s = try session(pxe)
+        await s.open()
+        try await s.addToken("0xt")
+        #expect(s.account?.deployed == false)
+        #expect(s.tokens.first?.total == "2500000")
+    }
+
     @Test func aCancelledTransactionIsNeverSent() async throws {
         let pxe = FakePxe()
         pxe.deployed = true

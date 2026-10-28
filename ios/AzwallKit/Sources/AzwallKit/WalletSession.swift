@@ -256,7 +256,8 @@ public final class WalletSession {
         do {
             let deployed = try await client.isDeployed(account.address)
             let followed = store.tokens
-            let balances = deployed && !followed.isEmpty ? try await client.balances(owner: account.address, tokens: followed.map(\.address)) : []
+            // An account receives before it is activated: balances are utility and public reads, without its contract.
+            let balances = followed.isEmpty ? [] : try await client.balances(owner: account.address, tokens: followed.map(\.address))
             if let i = accounts.firstIndex(where: { $0.address == account.address }) { accounts[i].deployed = deployed }
             if current() {
                 tokens = followed.map { info in TokenView(info: info, balance: balances.first { $0.token.lowercased() == info.address.lowercased() }) }
@@ -272,7 +273,7 @@ public final class WalletSession {
         }
         task = nil
         // Independent of the balances: a token that cannot be read must not hide the others found.
-        if current() && self.account?.deployed == true { await discover(owner: account.address) }
+        if current() { await discover(owner: account.address) }
         // What was bridged to it: claimed by its activation, or by itself once active.
         let secrets = store.claimSecrets(account: account.address)
         if current(), let found = await DiagnosticLog.shared.attempt("feeJuice", { try await client.feeJuiceDeposits(account.address, secrets: secrets) }),

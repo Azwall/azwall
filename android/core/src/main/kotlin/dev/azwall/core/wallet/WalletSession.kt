@@ -251,7 +251,8 @@ class WalletSession(
         try {
             val deployed = client.isDeployed(account.address)
             val tokens = store.tokens
-            val balances = if (deployed && tokens.isNotEmpty()) client.balances(account.address, tokens.map { it.address }) else emptyList()
+            // An account receives before it is activated: balances are utility and public reads, without its contract.
+            val balances = if (tokens.isNotEmpty()) client.balances(account.address, tokens.map { it.address }) else emptyList()
             _state.update { s ->
                 val accounts = s.accounts.map { if (it.address == account.address) it.copy(deployed = deployed) else it }
                 if (s.selected != account.address) return@update s.copy(accounts = accounts)
@@ -272,7 +273,7 @@ class WalletSession(
             _state.update { it.copy(refreshing = false, task = null) }
         }
         // Independent of the balances: a token that cannot be read must not hide the others found.
-        if (current() && _state.value.account?.deployed == true) discoverTokens(account.address)
+        if (current()) discoverTokens(account.address)
         if (current()) refreshFeeJuice(account.address)
     }
 

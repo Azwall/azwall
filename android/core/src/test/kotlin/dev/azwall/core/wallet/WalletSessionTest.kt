@@ -92,6 +92,14 @@ class WalletSessionTest {
     }
 
     @Test
+    fun anAccountNotActivatedYetShowsWhatItReceived() = runTest {
+        val s = session().apply { open() }
+        s.addToken("0xt")
+        assertEquals(false, s.state.value.account?.deployed)
+        assertEquals(BigInteger("2500000"), s.state.value.tokens.single().balance?.privateAmount)
+    }
+
+    @Test
     fun aCancelledTransactionIsNeverSent() = runTest {
         pxe.deployed = true
         val s = session().apply { open() }
