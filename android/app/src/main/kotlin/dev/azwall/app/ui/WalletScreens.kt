@@ -111,7 +111,8 @@ fun WalletScreens(vm: AppViewModel, session: WalletSession, busy: Boolean, auth:
         }
     }
     WalletSheets(vm, session, sheet, busy, auth) { sheet = Sheet.NONE }
-    proving?.let { ProvingOverlay(it, onCancel = session.transactions::cancel) }
+    // A cancel that comes too late (the proof already released) changes nothing: the overlay then says it is sending.
+    proving?.let { ProvingOverlay(it, onCancel = { session.transactions.cancel() }) }
 }
 
 @Composable

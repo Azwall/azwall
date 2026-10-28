@@ -103,9 +103,12 @@ extension WalletSession {
         await winding?.value
     }
 
-    public func cancelProving() {
-        gate.cancel()
+    /// False once its proof was released: the transaction may already be on the network, so it is followed instead.
+    @discardableResult
+    public func cancelProving() -> Bool {
+        guard gate.cancel() else { return false }
         stopProving?()
+        return true
     }
 
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
@@ -127,6 +130,8 @@ extension WalletSession {
             sent.status = .pending
         } catch {
             sent.status = .failed
+            // A hash told before sending (followSubmission) stays, so the history can be checked against the chain.
+            sent.txHash = store.item(id: draft.id)?.txHash
             sent.error = error is CancelledByUser ? "Cancelled" : error.localizedDescription
             record(sent)
             throw error

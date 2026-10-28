@@ -46,8 +46,8 @@ class AndroidPxeLauncher(
         val request = Base64.getDecoder().decode(params["request"]!!.jsonPrimitive.content)
         ProofGate.check()
         val response = withContext(Dispatchers.Default) { backend().prove(network, request) }
-        // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction.
-        ProofGate.check()
+        // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction. Past this, it may.
+        ProofGate.release()
         buildJsonObject { put("response", Base64.getEncoder().encodeToString(response)) }
     }
 }

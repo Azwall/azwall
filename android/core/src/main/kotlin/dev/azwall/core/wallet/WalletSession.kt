@@ -175,6 +175,7 @@ class WalletSession(
         store.seed(network.knownTokens)
         Snapshots.restore(_state.value, contents, store)?.let { restored -> _state.value = restored }
         scope.launch { dapps.followActivity() }
+        scope.launch { transactions.followSubmissions() }
         // Only warms the prover ahead of the first transaction; the log keeps why it could not.
         scope.launch(Dispatchers.Default) { runCatching { backend.prepareProver(network.id) }.onFailure { DiagnosticLog.shared.report("prover", it) } }
         try {

@@ -60,15 +60,24 @@ struct ProvingView: View {
                     Image("Logo").resizable().scaledToFit().frame(width: 52, height: 52)
                 }
                 .frame(width: 96, height: 96)
-                Text("\(provingTitle(item.kind))…").font(.title2.bold())
-                Text("Generating a zero-knowledge proof on this phone. Nothing leaves the device until the proof is ready.")
-                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
-                TimelineView(.periodic(from: since, by: 1)) { context in
-                    Text("\(Int(context.date.timeIntervalSince(since))) s · usually 15 to 30 s").font(.headline).foregroundStyle(Palette.privateFunds)
+                // Read on every tick: once the proof is handed over, the transaction may reach the network at any
+                // moment, and no cancel promises otherwise.
+                TimelineView(.periodic(from: since, by: 0.5)) { context in
+                    let sending = ProofGate.shared.released
+                    VStack(spacing: 16) {
+                        Text(sending ? "Sending to the network…" : "\(provingTitle(item.kind))…").font(.title2.bold())
+                        Text(sending
+                            ? "The proof is ready and the transaction is on its way. It can no longer be cancelled; the activity follows it."
+                            : "Generating a zero-knowledge proof on this phone. Nothing leaves the device until the proof is ready.")
+                            .multilineTextAlignment(.center).foregroundStyle(.secondary)
+                        Text("\(Int(context.date.timeIntervalSince(since))) s · usually 15 to 30 s").font(.headline).foregroundStyle(Palette.privateFunds)
+                        // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent. Once released, it is too late.
+                        if !sending {
+                            Button(cancelling ? "Cancelling, nothing will be sent…" : "Cancel") { cancelling = true; onCancel() }
+                                .buttonStyle(.bordered).disabled(cancelling)
+                        }
+                    }
                 }
-                // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent.
-                Button(cancelling ? "Cancelling, nothing will be sent…" : "Cancel") { cancelling = true; onCancel() }
-                    .buttonStyle(.bordered).disabled(cancelling)
             }
             .padding(32)
         }

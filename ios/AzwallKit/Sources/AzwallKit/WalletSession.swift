@@ -121,8 +121,9 @@ public final class WalletSession {
 
     private let backend: WalletBackend
     private let launcher: PxeLauncher
-    private let vault: Vault
-    private var contents: VaultContents
+    /// The unlocked vault, shared with every session (VaultState): read live, never copied.
+    private let vaultState: VaultState
+    private var contents: VaultContents { get throws { try vaultState.contents() } }
     let store: WalletStore
     private var pxe: RunningPxe?
     @ObservationIgnored private var eventLoop: Task<Void, Never>?
@@ -132,14 +133,13 @@ public final class WalletSession {
     let gate: ProofGate
 
     public init(
-        backend: WalletBackend, launcher: PxeLauncher, vault: Vault, contents: VaultContents, storeDirectory: URL, network: NetworkInfo,
+        backend: WalletBackend, launcher: PxeLauncher, vaultState: VaultState, storeDirectory: URL, network: NetworkInfo,
         gate: ProofGate = .shared
     ) {
         self.gate = gate
         self.backend = backend
         self.launcher = launcher
-        self.vault = vault
-        self.contents = contents
+        self.vaultState = vaultState
         self.network = network
         store = WalletStore(directory: storeDirectory, networkId: network.id)
         storeUnreadable = store.startedOver
@@ -168,12 +168,12 @@ public final class WalletSession {
             pxe = running
             await listen(running)
             let params = try await Task.detached { try backend.pxeOpenParams(networkId: id) }.value
-            check = try await running.client.open(networkParamsJSON: params, dbKey: contents.dbKey)
+            check = try await running.client.open(networkParamsJSON: params, dbKey: try contents.dbKey)
             if let check { adopt(check) }
             // Registering keeps what the snapshot knew of each account until the refresh reads it again.
             let known = accounts
             var views: [AccountView] = []
-            for secrets in contents.accounts {
+            for secrets in try contents.accounts {
                 var view = try await register(secrets)
                 view.deployed = known.first { $0.address == view.address }?.deployed
                 views.append(view)
@@ -294,9 +294,25 @@ public final class WalletSession {
             for await event in events {
                 guard let self else { return }
                 if event.name == PxeChannel.closed { self.hostStopped(event.data.stringValue) }
+                if event.name == "txSubmitting" { self.followSubmission(event.data) }
                 _ = self.dapps.handle(event)
             }
         }
+    }
+
+    /// Keeps a transaction's hash from the moment the PXE sends it (`txSubmitting`): a wallet that stops before the
+    /// node's answer still follows it, rather than calling failed a transaction that may be mined.
+    private func followSubmission(_ data: JSONValue) {
+        guard let hash = data["txHash"]?.stringValue else {
+            DiagnosticLog.shared.record(.warn, "transactions", "a transaction was sent without its hash being told")
+            return
+        }
+        let from = data["from"]?.stringValue?.lowercased()
+        let waiting = store.proving().filter { $0.txHash == nil && (from == nil || $0.account.lowercased() == from) }
+        // Two transactions of that account being proven: which one this is cannot be told, and none is guessed.
+        guard waiting.count == 1, var item = waiting.first else { return }
+        item.txHash = hash
+        record(item)
     }
 
     /// The host can stop on its own (the system ends its web view to free memory): every call would fail from then on,
@@ -311,9 +327,12 @@ public final class WalletSession {
 
     /// Creates a fresh account, or imports one from its key, and saves it in the vault.
     public func addAccount(alias: String, importedKey: String?) async throws {
-        let secrets = try Recovery.nextAccount(contents, alias: alias, importedKey: importedKey, backend: backend)
-        let vault = vault, current = contents
-        contents = try await Task.detached { try vault.addAccount(current, secrets) }.value
+        let backend = backend
+        // From the vault as the last save left it, never from a copy this session took.
+        let secrets = try await vaultState.change { vault, current in
+            let secrets = try Recovery.nextAccount(current, alias: alias, importedKey: importedKey, backend: backend)
+            return (try vault.addAccount(current, secrets), secrets)
+        }
         let view = try await register(secrets)
         accounts.append(view)
         await select(view.address)
@@ -322,8 +341,8 @@ public final class WalletSession {
     public func renameAccount(_ address: String, alias rawAlias: String) async throws {
         let alias = rawAlias.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let account = accounts.first(where: { $0.address == address }) else { return }
-        let vault = vault, current = contents
-        contents = try await Task.detached { try vault.renameAccount(current, signingKey: account.signingKey, alias: alias) }.value
+        let key = account.signingKey
+        try await vaultState.change { vault, current in (try vault.renameAccount(current, signingKey: key, alias: alias), ()) }
         if let i = accounts.firstIndex(where: { $0.address == address }) { accounts[i].alias = alias }
     }
 
@@ -353,11 +372,11 @@ public final class WalletSession {
     }
 
     /// The vault's accounts, for the snapshot (Snapshot.swift).
-    var vaultAccounts: [AccountSecrets] { contents.accounts }
+    var vaultAccounts: [AccountSecrets] { vaultState.current?.accounts ?? [] }
 
     func secrets(of address: String) throws -> AccountSecrets {
         guard let account = accounts.first(where: { $0.address == address }),
-              let secrets = contents.accounts.first(where: { $0.signingKey == account.signingKey }) else { throw PxeError("unknown account") }
+              let secrets = try contents.accounts.first(where: { $0.signingKey == account.signingKey }) else { throw PxeError("unknown account") }
         return secrets
     }
 

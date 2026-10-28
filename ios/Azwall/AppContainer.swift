@@ -110,8 +110,8 @@ struct IosPxeLauncher: PxeLauncher {
             }
             try ProofGate.shared.check()
             let response = try await Task.detached(priority: .userInitiated) { try backend().prove(networkId: id, request: request) }.value
-            // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction.
-            try ProofGate.shared.check()
+            // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction. Past this, it may.
+            try ProofGate.shared.release()
             return .object(["response": .string(response.base64EncodedString())])
         }
         let files = PxeStoreFiles(directory: stores.appendingPathComponent(network.pxeBundle))

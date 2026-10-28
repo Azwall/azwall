@@ -21,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.azwall.app.R
 import dev.azwall.app.ui.provingTitle
 import dev.azwall.app.ui.theme.WalletTheme
+import dev.azwall.core.wallet.ProofGate
 import dev.azwall.core.wallet.ProvingJob
 import kotlinx.coroutines.delay
 
@@ -47,8 +49,10 @@ import kotlinx.coroutines.delay
 fun ProvingOverlay(job: ProvingJob, onCancel: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var cancelling by remember(job) { mutableStateOf(false) }
+    // Once the proof is handed over, the transaction may reach the network at any moment: no cancel promises otherwise.
+    val sending by ProofGate.released.collectAsState()
     // The overlay covers the app while proving: the system back gesture cancels, like the button.
-    BackHandler(enabled = !cancelling) { cancelling = true; onCancel() }
+    BackHandler(enabled = !cancelling && !sending) { cancelling = true; onCancel() }
     LaunchedEffect(job) {
         while (true) {
             now = System.currentTimeMillis()
@@ -63,16 +67,22 @@ fun ProvingOverlay(job: ProvingJob, onCancel: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         ) {
             Spinner()
-            Text("${provingTitle(job.item.kind)}…", style = MaterialTheme.typography.titleLarge)
+            Text(if (sending) "Sending to the network…" else "${provingTitle(job.item.kind)}…", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Generating a zero-knowledge proof on this phone. Nothing leaves the device until the proof is ready.",
+                if (sending) {
+                    "The proof is ready and the transaction is on its way. It can no longer be cancelled; the activity follows it."
+                } else {
+                    "Generating a zero-knowledge proof on this phone. Nothing leaves the device until the proof is ready."
+                },
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("$seconds s · usually 15 to 30 s", style = MaterialTheme.typography.labelLarge, color = WalletTheme.colors.private)
-            // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent.
-            OutlinedButton(onClick = { cancelling = true; onCancel() }, enabled = !cancelling) {
-                Text(if (cancelling) "Cancelling, nothing will be sent…" else "Cancel")
+            // A proof cannot be stopped midway: it is dropped once ready, and nothing is sent. Once released, it is too late.
+            if (!sending) {
+                OutlinedButton(onClick = { cancelling = true; onCancel() }, enabled = !cancelling) {
+                    Text(if (cancelling) "Cancelling, nothing will be sent…" else "Cancel")
+                }
             }
         }
     }

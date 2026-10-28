@@ -228,7 +228,8 @@ public final class DappLink {
         var draft = ActivityItem(id: tx.id, account: tx.account, kind: .dapp)
         draft.origin = tx.origin
         draft.summary = tx.summary
-        let item = tx.applied(to: started[tx.id] ?? draft)
+        // The stored item first: it may hold the hash told before sending (WalletSession.followSubmission).
+        let item = tx.applied(to: session.store.item(id: tx.id) ?? started[tx.id] ?? draft)
         if item.status == .proving { started[tx.id] = item } else { started[tx.id] = nil }
         session.record(item)
         // Not open (locked meanwhile): resume() follows the pending item on the next opening.

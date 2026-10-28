@@ -182,7 +182,8 @@ class DappLink internal constructor(private val session: WalletSession) {
         session.pxeEvents.filter { it.name == "dappTx" }.collect { e ->
             // An unreadable dApp transaction is missing from the activity; reported, as the host and app disagree on its shape.
             val tx = runCatching { json.decodeFromJsonElement<DappTx>(e.data) }.onFailure { DiagnosticLog.shared.report("dapps", it) }.getOrNull() ?: return@collect
-            val item = (started[tx.id] ?: tx.draft()).let(tx::applyTo)
+            // The stored item first: it may hold the hash told before sending (Transactions.followSubmissions).
+            val item = (session.store.item(tx.id) ?: started[tx.id] ?: tx.draft()).let(tx::applyTo)
             if (item.status == ActivityStatus.PROVING) started[tx.id] = item else started.remove(tx.id)
             session.recordActivity(item)
             if (item.status == ActivityStatus.PENDING) session.scope.launch { session.transactions.confirm(item) }

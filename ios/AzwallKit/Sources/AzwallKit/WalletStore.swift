@@ -191,17 +191,32 @@ public final class WalletStore: @unchecked Sendable {
         }
     }
 
-    /// Items left proving by a crash cannot finish: their proof died with the process.
+    /// Items left proving by a crash: one without a hash cannot finish, its proof died with the process; one with a
+    /// hash was being sent (WalletSession.followSubmission) and may have reached the node, so it is followed as pending.
     public func failInterrupted() {
         update { d in
             d.activity = d.activity.map { item in
                 guard item.status == .proving else { return item }
-                var failed = item
-                failed.status = .failed
-                failed.error = "interrupted before the proof was sent"
-                return failed
+                var next = item
+                if item.txHash != nil {
+                    next.status = .pending
+                } else {
+                    next.status = .failed
+                    next.error = "interrupted before the proof was sent"
+                }
+                return next
             }
         }
+    }
+
+    /// The item with this id, if the history still has it.
+    public func item(id: String) -> ActivityItem? {
+        lock.withLock { data.activity.first { $0.id == id } }
+    }
+
+    /// Transactions being proven, of every account.
+    public func proving() -> [ActivityItem] {
+        lock.withLock { data.activity.filter { $0.status == .proving } }
     }
 
     /// A chain as the node reports it: its L1 and its rollup version, which a redeployment changes.

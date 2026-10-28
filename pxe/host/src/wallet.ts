@@ -107,8 +107,14 @@ export class AzwallWallet extends EmbeddedWallet {
     const store = (args[2] as unknown as { store: AztecAsyncKVStore }).store;
     this.walletDB = new InMemoryAccountsDB(store, m => log('walletdb', m));
     this.gas.instrument(this);
-    confirmSubmissions(this.aztecNode);
+    confirmSubmissions(this.aztecNode, { submitting: hash => this.submitting?.(this.#senders.current, hash) });
   }
+
+  /**
+   * Told the sender and hash of each transaction just before it reaches the node. open.ts tells the app, which keeps the
+   * hash with the transaction it belongs to: one the wallet stops sending is still followed.
+   */
+  submitting?: (from: string | undefined, txHash: string) => void;
 
   get node(): AztecNode {
     return this.aztecNode;

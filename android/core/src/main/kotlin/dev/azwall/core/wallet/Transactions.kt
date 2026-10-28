@@ -14,8 +14,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import java.math.BigInteger
 import java.util.UUID
 
@@ -110,10 +114,14 @@ class Transactions internal constructor(private val session: WalletSession) {
         amount = amount?.toString(),
     )
 
-    /** Cancels the transaction being proven: the screen is released at once, and its proof is refused ([ProofGate]). */
-    fun cancel() {
-        ProofGate.cancel()
+    /**
+     * Cancels the transaction being proven: the screen is released at once, and its proof is refused ([ProofGate]).
+     * False once its proof was released: the transaction may already be on the network, so it is followed instead.
+     */
+    fun cancel(): Boolean {
+        if (!ProofGate.cancel()) return false
         stop?.complete(Unit)
+        return true
     }
 
     private var stop: CompletableDeferred<Unit>? = null
@@ -145,7 +153,9 @@ class Transactions internal constructor(private val session: WalletSession) {
             draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, send, stop))
         } catch (e: Exception) {
             val cancelled = e is CancelledByUser
-            session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = if (cancelled) "Cancelled" else e.message))
+            // A hash told before sending (followSubmissions) stays, so the history can be checked against the chain.
+            val hash = session.store.item(draft.id)?.txHash
+            session.recordActivity(draft.copy(status = ActivityStatus.FAILED, txHash = hash, error = if (cancelled) "Cancelled" else e.message))
             throw e
         } finally {
             _proving.value = null
@@ -223,6 +233,21 @@ class Transactions internal constructor(private val session: WalletSession) {
     private fun droppedTooSoon(sent: ActivityItem, receipt: Receipt): Boolean =
         receipt.outcome == TxOutcome.DROPPED && System.currentTimeMillis() - sent.createdAt < DROP_GRACE_MS
 
+    /**
+     * Keeps each transaction's hash from the moment the PXE sends it (`txSubmitting`): a wallet that stops before the
+     * node's answer still follows it, rather than calling failed a transaction that may be mined.
+     */
+    internal suspend fun followSubmissions() {
+        session.pxeEvents.filter { it.name == "txSubmitting" }.collect { e ->
+            // An unreadable one leaves the item without its hash until the answer brings it; reported, as host and app disagree.
+            val told = runCatching { json.decodeFromJsonElement<Submitting>(e.data) }.onFailure { DiagnosticLog.shared.report("transactions", it) }.getOrNull()
+                ?: return@collect
+            val waiting = session.store.proving().filter { it.txHash == null && (told.from == null || it.account.equals(told.from, ignoreCase = true)) }
+            // Two transactions of that account being proven: which one this is cannot be told, and none is guessed.
+            waiting.singleOrNull()?.let { session.recordActivity(it.copy(txHash = told.txHash)) }
+        }
+    }
+
     /** Looks again at transactions sent but not settled by a receipt, e.g. when the app closed while waiting. */
     internal fun resume() {
         session.store.unsettled().forEach { item -> session.scope.launch { confirm(item) } }
@@ -235,7 +260,12 @@ class Transactions internal constructor(private val session: WalletSession) {
         TxOutcome.DROPPED -> item.copy(status = ActivityStatus.FAILED, error = DROPPED)
     }
 
+    @Serializable
+    private data class Submitting(val from: String? = null, val txHash: String)
+
     companion object {
+        private val json = Json { ignoreUnknownKeys = true }
+
         /** Failures read from a receipt: final, never looked at again. */
         const val REVERTED = "reverted on chain"
         const val DROPPED = "dropped by the network"

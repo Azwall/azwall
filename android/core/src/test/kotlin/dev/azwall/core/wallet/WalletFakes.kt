@@ -54,6 +54,8 @@ internal class FakePxe : PxeCaller {
     val calls = mutableListOf<String>()
     /** Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks. */
     var whileProving: suspend () -> Unit = {}
+    /** Run once the proof is released, as the PXE sends the transaction: too late to cancel. */
+    var whileSending: suspend () -> Unit = {}
     /** Holds the first account's balances until completed: a refresh still running when the user switches. */
     var hold: CompletableDeferred<Unit>? = null
 
@@ -83,7 +85,8 @@ internal class FakePxe : PxeCaller {
             }
             "deployAccount", "transfer", "claimFeeJuice" -> {
                 whileProving()
-                ProofGate.check()
+                ProofGate.release()
+                whileSending()
                 sent += params
                 """{"txHash":"0xhash${sent.size}"}"""
             }

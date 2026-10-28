@@ -139,11 +139,22 @@ class WalletStore(private val dir: File, private val networkId: String) {
             it.status == ActivityStatus.FAILED && it.error != Transactions.REVERTED && it.error != Transactions.DROPPED)
     }
 
-    /** Items left PROVING by a crash cannot finish: their proof died with the process. */
+    /**
+     * Items left PROVING by a crash: one without a hash cannot finish, its proof died with the process; one with a hash
+     * was being sent (Transactions.followSubmissions) and may have reached the node, so it is followed as pending.
+     */
     fun failInterrupted() {
         val stale = data.activity.filter { it.status == ActivityStatus.PROVING }
-        stale.forEach { upsert(it.copy(status = ActivityStatus.FAILED, error = "interrupted before the proof was sent")) }
+        stale.forEach {
+            upsert(if (it.txHash != null) it.copy(status = ActivityStatus.PENDING) else it.copy(status = ActivityStatus.FAILED, error = "interrupted before the proof was sent"))
+        }
     }
+
+    /** The item with this id, if the history still has it. */
+    fun item(id: String): ActivityItem? = data.activity.firstOrNull { it.id == id }
+
+    /** Transactions being proven, of every account. */
+    fun proving(): List<ActivityItem> = data.activity.filter { it.status == ActivityStatus.PROVING }
 
     /**
      * The chain the network runs now. Another one than the data belongs to means the network was reset (a testnet
