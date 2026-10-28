@@ -9,3 +9,8 @@ allowBuilds:
   msgpackr-extract: false
   protobufjs: false
   esbuild: true
+
+# Security fixes for transitive dependencies Aztec pins below them. zod < 4.6.6 lets an oversized invalid array
+# exhaust memory while it is validated (GHSA-mrhx-c7xc-m3w5): a dApp's request is parsed with it, in the web view.
+overrides:
+  zod: 4.6.6
