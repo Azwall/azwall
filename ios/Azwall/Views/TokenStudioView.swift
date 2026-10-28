@@ -1,8 +1,9 @@
 import AzwallKit
 import SwiftUI
 
-/// Test networks: create a token whose minter is this account, then mint it to yourself or to anyone, privately or
-/// publicly. A token is per Aztec version, like everything on chain; fees are paid by the testnet's sponsor.
+/// Create a token whose minter is this account, then mint it to yourself or to anyone, privately or publicly. A token is
+/// per Aztec version, like everything on chain. Fees are paid by the network's sponsor, or by the account in Fee Juice:
+/// the first token created on a network also publishes the Token contract, once for everyone, and costs more.
 struct TokenStudioView: View {
     let model: AppModel
     let session: WalletSession
@@ -66,7 +67,8 @@ struct TokenStudioView: View {
             }
             .disabled(model.busy || name.trimmingCharacters(in: .whitespaces).isEmpty || symbol.trimmingCharacters(in: .whitespaces).isEmpty)
         } footer: {
-            Text("This account becomes the minter. The token exists on this network only; creating it takes one proof.")
+            Text("This account becomes the minter. The token exists on this network only; creating it takes one proof.\n"
+                + "Fee: \(Fees.line(session.check, feeJuice: session.feeJuice))")
         }
     }
 }

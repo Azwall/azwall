@@ -52,8 +52,9 @@ data class TokenStudioActions(
 )
 
 /**
- * Test networks: create a token whose minter is this account, then mint it to yourself or to anyone, privately or
- * publicly. A token is per Aztec version, like everything on chain; fees are paid by the testnet's sponsor.
+ * Create a token whose minter is this account, then mint it to yourself or to anyone, privately or publicly. A token is
+ * per Aztec version, like everything on chain. Fees are paid by the network's sponsor, or by the account in Fee Juice:
+ * the first token created on a network also publishes the Token contract, once for everyone, and costs more.
  */
 @Composable
 fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioActions) {
@@ -80,7 +81,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
                 Text("Activate the account first: it becomes the token's minter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 return@Column
             }
-            CreateForm(busy || !ready, actions.onCreate)
+            CreateForm(busy || !ready, Fees.line(state.check, state.feeJuice), actions.onCreate)
             val mine = state.tokens.filter { t -> state.created.any { it.equals(t.info.address, ignoreCase = true) } }
             if (mine.isNotEmpty()) Text("Your tokens", style = MaterialTheme.typography.titleMedium)
             mine.forEach { t -> CreatedToken(t, ready, onShare = { sharing = t.info.address }, onMint = { minting = t.info.address }) }
@@ -90,7 +91,7 @@ fun TokenStudioScreen(state: SessionState, busy: Boolean, actions: TokenStudioAc
 }
 
 @Composable
-private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) = Panel {
+private fun CreateForm(busy: Boolean, fee: String, onCreate: (String, String, Int) -> Unit) = Panel {
     var name by rememberSaveable { mutableStateOf("Test Token") }
     var symbol by rememberSaveable { mutableStateOf("TST") }
     var decimals by rememberSaveable { mutableStateOf("6") }
@@ -108,6 +109,7 @@ private fun CreateForm(busy: Boolean, onCreate: (String, String, Int) -> Unit) =
             "This account becomes the minter. The token exists on this network only; creating it takes one proof.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text("Fee: $fee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Button(
             onClick = { onCreate(name.trim(), symbol.trim(), places!!) },
             enabled = !busy && name.isNotBlank() && symbol.isNotBlank() && places != null,

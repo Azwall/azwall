@@ -69,7 +69,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         return track(item) { session.client.transfer(kind, from, recipient, token.address, amount) }
     }
 
-    /** Test networks: deploys a token with the selected account as minter, and follows it. */
+    /** Deploys a token with the selected account as minter, and follows it (on any network: the account pays where there is no sponsor). */
     suspend fun deployTestToken(name: String, symbol: String, decimals: Int = 6): ActivityItem {
         val admin = selected()
         val item = draft(ActivityKind.DEPLOY_TOKEN, admin).copy(symbol = symbol)
@@ -81,7 +81,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         }
     }
 
-    /** Test networks: mints to [to] (the selected account when null), which must be allowed by the token's minter. */
+    /** Mints to [to] (the selected account when null), which must be allowed by the token's minter. */
     suspend fun mint(token: TokenInfo, amount: BigInteger, toPrivate: Boolean, to: String? = null): ActivityItem {
         val me = selected()
         val recipient = to?.trim()?.takeIf { it.isNotEmpty() } ?: me

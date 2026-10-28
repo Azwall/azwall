@@ -52,7 +52,8 @@ extension WalletSession {
         }
     }
 
-    /// Test networks: deploys a token with the selected account as minter, and follows it.
+    /// Deploys a token with the selected account as minter, and follows it (on any network: the account pays where
+    /// there is no sponsor).
     public func deployTestToken(name: String, symbol: String, decimals: Int = 6) async throws {
         let admin = try selectedAddress()
         var item = ActivityItem(account: admin, kind: .deployToken)
@@ -66,7 +67,7 @@ extension WalletSession {
         }
     }
 
-    /// Test networks: mints to `to` (the selected account when nil or empty), as the token's minter.
+    /// Mints to `to` (the selected account when nil or empty), as the token's minter.
     public func mint(token: TokenInfo, amount: String, toPrivate: Bool, to: String? = nil) async throws {
         let me = try selectedAddress()
         let recipient = to?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? me
