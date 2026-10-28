@@ -7,6 +7,7 @@
 # Usage: scripts/build-bb-shared.sh <static dir> <output .so> [abi]
 #   scripts/build-bb-shared.sh vendor/bb-static/6.0.0/arm64-v8a vendor/bb-shared/arm64-v8a/libbb_v6.0.0.so
 # The output name must stay libbb_v<release>.so: rust/azwall-prover/src/library.rs looks it up by that name.
+# Segments are 16 KB aligned: Android 15+ devices with 16 KB pages, and Google Play, require it.
 set -euo pipefail
 IN=$1 OUT=$2 ABI=${3:-arm64-v8a}
 API=${ANDROID_API:-24}
@@ -31,6 +32,7 @@ C
 "$TC/clang++" --target="$TRIPLE$API" -shared -o "$OUT" \
   "$TMP/shim.o" "$IN/libbb-external.a" "$IN/libdeflate.a" \
   -static-libstdc++ -Wl,--version-script="$TMP/exports.map" -Wl,--gc-sections -Wl,--exclude-libs,ALL -Wl,-z,noexecstack -Wl,-s \
+  -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 \
   -llog -lm
 echo "exports: $("$TC/llvm-readelf" --dyn-syms "$OUT" | awk '$5=="GLOBAL" && $7!="UND" {print $8}' | sort -u | tr '\n' ' ')"
 echo "-> $OUT ($(du -h "$OUT" | cut -f1))"
