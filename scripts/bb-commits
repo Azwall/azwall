@@ -1,0 +1,3 @@
+# The aztec-packages commit each Barretenberg release is built from (scripts/lib/bb-sources.sh checks it): a tag can be
+# moved, a commit cannot. One line per release networks.json uses: <release> <commit>.
+6.0.0 0219f11d8133970df3974fe5ae65e006bf8c193a

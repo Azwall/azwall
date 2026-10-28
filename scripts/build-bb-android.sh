@@ -49,4 +49,5 @@ for ABI in "${ABIS[@]}"; do
   mkdir -p "$STATIC/$ABI"
   cp "$BUILD/lib/libbb-external.a" "$BUILD/_deps/libdeflate-build/libdeflate.a" "$STATIC/$ABI/"
   "$ROOT/scripts/build-bb-shared.sh" "$STATIC/$ABI" "$ROOT/vendor/bb-shared/$ABI/libbb_v$RELEASE.so" "$ABI"
+  bb_record_hash "$ROOT" "vendor/bb-shared/$ABI/libbb_v$RELEASE.so"
 done

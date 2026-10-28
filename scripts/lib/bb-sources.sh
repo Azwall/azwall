@@ -19,6 +19,18 @@ bb_sources() {
     echo "error: $SRC is at '$(git -C "$SRC" rev-parse --short HEAD)', not $tag; delete it to re-clone" >&2
     return 1
   fi
+  # The tag must still name the commit recorded for the release (scripts/bb-commits): a moved tag would change the
+  # prover behind every proof without a word.
+  local expected
+  expected=$(awk -v r="$release" '$1 == r { print $2 }' "$root/scripts/bb-commits")
+  if [ -z "$expected" ]; then
+    echo "error: no commit recorded for Barretenberg $release in scripts/bb-commits" >&2
+    return 1
+  fi
+  if [ "$(git -C "$SRC" rev-parse HEAD)" != "$expected" ]; then
+    echo "error: $tag is at $(git -C "$SRC" rev-parse HEAD), not $expected as scripts/bb-commits records" >&2
+    return 1
+  fi
 
   local constants="$BB/src/barretenberg/aztec/aztec_constants.hpp"
   if [ ! -f "$constants" ]; then
@@ -34,4 +46,30 @@ bb_sources() {
 # Every Barretenberg release networks.json uses, one per line.
 bb_releases() {
   python3 -c "import json;print('\n'.join(sorted({n['barretenberg'] for n in json.load(open('$1/networks.json'))['networks']})))"
+}
+
+# sha256sum on Linux, shasum on macOS: the same line format.
+bb_sha256() {
+  if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi
+}
+
+# Records the sha256 of a built prover library in scripts/bb-libs.sha256 (one line per path, relative to the root),
+# which the app builds check before shipping it.
+bb_record_hash() {
+  local root=$1 path=$2 list="$1/scripts/bb-libs.sha256"
+  touch "$list"
+  grep -v "  $path\$" "$list" > "$list.tmp" || true
+  (cd "$root" && bb_sha256 "$path") >> "$list.tmp"
+  sort -k2 "$list.tmp" > "$list" && rm "$list.tmp"
+}
+
+# Fails unless each path matches its line in scripts/bb-libs.sha256.
+bb_check_hashes() {
+  local root=$1 path
+  shift
+  for path in "$@"; do
+    grep -q "  $path\$" "$root/scripts/bb-libs.sha256" || { echo "error: no hash recorded for $path in scripts/bb-libs.sha256: rebuild it" >&2; return 1; }
+    (cd "$root" && grep "  $path\$" scripts/bb-libs.sha256 | bb_sha256 --check --quiet) \
+      || { echo "error: $path is not the library scripts/bb-libs.sha256 records: rebuild it" >&2; return 1; }
+  done
 }

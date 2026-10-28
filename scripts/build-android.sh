@@ -7,6 +7,7 @@
 # Needs cargo-ndk (cargo install cargo-ndk) and NDK_HOME (or ANDROID_NDK_HOME).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+. "$ROOT/scripts/lib/bb-sources.sh"
 cd "$ROOT"
 
 PROFILE=()
@@ -31,6 +32,8 @@ for abi in "${ABIS[@]}"; do
   for release in $RELEASES; do
     lib=vendor/bb-shared/$abi/libbb_v$release.so
     [ -e "$lib" ] || { echo "error: $lib is missing: run scripts/build-bb-android.sh $release $abi" >&2; exit 1; }
+    # The library built from the recorded commit, and nothing else (scripts/bb-libs.sha256).
+    bb_check_hashes "$ROOT" "$lib"
     cp "$lib" "$JNI/$abi/"
   done
 done

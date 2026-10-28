@@ -3,6 +3,16 @@ title: Releasing
 nav_order: 6
 ---
 
+# Releasing
+
+## The prover's provenance
+
+Every proof is made by Barretenberg, built from source by `scripts/build-bb-android.sh` and `scripts/build-bb-ios.sh`.
+`scripts/bb-commits` records the aztec-packages commit of each release: the build refuses a checkout whose tag no
+longer names that commit. Each library built is recorded in `scripts/bb-libs.sha256`, and the app builds refuse to
+ship a library that does not match its line (rebuild it, then commit the new line with the reason). To check a
+shipped prover, rebuild it from the recorded commit and compare.
+
 # Releasing the Android app on Google Play
 
 ## The upload key
@@ -66,3 +76,18 @@ Create a test wallet in it, open each network, send a transaction and connect a 
 - **App category**: Finance. Google Play's policy on cryptocurrency wallets applies: Azwall is a non-custodial
   software wallet.
 - **Content rating**: questionnaire, no objectionable content.
+
+# Releasing the iOS app on the App Store
+
+- **Developer account**: an app that stores cryptocurrency must come from a developer account enrolled as an
+  organisation (App Review Guideline 3.1.5(b)(i)), the company named in the [privacy policy](privacy.md).
+- **Building**: on a Mac, `scripts/build-ios.sh --release`, `scripts/build-bb-ios.sh all`, `scripts/fetch-crs.sh`, then
+  `xcodegen generate` in `ios/` and Product > Archive in Xcode. A Release build refuses an RPC endpoint from `.env`, as
+  Android's does.
+- **Tests first**: `swift test` in `ios/AzwallKit`, and the app on a physical iPhone with Face ID: create and restore,
+  a transfer, a dApp approval, lock and unlock.
+- **Privacy**: `ios/Azwall/PrivacyInfo.xcprivacy` declares no tracking, no data collected and the "required reason"
+  APIs the app uses (checked on the built binaries with `nm -u`); check it again when a dependency changes.
+- **Export compliance**: App Store Connect asks whether the app uses non-exempt encryption (it uses HTTPS, AES-GCM for
+  its stores and the zero-knowledge proofs); answer it, then record the answer as `ITSAppUsesNonExemptEncryption` in
+  `ios/project.yml` so it is not asked at every upload.
