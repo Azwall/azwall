@@ -22,7 +22,7 @@ import type { AzwallWallet } from '../wallet';
 import { describeAuthWit, describeTx, oneLine, otherCallLines, readCall } from './calls';
 import { authwitSections, capabilitySections, connectSections, rawSection, type Section, txSections } from './details';
 import { NEEDS_APPROVAL, txHashOf } from './describe';
-import { changeLines, feeLine, metaOf, type Payer, simulateEffects } from './effects';
+import { changeLines, feeLine, metaOf, type Payer, payerOf, simulateEffects } from './effects';
 import { added, addedLines, grantsOf, type Grants, merge, oneAtATime, permit } from './grants';
 import { list, obj } from './json';
 import { messageFrom, SigningGate } from './limits';
@@ -259,11 +259,8 @@ export class DappGateway {
     const payload = obj(args[0]);
     // readCall caches its promise and permit() already awaited it: a call that fails here was refused before.
     const reads = await Promise.all(list(payload.calls).map(c => readCall(c, a => this.wallet.artifactAt(a)).catch(() => undefined)));
-    if (reads.some(r => r?.fee)) return 'sponsor';
     const named = payload.feePayer === undefined ? undefined : String(payload.feePayer);
-    if (named && named.toLowerCase() !== account.toLowerCase()) return named;
-    // No payer named and no fee settings: the wallet pays through the sponsor where there is one (wallet.ts).
-    return !named && obj(args[1]).fee === undefined && this.wallet.fees === 'sponsored' ? 'sponsor' : 'account';
+    return payerOf(reads.some(r => r?.fee), named, account, this.wallet.fees === 'sponsored');
   }
 
   /** Every signing op in full, numbered when a batch holds several, then the request as sent. */

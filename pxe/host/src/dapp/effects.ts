@@ -124,6 +124,16 @@ export function roughly(v: bigint, decimals: number): string {
 }
 
 /** The fee line of an approval: about how much Fee Juice the transaction costs at today's fees, and who pays it. */
+/**
+ * Who pays a transaction: the network's sponsor when its fee call is in it; the payer it names; else the wallet's
+ * default, which is the sponsor wherever there is one (wallet.ts completeFeeOptions), whatever gas settings a site set.
+ */
+export function payerOf(sponsorCall: boolean, named: string | undefined, account: string, sponsored: boolean): Payer {
+  if (sponsorCall) return 'sponsor';
+  if (named && named.toLowerCase() !== account.toLowerCase()) return named;
+  return !named && sponsored ? 'sponsor' : 'account';
+}
+
 export function feeLine(fee: bigint, payer: Payer, tip = 0n): string {
   const shown = roughly(fee, FEE_JUICE_DECIMALS);
   const amount = shown === '0' && fee > 0n ? 'less than 0.00000001' : `about ${shown}`;

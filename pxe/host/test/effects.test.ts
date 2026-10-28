@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type CallNotes, changeLines, createdFor, feeLine, formatAmount } from '../src/dapp/effects';
+import { type CallNotes, changeLines, createdFor, feeLine, formatAmount, payerOf } from '../src/dapp/effects';
 import { noteOrigin, recordNoteOwners } from '../src/note_owners';
 
 const me = '0xAA';
@@ -93,5 +93,20 @@ describe('balance changes', () => {
     const root = call([[me, 40n, 1], [me, 2n, 2]]);
     root.nestedExecutionResults.push(call([], [1]));
     expect(createdFor(me, root, new Map([[token, { privateSlots: new Set([slot]) }]])).get(token)).toBe(2n);
+  });
+});
+
+// 2026-10-28 store-release audit: gas settings from a site do not change who pays; the wallet's default still applies.
+describe('who pays', () => {
+  const me = '0xaa';
+  it('is the sponsor wherever there is one and no payer is named, whatever gas settings the site set', () => {
+    expect(payerOf(false, undefined, me, true)).toBe('sponsor');
+    expect(payerOf(false, undefined, me, false)).toBe('account');
+  });
+
+  it('is the payer the transaction names, or the account when it names it', () => {
+    expect(payerOf(false, '0xbb', me, true)).toBe('0xbb');
+    expect(payerOf(false, '0xAA', me, true)).toBe('account');
+    expect(payerOf(true, '0xbb', me, false)).toBe('sponsor');
   });
 });
