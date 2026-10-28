@@ -6,10 +6,19 @@ import Foundation
 extension WalletSession {
     /// Deploys the selected account's contract, once: a second activation would only pay a fee to fail. With Fee Juice
     /// bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction. Refused when
-    /// nothing can pay it (Fees.canActivate): it would only fail once proven.
-    public func deployAccount() async throws {
+    /// nothing can pay it (Fees.canActivate): it would only fail once proven. `reviewedClaim` is the message hash of the
+    /// deposit the user's review showed (nil: none), so a refresh between the review and the confirmation cannot change
+    /// what is sent.
+    public func deployAccount(reviewedClaim: String?) async throws {
         guard !activating else { throw PxeError("the account's activation is already on its way") }
-        let claim = claimable
+        // What the review said, not what a refresh read since: the deposit it named, or none.
+        var claim: FeeJuiceDeposit?
+        if let hash = reviewedClaim {
+            guard let named = deposits.first(where: { $0.messageHash == hash && $0.claimable }) else {
+                throw PxeError("the bridge deposit this activation was to claim cannot be claimed any more: review the activation again")
+            }
+            claim = named
+        }
         guard Fees.canActivate(check, feeJuice: feeJuice, claim: claim) else {
             throw PxeError("this account holds no Fee Juice to pay its activation: bridge AZTEC from Ethereum to its address first")
         }

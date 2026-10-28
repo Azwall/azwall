@@ -152,6 +152,8 @@ class WalletSession(
     private var lastDiscovery = 0L
     /** Watches deposits on their way from Ethereum (watchArrivals); null when none is. */
     private var arrivals: Job? = null
+    /** The account [arrivals] watches: only the selected one is, so another one's watcher gives way. */
+    private var arrivalsOf: String? = null
     val transactions = Transactions(this)
     val dapps = DappLink(this)
 
@@ -293,7 +295,10 @@ class WalletSession(
      * being watched after ARRIVAL_CHECKS reads.
      */
     private fun watchArrivals(address: String) {
-        if (arrivals?.isActive == true) return
+        if (arrivals?.isActive == true && arrivalsOf == address) return
+        // Another account's watcher would only stop at its next tick: this account would never be watched.
+        arrivals?.cancel()
+        arrivalsOf = address
         arrivals = scope.launch {
             repeat(ARRIVAL_CHECKS) {
                 delay(ARRIVAL_POLL_MS)

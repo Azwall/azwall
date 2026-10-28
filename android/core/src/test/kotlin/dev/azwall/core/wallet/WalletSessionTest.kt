@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -39,95 +40,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.math.BigInteger
-
-/** A PXE host in memory: addresses derive from keys, balances and deployment are settable. */
-private class FakePxe : PxeCaller {
-    var deployed = false
-    /** What the network declares: "sponsored", or "feeJuice" (the account pays). */
-    var fees = "sponsored"
-    /** The rollup version the node reports: a new one means the network was redeployed. */
-    var rollup = 2
-    /** Balance reads fail, as with an unreachable node. */
-    var failBalances = false
-    /** The user's claim secrets each feeJuiceDeposits call carried. */
-    val depositQueries = mutableListOf<List<String>>()
-    /** A secret and the deposits read once it is among the secrets tried, as a deposit made with it reads. */
-    var unlockedBy: Pair<String, String>? = null
-    /** What feeJuiceDeposits answers: Fee Juice bridged to the account (JSON list). */
-    var deposits = "[]"
-    /** Base units of Fee Juice every account holds. */
-    var feeJuice = "1500000000000000000"
-    var failOpen: String? = null
-    val mined = CompletableDeferred<Unit>()
-    var waitError: String? = null
-    var receiptOutcome = "success"
-    val discoveryKnown = mutableListOf<List<String>>()
-    val sent = mutableListOf<JsonObject>()
-    val minted = mutableListOf<JsonObject>()
-    val calls = mutableListOf<String>()
-    /** Run inside "transfer", like the user tapping Cancel while it is proven; the app's prove handler then checks. */
-    var whileProving: suspend () -> Unit = {}
-    /** Holds the first account's balances until completed: a refresh still running when the user switches. */
-    var hold: CompletableDeferred<Unit>? = null
-
-    override suspend fun call(method: String, params: JsonObject): JsonElement {
-        fun p(k: String) = params[k]!!.jsonPrimitive.content
-        calls += method
-        val reply = when (method) {
-            "open" -> failOpen?.let { throw PxeException("open: $it") }
-                ?: """{"nodeVersion":"6.0.0","l1ChainId":1,"rollupVersion":$rollup,"vkTreeRoot":"0x","protocolContractsHash":"0x","blockNumber":10,"fees":"$fees"}"""
-            "feeJuiceBalance" -> """{"balance":"$feeJuice"}"""
-            "addAccount" -> """{"address":"addr-${p("signingKey").takeLast(4)}"}"""
-            "newSigningKey" -> """{"signingKey":"0x${"cd".repeat(32)}"}"""
-            "accountState" -> """{"deployed":$deployed}"""
-            "balances" -> {
-                if (failBalances) error("node unreachable")
-                val first = p("owner") == "addr-abab"
-                if (first) hold?.await()
-                """[{"token":"0xt","private":"${if (first) "2500000" else "7000000"}","public":"0"}]"""
-            }
-            "tokenInfo" -> """{"address":"${p("token")}","name":"Test","symbol":"TST","decimals":6}"""
-            "mint" -> { minted += params; """{"txHash":"0xmint"}""" }
-            "feeJuiceDeposits" -> {
-                val secrets = params["secrets"]!!.jsonArray.map { it.jsonPrimitive.content }
-                depositQueries += secrets
-                val unlocked = unlockedBy?.takeIf { it.first in secrets }?.second
-                """{"deposits":${unlocked ?: deposits}}"""
-            }
-            "deployAccount", "transfer", "claimFeeJuice" -> {
-                whileProving()
-                ProofGate.check()
-                sent += params
-                """{"txHash":"0xhash${sent.size}"}"""
-            }
-            "waitForTx" -> { waitError?.let { throw PxeException(it) }; mined.await(); """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":11}""" }
-            "discoverTokens" -> {
-                val known = params["known"]!!.jsonArray.map { it.jsonPrimitive.content }.also { discoveryKnown += it }
-                if ("0xpal" in known) "[]" else """[{"address":"0xpal","name":"Palmyr USD","symbol":"PUSD","decimals":6,"private":"0","public":"5000000"}]"""
-            }
-            "txReceipt" -> """{"txHash":"${p("txHash")}","status":"proposed","blockNumber":12,"outcome":"$receiptOutcome"}"""
-            else -> "null"
-        }
-        return Json.parseToJsonElement(reply)
-    }
-}
-
-private object FakeBackend : WalletBackend {
-    override fun networks() = emptyList<NetworkInfo>()
-    override fun defaultNetworkId() = "testnet-v6"
-    override fun checkNode(networkId: String) = NodeCheck("x", 0, true, emptyList())
-    override fun pxeOpenParams(networkId: String) = """{"id":"$networkId"}"""
-    override fun prepareProver(networkId: String) {}
-    override fun prove(networkId: String, request: ByteArray) = request
-    override fun newRecoveryPhrase() = TestPhrases.PHRASE
-    override fun normalizeRecoveryPhrase(phrase: String) = TestPhrases.normalize(phrase)
-    override fun accountSigningKey(phrase: String, index: Int) = TestPhrases.key(index)
-}
-
-private object PlainBox : SecretBox {
-    override fun seal(plain: ByteArray) = plain
-    override fun open(sealed: ByteArray) = sealed
-}
 
 class WalletSessionTest {
     @get:Rule
@@ -242,9 +154,9 @@ class WalletSessionTest {
     @Test
     fun anAccountIsActivatedOnce() = runTest {
         val s = session().apply { open() }
-        s.transactions.deployAccount()
+        s.transactions.deployAccount(null)
         assertTrue(s.state.value.activating)
-        val again = runCatching { s.transactions.deployAccount() }.exceptionOrNull()
+        val again = runCatching { s.transactions.deployAccount(null) }.exceptionOrNull()
         assertTrue(again?.message!!.contains("already on its way"))
         assertEquals(1, pxe.calls.count { it == "deployAccount" })
     }
@@ -259,11 +171,29 @@ class WalletSessionTest {
         assertEquals("7", state.claimable?.leafIndex)
         assertEquals(BigInteger("3"), state.arriving)
         assertTrue(Fees.activation(state.check, state.feeJuice, state.claimable).contains("5 FJ bridged from Ethereum are ready"))
-        s.transactions.deployAccount()
+        s.transactions.deployAccount(state.claimable?.messageHash)
         val claim = pxe.sent.single()["claim"]!!.jsonObject
         assertEquals("5000000000000000000", claim["amount"]!!.jsonPrimitive.content)
         assertEquals("7", claim["leafIndex"]!!.jsonPrimitive.content)
         assertEquals("0x" + "0".repeat(64), claim["secret"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun anActivationClaimsWhatItsReviewShowedOrNothing() = runTest {
+        val ready = """{"amount":"5","messageHash":"0xm1","leafIndex":"7","ours":true,"ready":true,"secret":"0x01","claimed":"""
+        pxe.deposits = "[${ready}false}]"
+        val s = session().apply { open() }
+        // Reviewed with the deposit, which a refresh then reads as claimed (from elsewhere): refused, nothing proven.
+        pxe.deposits = "[${ready}true}]"
+        s.refresh()
+        val refused = runCatching { s.transactions.deployAccount("0xm1") }.exceptionOrNull()
+        assertTrue(refused?.message!!.contains("review the activation again"))
+        assertEquals(0, pxe.calls.count { it == "deployAccount" })
+        // Reviewed without one (the sponsor pays), and one became claimable since: still none claimed.
+        pxe.deposits = "[${ready}false}]"
+        s.refresh()
+        s.transactions.deployAccount(null)
+        assertNull(pxe.sent.single()["claim"])
     }
 
     @Test
@@ -291,7 +221,7 @@ class WalletSessionTest {
         val s = session().apply { open() }
         val state = s.state.value
         assertFalse(Fees.canActivate(state.check, state.feeJuice, state.claimable))
-        val refused = runCatching { s.transactions.deployAccount() }.exceptionOrNull()
+        val refused = runCatching { s.transactions.deployAccount(null) }.exceptionOrNull()
         assertTrue(refused?.message!!.contains("holds no Fee Juice"))
         assertEquals(0, pxe.calls.count { it == "deployAccount" })
     }
@@ -311,6 +241,21 @@ class WalletSessionTest {
         val state = s.state.value
         assertEquals("7", state.claimable?.leafIndex)
         assertTrue(Fees.canActivate(state.check, state.feeJuice, state.claimable))
+    }
+
+    @Test
+    fun aDepositOnItsWayIsWatchedForTheAccountSwitchedTo() = runTest {
+        val deposit = """{"amount":"5","messageHash":"0xm1","leafIndex":"7","ours":true,"claimed":false,"secret":"0x01","ready":"""
+        pxe.deposits = "[${deposit}false}]"
+        val s = session().apply { open() }
+        // The first account's watcher sleeps; the second one has a deposit on its way too.
+        val second = s.addAccount("second", "0x" + "12".repeat(32))
+        runCurrent() // the second account's refresh, before any watcher tick: its deposit is still on its way
+        assertEquals("5", s.state.value.arriving.toString())
+        pxe.deposits = "[${deposit}true}]"
+        advanceUntilIdle()
+        assertEquals(second.address, s.state.value.selected)
+        assertEquals("7", s.state.value.claimable?.leafIndex)
     }
 
     @Test
@@ -339,7 +284,7 @@ class WalletSessionTest {
     fun withoutABridgeDepositTheActivationPaysAsBefore() = runTest {
         val s = session().apply { open() }
         assertNull(s.state.value.claimable)
-        s.transactions.deployAccount()
+        s.transactions.deployAccount(null)
         assertNull(pxe.sent.single()["claim"])
     }
 

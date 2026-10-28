@@ -168,8 +168,8 @@ private fun homeActions(vm: AppViewModel, session: WalletSession, auth: (String)
     onFollowFound = { token -> session.followFound(token) },
     onChoosePrimary = { address -> session.choosePrimary(address) },
     onDismissFound = { token -> session.dismissFound(token) },
-    onActivate = { vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount() } },
-    onClaimSecret = { secret -> vm.run { it.addClaimSecret(secret) } },
+    onActivate = { claim -> vm.sign(auth(CONFIRM), "Account activation sent.") { it.transactions.deployAccount(claim) } },
+    onClaimSecret = { secret, onAdded -> vm.run { it.addClaimSecret(secret); onAdded() } },
     onClaimFeeJuice = {
         session.state.value.claimable?.let { deposit -> vm.sign(auth(CONFIRM), "Fee Juice claim sent.") { it.transactions.claimFeeJuice(deposit) } }
     },

@@ -22,7 +22,7 @@ struct FeeJuiceClaimTests {
         #expect(s.arriving == "3")
         #expect(s.locked.count == 1)
         #expect(Fees.activation(s.check, feeJuice: s.feeJuice, claim: s.claimable).contains("5 FJ bridged from Ethereum are ready"))
-        try await s.deployAccount()
+        try await s.deployAccount(reviewedClaim: s.claimable?.messageHash)
         let claim = pxe.sent.last?["claim"]
         #expect(claim?["amount"]?.stringValue == "5000000000000000000")
         #expect(claim?["leafIndex"]?.stringValue == "7")
@@ -34,7 +34,7 @@ struct FeeJuiceClaimTests {
         let s = try session(pxe)
         await s.open()
         #expect(s.claimable == nil)
-        try await s.deployAccount()
+        try await s.deployAccount(reviewedClaim: nil)
         #expect(pxe.sent.last?["claim"] == nil)
     }
 
@@ -45,12 +45,30 @@ struct FeeJuiceClaimTests {
         let s = try session(pxe)
         await s.open()
         #expect(!Fees.canActivate(s.check, feeJuice: s.feeJuice, claim: s.claimable))
-        await #expect(throws: PxeError.self) { try await s.deployAccount() }
+        await #expect(throws: PxeError.self) { try await s.deployAccount(reviewedClaim: nil) }
         #expect(!pxe.calls.contains { $0.0 == "deployAccount" })
         // A deposit ready to claim pays it.
         pxe.deposits = "[\(five)]"
         await s.refresh()
         #expect(Fees.canActivate(s.check, feeJuice: s.feeJuice, claim: s.claimable))
+    }
+
+    @Test func anActivationClaimsWhatItsReviewShowedOrNothing() async throws {
+        let pxe = FakePxe()
+        pxe.deposits = "[\(five)]"
+        let s = try session(pxe)
+        await s.open()
+        let reviewed = try #require(s.claimable?.messageHash)
+        // Reviewed with the deposit, which a refresh then reads as claimed (from elsewhere): refused, nothing proven.
+        pxe.deposits = "[\(five.replacingOccurrences(of: #""claimed":false"#, with: #""claimed":true"#))]"
+        await s.refresh()
+        await #expect(throws: PxeError.self) { try await s.deployAccount(reviewedClaim: reviewed) }
+        #expect(!pxe.calls.contains { $0.0 == "deployAccount" })
+        // Reviewed without one (the sponsor pays), and one became claimable since: still none claimed.
+        pxe.deposits = "[\(five)]"
+        await s.refresh()
+        try await s.deployAccount(reviewedClaim: nil)
+        #expect(pxe.sent.last?["claim"] == nil)
     }
 
     @Test func anActiveAccountClaimsItsBridgedFeeJuice() async throws {

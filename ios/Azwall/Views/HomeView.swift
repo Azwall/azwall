@@ -17,6 +17,8 @@ struct HomeView: View {
     @State private var opened: String?
     /// Activating pays a fee where there is no sponsor: confirmed like any transaction first.
     @State private var reviewingActivation = false
+    /// The message hash of the deposit the activation review showed (nil: none): what confirming claims.
+    @State private var reviewedClaim: String?
     /// Claiming bridged Fee Juice, confirmed like any transaction first.
     @State private var reviewingClaim = false
     @State private var enteringSecret = false
@@ -43,7 +45,7 @@ struct HomeView: View {
                             .padding(.horizontal, 16)
                     }
                     accountHeader
-                    BalanceHero(session: session, onActivate: { reviewingActivation = true }, onShield: { route = .shield }, onRetry: refresh,
+                    BalanceHero(session: session, onActivate: { reviewedClaim = session.claimable?.messageHash; reviewingActivation = true }, onShield: { route = .shield }, onRetry: refresh,
                                 onClaim: { reviewingClaim = true }, onEnterSecret: { claimSecret = ""; enteringSecret = true })
                         .padding(.top, 20)
                     actions.padding(.vertical, 20)
@@ -58,7 +60,8 @@ struct HomeView: View {
             .navigationDestination(item: $route) { destination($0) }
             .sheet(item: $sheet) { sheetView($0).presentationDetents([.medium, .large]) }
             .sheet(isPresented: $reviewingActivation) {
-                let fee = session.claimable.map(Fees.claimLine) ?? Fees.line(session.check, feeJuice: session.feeJuice)
+                // The deposit the review was opened with: confirming claims it, whatever a refresh reads meanwhile.
+                let fee = session.deposits.first { $0.messageHash == reviewedClaim }.map(Fees.claimLine) ?? Fees.line(session.check, feeJuice: session.feeJuice)
                 ReviewSheet(review: Review.activation(network: session.network.label, fee: fee), onConfirm: activate)
             }
             .sheet(isPresented: $reviewingClaim) {
@@ -159,7 +162,8 @@ struct HomeView: View {
     }
 
     private func activate() {
-        Task { await model.sign(done: "Account activation sent.") { try await $0.deployAccount() } }
+        let claim = reviewedClaim
+        Task { await model.sign(done: "Account activation sent.") { try await $0.deployAccount(reviewedClaim: claim) } }
     }
 
     private func claim(_ deposit: FeeJuiceDeposit) {

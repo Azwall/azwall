@@ -73,7 +73,7 @@ internal fun BalanceHero(state: SessionState, actions: HomeActions) {
             Fees.activation(state.check, state.feeJuice, state.claimable, state.arriving),
             // Without a sponsor, a claim or Fee Juice, an activation would only fail once proven: not offered.
             "Activate".takeIf { Fees.canActivate(state.check, state.feeJuice, state.claimable) },
-            actions.onActivate,
+            { actions.onActivate(state.claimable?.messageHash) },
             Icons.Outlined.RocketLaunch,
         )
         else -> TokenHero(state.hero, state.shown, state.stale, actions, bridged(state))

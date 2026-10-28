@@ -8,6 +8,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var deployed = false
     /// The node's reads (deployment, balances) fail, as with an unreachable node.
     var failBalances = false
+    /// Methods that fail, as when the gateway refuses.
+    var failing: Set<String> = []
     /// What the network declares: "sponsored", or "feeJuice" (the account pays).
     var fees = "sponsored"
     /// Base units of Fee Juice every account holds.
@@ -39,6 +41,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     func call(_ method: String, _ params: JSONValue) async throws -> JSONValue {
         func p(_ k: String) -> String { params[k]?.stringValue ?? "" }
         calls.append((method, params))
+        if failing.contains(method) { throw PxeError("\(method) failed") }
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }
@@ -262,9 +265,9 @@ struct SessionTests {
         defer { pxe.releaseReceipts.finish() }
         let s = try session(pxe)
         await s.open()
-        try await s.deployAccount()
+        try await s.deployAccount(reviewedClaim: nil)
         #expect(s.activating)
-        await #expect(throws: PxeError.self) { try await s.deployAccount() }
+        await #expect(throws: PxeError.self) { try await s.deployAccount(reviewedClaim: nil) }
         #expect(pxe.calls.filter { $0.0 == "deployAccount" }.count == 1)
     }
 

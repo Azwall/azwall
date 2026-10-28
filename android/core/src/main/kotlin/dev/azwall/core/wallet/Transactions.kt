@@ -33,13 +33,20 @@ class Transactions internal constructor(private val session: WalletSession) {
 
     /**
      * Deploys the selected account's contract, once: a second activation would only pay a fee to fail. With Fee Juice
-     * bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction.
+     * bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction. [reviewedClaim]
+     * is the message hash of the deposit the user's review showed (null: none), so a refresh between the review and the
+     * confirmation cannot change what is sent.
      */
-    suspend fun deployAccount(): ActivityItem {
+    suspend fun deployAccount(reviewedClaim: String?): ActivityItem {
         val account = selected()
         val state = session.state.value
         check(!state.activating) { "the account's activation is already on its way" }
-        val claim = state.claimable
+        // What the review said, not what a refresh read since: the deposit it named, or none.
+        val claim = reviewedClaim?.let { hash ->
+            checkNotNull(state.deposits.firstOrNull { it.messageHash == hash && it.claimable }) {
+                "the bridge deposit this activation was to claim cannot be claimed any more: review the activation again"
+            }
+        }
         // Nothing would pay it: it would only fail once proven.
         check(Fees.canActivate(state.check, state.feeJuice, claim)) {
             "this account holds no Fee Juice to pay its activation: bridge AZTEC from Ethereum to its address first"
