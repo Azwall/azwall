@@ -20,7 +20,9 @@ pub struct HttpTransport {
 
 impl HttpTransport {
     pub fn new(timeout: Duration) -> Self {
-        Self { agent: ureq::AgentBuilder::new().timeout(timeout).build() }
+        // No redirect: a node's answer comes from the node configured, never from wherever it sends the request
+        // (a POST turned into a GET, https into http).
+        Self { agent: ureq::AgentBuilder::new().timeout(timeout).redirects(0).build() }
     }
 }
 

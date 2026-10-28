@@ -232,9 +232,22 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
     Ok(())
 }
 
+/**
+ * An endpoint the wallet may talk to: https, or plain http to this machine only (a local sandbox node; 10.0.2.2 is the
+ * development machine seen from an Android emulator). Plain http anywhere else would let anyone on the path rewrite
+ * what the node says.
+ */
 pub fn is_http_url(url: &str) -> bool {
-    let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"));
-    rest.is_some_and(|r| !r.is_empty() && !r.starts_with('/'))
+    if let Some(rest) = url.strip_prefix("https://") {
+        return !rest.is_empty() && !rest.starts_with('/');
+    }
+    let Some(rest) = url.strip_prefix("http://") else { return false };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or_default(),
+        None => authority.split(':').next().unwrap_or_default(),
+    };
+    matches!(host, "localhost" | "127.0.0.1" | "::1" | "10.0.2.2")
 }
 
 #[cfg(test)]
@@ -352,6 +365,12 @@ mod tests {
     fn http_urls() {
         assert!(is_http_url("https://aztec-testnet.drpc.org"));
         assert!(is_http_url("http://localhost:8080"));
+        assert!(is_http_url("http://10.0.2.2:8080/"));
+        assert!(is_http_url("http://[::1]:8080"));
+        // 2026-10-28 store-release audit: plain http to anyone else could be rewritten on the way.
+        assert!(!is_http_url("http://node.example"));
+        assert!(!is_http_url("http://localhost.evil.example"));
+        assert!(!is_http_url("http://user@node.example"));
         assert!(!is_http_url("https://"));
         assert!(!is_http_url("wss://node"));
     }

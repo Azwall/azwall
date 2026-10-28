@@ -11,15 +11,21 @@ name = "azwall_ffi"
 # cdylib for Android (JNA), staticlib for the iOS XCFramework, lib for Rust tests.
 crate-type = ["cdylib", "staticlib", "lib"]
 
+# The bindings generator is a tool of scripts/gen-bindings.sh, not part of the library the apps ship: behind a feature,
+# the library depends on uniffi's runtime only (not its ~180 crates of generator, an unmaintained TOML parser among them).
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+bindgen = ["uniffi/cli"]
 
 [dependencies]
 azwall-core.workspace = true
 azwall-prover.workspace = true
 thiserror.workspace = true
-uniffi = { version = "0.32", features = ["cli"] }
+uniffi = "0.32"
 
 [dev-dependencies]
 serde_json.workspace = true

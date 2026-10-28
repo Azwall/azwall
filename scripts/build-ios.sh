@@ -12,6 +12,10 @@ PROFILE=debug
 FLAGS=()
 if [ "${1:-}" = "--release" ]; then PROFILE=release; FLAGS=(--release); fi
 
+# The C and assembly objects of the core's crates (ring) target the app's minimum iOS, as ios/project.yml sets it and
+# build-bb-ios.sh does for Barretenberg; left out, they target the SDK's own version and warn at link time.
+export IPHONEOS_DEPLOYMENT_TARGET=17.0
+
 TARGETS=(aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios)
 rustup target add "${TARGETS[@]}" >/dev/null
 for t in "${TARGETS[@]}"; do

@@ -11,7 +11,7 @@ cd "$ROOT"
 
 cargo build --quiet -p azwall-ffi --lib
 case "$(uname -s)" in Darwin) LIB=target/debug/libazwall_ffi.dylib ;; *) LIB=target/debug/libazwall_ffi.so ;; esac
-bindgen() { cargo run --quiet -p azwall-ffi --bin uniffi-bindgen -- generate --library "$LIB" --language "$1" --out-dir "$2" --no-format; }
+bindgen() { cargo run --quiet -p azwall-ffi --features bindgen --bin uniffi-bindgen -- generate --library "$LIB" --language "$1" --out-dir "$2" --no-format; }
 
 case "$LANG_" in
   kotlin)
