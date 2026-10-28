@@ -13,10 +13,10 @@ import { ProtocolContractAddress } from '@aztec/protocol-contracts';
 import type { AztecAddress } from '@aztec/stdlib/aztec-address';
 import { MerkleTreeId } from '@aztec/stdlib/trees';
 import { FeeJuicePaymentMethodWithClaim } from '@aztec/aztec.js/fee';
-import { createPublicClient, http, parseAbiItem, type PublicClient } from 'viem';
+import { createPublicClient, fallback, http, parseAbiItem, type PublicClient } from 'viem';
 
-/** The network's Ethereum side (networks.json `l1`, resolved by azwall-config). */
-export type L1Params = { rpcUrl: string; portalFromBlock: number };
+/** The network's Ethereum side (networks.json `l1`, resolved by azwall-config): endpoints in the order they are tried. */
+export type L1Params = { rpcUrls: string[]; portalFromBlock: number };
 
 /** A deposit for an account, as the portal's event tells it and the Aztec node sees its message. */
 export type Deposit = {
@@ -46,23 +46,48 @@ export const DEPOSIT_EVENT = parseAbiItem(
   'event DepositToAztecPublic(bytes32 indexed to, uint256 amount, bytes32 secretHash, bytes32 key, uint256 index)',
 );
 
-/** Public nodes cap the blocks one log query may span. */
-const LOG_SPAN = 50_000n;
+/** Public nodes cap the blocks one log query may span: 10,000 is what the fallback endpoints accept. */
+const LOG_SPAN = 10_000n;
+
+/** Blocks read again on each scan: a reorganisation of Ethereum's latest blocks can drop or move a deposit. */
+const REORG_MARGIN = 64n;
 
 /** The secrets the wallet tries for deposits to `recipient`: 0 (the default), the derived one, then the user's. */
 export async function knownSecrets(recipient: AztecAddress, entered: Fr[] = []): Promise<Fr[]> {
   return [Fr.ZERO, await claimSecret(recipient), ...entered];
 }
 
-/** Every deposit the portal received for `recipient` from `fromBlock` on, oldest first. */
+/** The portal's deposits to `to` in blocks `from` to `end`: one log query. */
+function depositLogs(client: Pick<PublicClient, 'getLogs'>, portal: `0x${string}`, to: `0x${string}`, from: bigint, end: bigint) {
+  return client.getLogs({ address: portal, event: DEPOSIT_EVENT, args: { to }, fromBlock: from, toBlock: end });
+}
+
+type DepositLog = Awaited<ReturnType<typeof depositLogs>>[number];
+
+/**
+ * What a scan of the portal found for a recipient, and up to which block: the next scan reads only what follows. Per
+ * client (one per opened network), so another network or a test never sees these.
+ */
+const scans = new WeakMap<object, Map<string, { to: bigint; logs: DepositLog[] }>>();
+
+/**
+ * Every deposit the portal received for `recipient` from `fromBlock` on, oldest first. The blocks read before (but
+ * the last REORG_MARGIN) are not read again: a refresh every 20 s would otherwise read the portal's whole history.
+ */
 export async function depositsTo(client: Pick<PublicClient, 'getLogs' | 'getBlockNumber'>, portal: `0x${string}`, recipient: AztecAddress, fromBlock: bigint) {
   const tip = await client.getBlockNumber();
   const to = recipient.toString() as `0x${string}`;
-  const found = [];
-  for (let start = fromBlock; start <= tip; start += LOG_SPAN) {
+  const key = `${portal.toLowerCase()}|${to.toLowerCase()}|${fromBlock}`;
+  const mine = scans.get(client) ?? new Map<string, { to: bigint; logs: DepositLog[] }>();
+  scans.set(client, mine);
+  const known = mine.get(key);
+  const resume = known && known.to - REORG_MARGIN > fromBlock ? known.to - REORG_MARGIN : fromBlock;
+  const found = (known?.logs ?? []).filter(l => (l.blockNumber ?? 0n) < resume);
+  for (let start = resume; start <= tip; start += LOG_SPAN) {
     const end = start + LOG_SPAN - 1n > tip ? tip : start + LOG_SPAN - 1n;
-    found.push(...(await client.getLogs({ address: portal, event: DEPOSIT_EVENT, args: { to }, fromBlock: start, toBlock: end })));
+    found.push(...(await depositLogs(client, portal, to, start, end)));
   }
+  mine.set(key, { to: tip, logs: found });
   return found;
 }
 
@@ -107,9 +132,9 @@ export async function feeJuiceDeposits(
   );
 }
 
-/** An Ethereum client for the network's endpoint. */
+/** An Ethereum client for the network's endpoints: the next one answers when one fails or refuses a request. */
 export function l1Client(params: L1Params): PublicClient {
-  return createPublicClient({ transport: http(params.rpcUrl) }) as PublicClient;
+  return createPublicClient({ transport: fallback(params.rpcUrls.map(url => http(url, { timeout: 15_000 }))) }) as PublicClient;
 }
 
 /** Where a network's deposits are read: its Ethereum endpoint, its Fee Juice portal and the portal's first block. */

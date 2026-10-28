@@ -14,16 +14,18 @@ type Log = { args: { amount: bigint; secretHash: string; key: string; index: big
 /** An Ethereum node holding `logs`; records each log query's block range. */
 function l1(logs: Log[], tip = 120_000n, chainId = 1) {
   const ranges: [bigint, bigint][] = [];
-  return {
+  const node = {
     ranges,
+    tip,
     getChainId: async () => chainId,
-    getBlockNumber: async () => tip,
+    getBlockNumber: async () => node.tip,
     getLogs: async (q: { fromBlock: bigint; toBlock: bigint; args: { to: string } }) => {
       ranges.push([q.fromBlock, q.toBlock]);
       expect(q.args.to).toBe(me.toString());
       return logs.filter(l => l.blockNumber >= q.fromBlock && l.blockNumber <= q.toBlock);
     },
   };
+  return node;
 }
 
 /** An Aztec node whose message tree holds `inTree` (message hash → leaf index) and whose nullifiers are `spent`. */
@@ -49,10 +51,20 @@ describe('bridged Fee Juice', () => {
   });
 
   it('reads the portal in spans public nodes accept, from the portal\'s first block', async () => {
-    const node = l1([await log(5n, 1n, 60_000n)]);
+    const node = l1([await log(5n, 1n, 25_000n)], 45_000n);
     const logs = await depositsTo(node as never, portal, me, 10_000n);
     expect(logs).toHaveLength(1);
-    expect(node.ranges).toEqual([[10_000n, 59_999n], [60_000n, 109_999n], [110_000n, 120_000n]]);
+    expect(node.ranges).toEqual([[10_000n, 19_999n], [20_000n, 29_999n], [30_000n, 39_999n], [40_000n, 45_000n]]);
+  });
+
+  it('reads again only the blocks after the last scan, and the latest ones a reorganisation could change', async () => {
+    const node = l1([await log(5n, 1n, 1_000n)], 30_000n);
+    await depositsTo(node as never, portal, me, 0n);
+    node.ranges.length = 0;
+    node.tip = 30_500n;
+    const logs = await depositsTo(node as never, portal, me, 0n);
+    expect(node.ranges).toEqual([[29_936n, 30_500n]]);
+    expect(logs).toHaveLength(1);
   });
 
   it('tells deposits it can claim, waiting, claimed, and others\' secrets apart', async () => {

@@ -17,9 +17,10 @@ pub struct ResolvedNetwork {
     #[serde(flatten)]
     pub spec: NetworkSpec,
     pub rpc_url: String,
-    /// The Ethereum endpoint for the network's Fee Juice deposits: `.env` first, then the registry's `l1.rpc`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub l1_rpc_url: Option<String>,
+    /// The Ethereum endpoints for the network's Fee Juice deposits, in the order they are tried: `.env`'s, then the
+    /// registry's `l1.rpc` and `l1.fallbackRpc`. Empty when the network has no Ethereum side.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub l1_rpc_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,23 +45,30 @@ impl ResolvedNetwork {
             "expected": self.spec.expected,
             "fees": self.spec.fees,
             // Without it the wallet does not look for bridged Fee Juice.
-            "l1": self.l1_rpc_url.as_ref().zip(self.spec.l1.as_ref()).map(|(url, l1)| serde_json::json!({
-                "rpcUrl": url,
+            "l1": self.spec.l1.as_ref().filter(|_| !self.l1_rpc_urls.is_empty()).map(|l1| serde_json::json!({
+                "rpcUrls": self.l1_rpc_urls,
                 "portalFromBlock": l1.portal_from_block,
             })),
         })
     }
 }
 
-/// A network's Ethereum endpoint: `.env` first, then the registry's; none when the registry declares no `l1`.
-fn l1_rpc(spec: &NetworkSpec, env: &EnvMap) -> Result<Option<String>> {
-    let Some(l1) = &spec.l1 else { return Ok(None) };
+/// A network's Ethereum endpoints, in order: `.env`'s, then the registry's main and fallback ones; none when the
+/// registry declares no `l1`.
+fn l1_rpcs(spec: &NetworkSpec, env: &EnvMap) -> Result<Vec<String>> {
+    let Some(l1) = &spec.l1 else { return Ok(Vec::new()) };
     let key = spec.l1_rpc_env_key();
-    match dotenv::non_empty(env, &key) {
-        Some(url) if !is_http_url(url) => Err(CoreError::Config(format!("{key} must be an http(s) URL"))),
-        Some(url) => Ok(Some(url.to_string())),
-        None => Ok(Some(l1.rpc.clone())),
+    let configured = dotenv::non_empty(env, &key);
+    if configured.is_some_and(|url| !is_http_url(url)) {
+        return Err(CoreError::Config(format!("{key} must be an http(s) URL")));
     }
+    let mut urls: Vec<String> = Vec::new();
+    for url in configured.into_iter().chain([l1.rpc.as_str()]).chain(l1.fallback_rpc.as_deref()) {
+        if !urls.iter().any(|u| u == url) {
+            urls.push(url.to_string());
+        }
+    }
+    Ok(urls)
 }
 
 impl AppConfig {
@@ -76,7 +84,7 @@ impl AppConfig {
                 Some(url) if is_http_url(url) => networks.push(ResolvedNetwork {
                     spec: spec.clone(),
                     rpc_url: url.to_string(),
-                    l1_rpc_url: l1_rpc(spec, env)?,
+                    l1_rpc_urls: l1_rpcs(spec, env)?,
                 }),
                 Some(_) => return Err(CoreError::Config(format!("{key} must be an http(s) URL"))),
                 None => unavailable.push(spec.id.clone()),
@@ -127,7 +135,7 @@ mod tests {
       "networks": [
         { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0", "pxe": "v6",
           "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 }, "fees": "sponsored",
-          "l1": { "rpc": "https://eth.example", "portalFromBlock": 42 } },
+          "l1": { "rpc": "https://eth.example", "fallbackRpc": "https://eth2.example", "portalFromBlock": 42 } },
         { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
           "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
       ]
@@ -198,12 +206,16 @@ mod tests {
         let registry = Registry::from_json(REGISTRY).unwrap();
         let config = AppConfig::resolve(&registry, &env(&[("AZWALL_RPC_NET_B", "https://b.example")])).unwrap();
         let l1 = &config.network("net-a").unwrap().pxe_open_params(3)["l1"];
-        assert_eq!(l1["rpcUrl"], "https://eth.example");
+        assert_eq!(l1["rpcUrls"], serde_json::json!(["https://eth.example", "https://eth2.example"]));
         assert_eq!(l1["portalFromBlock"], 42);
         // A network that declares no Ethereum side does not look for bridged Fee Juice.
         assert!(config.network("net-b").unwrap().pxe_open_params(3)["l1"].is_null());
         let keyed = AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "https://my-eth.example/k")])).unwrap();
-        assert_eq!(keyed.network("net-a").unwrap().pxe_open_params(3)["l1"]["rpcUrl"], "https://my-eth.example/k");
+        // A keyed endpoint of the user's own comes first; the public ones stay as fallbacks.
+        assert_eq!(
+            keyed.network("net-a").unwrap().pxe_open_params(3)["l1"]["rpcUrls"],
+            serde_json::json!(["https://my-eth.example/k", "https://eth.example", "https://eth2.example"]),
+        );
         assert!(AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "ftp://x")])).is_err());
     }
 

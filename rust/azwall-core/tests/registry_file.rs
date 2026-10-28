@@ -18,8 +18,10 @@ fn env_example_declares_a_key_for_every_network() {
     let env = dotenv::parse(ENV_EXAMPLE).unwrap();
     for network in &registry.networks {
         assert!(env.contains_key(&network.rpc_env_key()), "{} missing from .env.example", network.rpc_env_key());
-        if network.l1.is_some() {
+        if let Some(l1) = &network.l1 {
             assert!(env.contains_key(&network.l1_rpc_env_key()), "{} missing from .env.example", network.l1_rpc_env_key());
+            // Public endpoints change their limits without notice: a second one keeps bridged Fee Juice found.
+            assert!(l1.fallback_rpc.as_deref().is_some_and(|f| f != l1.rpc), "{} has no fallback Ethereum endpoint", network.id);
         }
     }
 }

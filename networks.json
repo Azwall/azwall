@@ -17,7 +17,8 @@
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
       },
       "l1": {
-        "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+        "rpc": "https://sepolia.gateway.tenderly.co",
+        "fallbackRpc": "https://0xrpc.io/sep",
         "portalFromBlock": 11989021
       },
       "fees": "sponsored",
@@ -61,7 +62,8 @@
         "protocolContractsHash": "0x0f54271c52865841a77aaa66036eed901aff22fdce9f08e123ec8b205c9854d7"
       },
       "l1": {
-        "rpc": "https://ethereum-rpc.publicnode.com",
+        "rpc": "https://mainnet.gateway.tenderly.co",
+        "fallbackRpc": "https://rpc.mevblocker.io",
         "portalFromBlock": 26277869
       },
       "explorers": [
