@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The release build tried beside the app: told apart on the home screen and in the app switcher. -->
+    <string name="app_name">Azwall Staging</string>
+</resources>
