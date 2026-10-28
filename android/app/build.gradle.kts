@@ -104,7 +104,24 @@ val checkCrs by tasks.registering(Exec::class) {
     outputs.upToDateWhen { true }
 }
 
+// The app links the Rust core staged by scripts/build-android.sh but cannot build it: one older than its sources runs
+// without what changed since (a network's pinned portal was lost that way). Fail instead, as Xcode does.
+val checkRustCore by tasks.registering {
+    doLast {
+        val lib = repoRoot.resolve("android/core/src/main/jniLibs/arm64-v8a/libazwall_ffi.so")
+        if (!lib.exists()) throw GradleException("no Rust core staged: run scripts/build-android.sh")
+        // Tests are not in the library: a new or changed test does not ask for a rebuild.
+        val sources = repoRoot.resolve("rust").walkTopDown()
+            .onEnter { it.name != "target" && it.name != "tests" }
+            .filter { it.isFile && (it.extension == "rs" && it.name != "tests.rs" || it.name == "Cargo.toml") }
+        val newer = (sources + listOf(repoRoot.resolve("Cargo.toml"), repoRoot.resolve("Cargo.lock"))).firstOrNull { it.lastModified() > lib.lastModified() }
+        if (newer != null) throw GradleException("the Rust core is older than ${newer.relativeTo(repoRoot)}: run scripts/build-android.sh")
+    }
+}
+
 tasks.named("preBuild") { dependsOn(generateAzwallConfig, buildPxeHosts, checkCrs) }
+// Only where the library is packaged: unit tests do not load it, and run while the Rust code changes.
+tasks.matching { Regex("merge\\w*NativeLibs").matches(it.name) }.configureEach { dependsOn(checkRustCore) }
 
 // What reaches a store must be built for it: the Rust core in release mode for every architecture shipped, and only
 // the registry's public endpoints (an RPC URL from .env may carry its owner's API key, readable by anyone in the APK).
