@@ -56,6 +56,12 @@ function secrets(p: Params): AccountSecrets {
   return { alias: str(p, 'alias'), signingKey: hex(p, 'signingKey', 32), salt: hex(p, 'salt', 32) };
 }
 
+/** The tokens the app reads and registers are the ones the user follows: approvals mark any other (dapp/effects.ts). */
+function followed(wallet: AzwallWallet, tokens: string[]): string[] {
+  wallet.follow(tokens);
+  return tokens;
+}
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -93,10 +99,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     waitForTx: async p => w().waitForReceipt(str(p, 'txHash')),
     txReceipt: async p => w().txReceipt(str(p, 'txHash')),
     tokenInfo: async p => tokenInfo(w(), str(p, 'token'), str(p, 'from')),
-    balances: async p => {
-      w().follow(strings(p, 'tokens'));
-      return balances(w(), str(p, 'owner'), strings(p, 'tokens'));
-    },
+    balances: async p => balances(w(), str(p, 'owner'), followed(w(), strings(p, 'tokens'))),
     transfer: async p => {
       const kind = str(p, 'kind') as TransferKind;
       if (!TRANSFER_KINDS.includes(kind)) throw new Error(`kind must be one of ${TRANSFER_KINDS.join(', ')}`);
@@ -105,10 +108,7 @@ export function createHandlers(bridge: Bridge): Handlers {
     },
     deployToken: async p => deployToken(w(), str(p, 'admin'), str(p, 'name'), str(p, 'symbol'), int(p, 'decimals')),
     mint: async p => ({ txHash: await mint(w(), str(p, 'admin'), str(p, 'token'), str(p, 'to'), amount(p, 'amount'), bool(p, 'private')) }),
-    registerTokens: async p => {
-      w().follow(strings(p, 'tokens'));
-      return registerTokens(w(), strings(p, 'tokens'));
-    },
+    registerTokens: async p => registerTokens(w(), followed(w(), strings(p, 'tokens'))),
     tokenHistory: async p => tokenHistory(w(), str(p, 'owner'), strings(p, 'tokens')),
     syncStatus: async () => w().syncStatus(),
     discoverTokens: async p => discoverTokens(w(), str(p, 'owner'), strings(p, 'known')),
