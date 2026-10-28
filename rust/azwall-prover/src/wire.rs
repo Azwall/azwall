@@ -70,6 +70,10 @@ impl<'a> Reader<'a> {
 }
 
 pub fn decode_request(buf: &[u8]) -> Result<Vec<ExecutionStep>> {
+    decode_request_capped(buf, MAX_REQUEST)
+}
+
+fn decode_request_capped(buf: &[u8], max_request: u64) -> Result<Vec<ExecutionStep>> {
     let mut r = Reader { buf, pos: 0 };
     if r.take(4)? != REQUEST_MAGIC {
         return Err(ProverError::Wire("bad request magic".into()));
@@ -79,12 +83,18 @@ pub fn decode_request(buf: &[u8]) -> Result<Vec<ExecutionStep>> {
         return Err(ProverError::Wire(format!("implausible execution step count {count}")));
     }
     let mut steps = Vec::with_capacity(count);
+    let mut unpacked: u64 = 0;
     for _ in 0..count {
         let kind = r.u32()?;
         let name = String::from_utf8(r.bytes()?.to_vec()).map_err(|e| ProverError::Wire(e.to_string()))?;
         let bytecode = gunzip(r.bytes()?, &name, "bytecode")?;
         let witness = gunzip(r.bytes()?, &name, "witness")?;
         let vk = r.bytes()?.to_vec();
+        // Each field is capped, but 64 steps of two capped fields would still be gigabytes: so is their sum.
+        unpacked += (bytecode.len() + witness.len()) as u64;
+        if unpacked > max_request {
+            return Err(ProverError::Wire(format!("the request unpacks to more than {} MiB", max_request >> 20)));
+        }
         steps.push(ExecutionStep { kind, name, bytecode, witness, vk });
     }
     r.finish()?;
@@ -149,6 +159,9 @@ fn put_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<()> {
 /// exhaust a phone's memory if a malformed request expanded without end.
 const MAX_UNPACKED: u64 = 256 * 1024 * 1024;
 
+/// The most a whole request may unpack to, all steps together.
+const MAX_REQUEST: u64 = 1024 * 1024 * 1024;
+
 fn gunzip(data: &[u8], circuit: &str, what: &str) -> Result<Vec<u8>> {
     gunzip_capped(data, MAX_UNPACKED, circuit, what)
 }
@@ -174,6 +187,16 @@ fn gzip(data: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_request_unpacking_to_too_much_altogether_is_refused() {
+        let steps = vec![step(0), step(1), step(2)];
+        let encoded = encode_request(&steps).unwrap();
+        let total: u64 = steps.iter().map(|s| (s.bytecode.len() + s.witness.len()) as u64).sum();
+        assert!(decode_request_capped(&encoded, total).is_ok());
+        let err = decode_request_capped(&encoded, total - 1).unwrap_err();
+        assert!(err.to_string().contains("unpacks to more than"), "{err}");
+    }
 
     fn step(i: u32) -> ExecutionStep {
         ExecutionStep {

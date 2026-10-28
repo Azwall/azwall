@@ -16,7 +16,18 @@ import { FeeJuicePaymentMethodWithClaim } from '@aztec/aztec.js/fee';
 import { createPublicClient, fallback, http, parseAbiItem, type PublicClient } from 'viem';
 
 /** The network's Ethereum side (networks.json `l1`, resolved by azwall-config): endpoints in the order they are tried. */
-export type L1Params = { rpcUrls: string[]; portalFromBlock: number };
+export type L1Params = { rpcUrls: string[]; portal: string; portalFromBlock: number };
+
+/**
+ * The portal deposits are read from: the registry's, pinned. A node naming another one is on another network, or
+ * lies: its deposits would be someone else's (or nobody's), so the wallet refuses it.
+ */
+export function pinnedPortal(fromNode: string, l1: L1Params): `0x${string}` {
+  if (fromNode.toLowerCase() !== l1.portal.toLowerCase()) {
+    throw new Error(`the node names Fee Juice portal ${fromNode}, not this network's ${l1.portal}`);
+  }
+  return l1.portal as `0x${string}`;
+}
 
 /** A deposit for an account, as the portal's event tells it and the Aztec node sees its message. */
 export type Deposit = {
@@ -52,6 +63,12 @@ const LOG_SPAN = 10_000n;
 /** Blocks read again on each scan: a reorganisation of Ethereum's latest blocks can drop or move a deposit. */
 const REORG_MARGIN = 64n;
 
+/**
+ * The most log queries one scan makes (a million blocks, about four months): the next scan goes on from there. An
+ * endpoint that lies about its latest block cannot keep the wallet querying for ever.
+ */
+const MAX_SPANS = 100n;
+
 /** The secrets the wallet tries for deposits to `recipient`: 0 (the default), the derived one, then the user's. */
 export async function knownSecrets(recipient: AztecAddress, entered: Fr[] = []): Promise<Fr[]> {
   return [Fr.ZERO, await claimSecret(recipient), ...entered];
@@ -83,11 +100,12 @@ export async function depositsTo(client: Pick<PublicClient, 'getLogs' | 'getBloc
   const known = mine.get(key);
   const resume = known && known.to - REORG_MARGIN > fromBlock ? known.to - REORG_MARGIN : fromBlock;
   const found = (known?.logs ?? []).filter(l => (l.blockNumber ?? 0n) < resume);
-  for (let start = resume; start <= tip; start += LOG_SPAN) {
-    const end = start + LOG_SPAN - 1n > tip ? tip : start + LOG_SPAN - 1n;
+  const last = resume + MAX_SPANS * LOG_SPAN - 1n < tip ? resume + MAX_SPANS * LOG_SPAN - 1n : tip;
+  for (let start = resume; start <= last; start += LOG_SPAN) {
+    const end = start + LOG_SPAN - 1n > last ? last : start + LOG_SPAN - 1n;
     found.push(...(await depositLogs(client, portal, to, start, end)));
   }
-  mine.set(key, { to: tip, logs: found });
+  mine.set(key, { to: last, logs: found });
   return found;
 }
 

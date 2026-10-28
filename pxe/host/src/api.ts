@@ -40,7 +40,7 @@ function networkParams(p: Params): NetworkParams {
 function l1Params(value: unknown): L1Params | undefined {
   if (value === null || value === undefined) return undefined;
   const l1 = asParams(value);
-  return { rpcUrls: strings(l1, 'rpcUrls'), portalFromBlock: int(l1, 'portalFromBlock') };
+  return { rpcUrls: strings(l1, 'rpcUrls'), portal: str(l1, 'portal'), portalFromBlock: int(l1, 'portalFromBlock') };
 }
 
 type Claim = { amount: bigint; leafIndex: bigint; secret: Fr };

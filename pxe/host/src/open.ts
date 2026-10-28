@@ -10,7 +10,7 @@ import { type Bridge, errorMessage } from '@azwall/pxe-shared';
 
 import { installBbMemo } from './bb_memo';
 import { trustFeePayers } from './dapp/calls';
-import { type L1Params, l1Client } from './fee_juice';
+import { type L1Params, l1Client, pinnedPortal } from './fee_juice';
 import { type FeeMode, feeModeOf } from './fees';
 import { generationName, nextGeneration } from './generation';
 import { log } from './log';
@@ -168,6 +168,18 @@ async function openOpfsStores(bases: [string, string], dbKey: Uint8Array) {
   return { ...stores, caches };
 }
 
+/**
+ * The chain id and rollup version transactions are signed for come from the wallet's own reading of the node, not
+ * from checkNetwork's: both must be the registry's, or a node answering the check correctly and the wallet otherwise
+ * would have it sign for another chain.
+ */
+export async function sameChainEverywhere(wallet: { getChainInfo(): Promise<{ chainId: { toBigInt(): bigint }; version: { toBigInt(): bigint } }> }, network: NetworkParams) {
+  const chain = await wallet.getChainInfo();
+  if (chain.chainId.toBigInt() !== BigInt(network.expected.l1ChainId) || chain.version.toBigInt() !== BigInt(network.expected.rollupVersion)) {
+    throw new Error(`the node gave the wallet chain ${chain.chainId.toBigInt()} version ${chain.version.toBigInt()}, not this network's`);
+  }
+}
+
 /** `dbKey`: 32-byte hex key of the encrypted stores, kept by the app's secure storage. */
 export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: Uint8Array) {
   installBbMemo();
@@ -199,9 +211,9 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   if (wallet.fees === 'sponsored') await wallet.registerContract(fpc.instance, fpc.artifact);
   else log('wallet', 'no Sponsored FPC on this network: fees are paid with the account\'s Fee Juice');
   trustFeePayers(wallet.fees === 'sponsored' ? [fpc.instance.address.toString()] : []);
-  // The portal comes from the node, which the checks above matched with the registry.
+  await sameChainEverywhere(wallet, network);
   if (network.l1) {
-    const portal = l1ContractAddresses.feeJuicePortalAddress.toString() as `0x${string}`;
+    const portal = pinnedPortal(l1ContractAddresses.feeJuicePortalAddress.toString(), network.l1);
     wallet.bridge = { client: l1Client(network.l1), portal, fromBlock: BigInt(network.l1.portalFromBlock), l1ChainId: network.expected.l1ChainId };
     log('wallet', `bridged Fee Juice is read on Ethereum (${network.l1.rpcUrls.map(u => new URL(u).host).join(', then ')}) from block ${network.l1.portalFromBlock}`);
   } else {

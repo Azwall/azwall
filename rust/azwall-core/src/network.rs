@@ -80,6 +80,8 @@ pub struct L1Spec {
     /// Tried when `rpc` fails or refuses the request: public endpoints change their limits without notice.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback_rpc: Option<String>,
+    /// The network's Fee Juice portal on Ethereum: pinned, so a node cannot point the wallet at another contract.
+    pub portal: String,
     /// The block the network's Fee Juice portal was deployed in: no deposit for it exists before.
     pub portal_from_block: u64,
 }
@@ -213,6 +215,9 @@ fn validate_network(n: &NetworkSpec) -> Result<()> {
     if n.l1.as_ref().is_some_and(|l1| !is_http_url(&l1.rpc) || l1.fallback_rpc.as_deref().is_some_and(|u| !is_http_url(u))) {
         return bad("l1.rpc and l1.fallbackRpc must be http(s) URLs");
     }
+    if n.l1.as_ref().is_some_and(|l1| !(l1.portal.len() == 42 && l1.portal.starts_with("0x") && l1.portal[2..].chars().all(|c| c.is_ascii_hexdigit()))) {
+        return bad("l1.portal must be an Ethereum address (0x + 40 hex)");
+    }
     for d in &n.dapps {
         if d.name.trim().is_empty() || !d.url.starts_with("https://") || !is_http_url(&d.url) {
             return bad(&format!("dApp '{}' needs a name and an https URL", d.name));
@@ -270,12 +275,14 @@ mod tests {
 
     #[test]
     fn an_ethereum_side_takes_a_fallback_endpoint() {
-        let l1 = |fallback: &str| format!(r#""l1": {{ "rpc": "https://eth.example", {fallback} "portalFromBlock": 7 }}, "pxe": "v6""#);
+        let l1 = |fallback: &str| format!(r#""l1": {{ "rpc": "https://eth.example", {fallback} "portal": "0x{}", "portalFromBlock": 7 }}, "pxe": "v6""#, "ab".repeat(20));
         let with = Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, &l1(r#""fallbackRpc": "https://eth2.example","#), 1)).unwrap();
         assert_eq!(with.networks[0].l1.as_ref().unwrap().fallback_rpc.as_deref(), Some("https://eth2.example"));
         let without = Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, &l1(""), 1)).unwrap();
         assert_eq!(without.networks[0].l1.as_ref().unwrap().fallback_rpc, None);
         assert!(Registry::from_json(&sample_json().replacen(r#""pxe": "v6""#, &l1(r#""fallbackRpc": "ftp://x","#), 1)).is_err());
+        let short_portal = sample_json().replacen(r#""pxe": "v6""#, r#""l1": { "rpc": "https://eth.example", "portal": "0x12", "portalFromBlock": 7 }, "pxe": "v6""#, 1);
+        assert!(Registry::from_json(&short_portal).is_err());
     }
 
     #[test]

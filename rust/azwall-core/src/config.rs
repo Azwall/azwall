@@ -47,6 +47,7 @@ impl ResolvedNetwork {
             // Without it the wallet does not look for bridged Fee Juice.
             "l1": self.spec.l1.as_ref().filter(|_| !self.l1_rpc_urls.is_empty()).map(|l1| serde_json::json!({
                 "rpcUrls": self.l1_rpc_urls,
+                "portal": l1.portal,
                 "portalFromBlock": l1.portal_from_block,
             })),
         })
@@ -135,7 +136,7 @@ mod tests {
       "networks": [
         { "id": "net-a", "label": "A", "aztec": "6.0.0", "barretenberg": "6.0.0", "pxe": "v6",
           "defaultRpc": "https://a.example", "expected": { "l1ChainId": 1, "rollupVersion": 10 }, "fees": "sponsored",
-          "l1": { "rpc": "https://eth.example", "fallbackRpc": "https://eth2.example", "portalFromBlock": 42 } },
+          "l1": { "rpc": "https://eth.example", "fallbackRpc": "https://eth2.example", "portal": "0xabababababababababababababababababababab", "portalFromBlock": 42 } },
         { "id": "net-b", "label": "B", "aztec": "5.1.0", "barretenberg": "5.1.0", "pxe": "v5",
           "expected": { "l1ChainId": 1, "rollupVersion": 20 } }
       ]
@@ -208,6 +209,7 @@ mod tests {
         let l1 = &config.network("net-a").unwrap().pxe_open_params(3)["l1"];
         assert_eq!(l1["rpcUrls"], serde_json::json!(["https://eth.example", "https://eth2.example"]));
         assert_eq!(l1["portalFromBlock"], 42);
+        assert_eq!(l1["portal"], "0xabababababababababababababababababababab");
         // A network that declares no Ethereum side does not look for bridged Fee Juice.
         assert!(config.network("net-b").unwrap().pxe_open_params(3)["l1"].is_null());
         let keyed = AppConfig::resolve(&registry, &env(&[("AZWALL_L1_RPC_NET_A", "https://my-eth.example/k")])).unwrap();

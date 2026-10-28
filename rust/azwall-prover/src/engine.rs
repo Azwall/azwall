@@ -124,8 +124,11 @@ pub fn configure_threads(requested: usize) -> Result<usize> {
     let available = thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
     let threads = if requested == 0 { available } else { requested.min(available) };
     let fixed = *PROCESS_THREADS.get_or_init(|| {
-        // Before any Barretenberg code runs; nothing else in the process reads this variable.
-        std::env::set_var("HARDWARE_CONCURRENCY", threads.to_string());
+        // setenv is not thread-safe, and the app's other threads exist by now: the app sets the variable at startup
+        // (Android: AzwallApplication), and it is only written here when it says something else.
+        if std::env::var("HARDWARE_CONCURRENCY").ok() != Some(threads.to_string()) {
+            std::env::set_var("HARDWARE_CONCURRENCY", threads.to_string());
+        }
         threads
     });
     if fixed != threads {

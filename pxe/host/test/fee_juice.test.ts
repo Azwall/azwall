@@ -57,6 +57,17 @@ describe('bridged Fee Juice', () => {
     expect(node.ranges).toEqual([[10_000n, 19_999n], [20_000n, 29_999n], [30_000n, 39_999n], [40_000n, 45_000n]]);
   });
 
+  it('queries at most a hundred spans per scan, whatever the endpoint says its latest block is', async () => {
+    const node = l1([], 10n ** 12n);
+    await depositsTo(node as never, portal, me, 0n);
+    expect(node.ranges).toHaveLength(100);
+    expect(node.ranges[99]).toEqual([990_000n, 999_999n]);
+    // The next scan goes on from there (less the reorganisation margin).
+    node.ranges.length = 0;
+    await depositsTo(node as never, portal, me, 0n);
+    expect(node.ranges[0]).toEqual([999_935n, 1_009_934n]);
+  });
+
   it('reads again only the blocks after the last scan, and the latest ones a reorganisation could change', async () => {
     const node = l1([await log(5n, 1n, 1_000n)], 30_000n);
     await depositsTo(node as never, portal, me, 0n);
@@ -105,5 +116,22 @@ describe('bridged Fee Juice', () => {
   it('refuses an Ethereum endpoint on another chain', async () => {
     const bridge = { client: l1([], 1n, 11155111) as never, portal: portal as `0x${string}`, fromBlock: 0n, l1ChainId: 1 };
     await expect(depositsFor(bridge, aztec(new Map(), []) as never, me)).rejects.toThrow('chain 11155111');
+  });
+});
+
+describe('the network pinned in the registry', () => {
+  it('refuses a node that names another Fee Juice portal', async () => {
+    const { pinnedPortal } = await import('../src/fee_juice');
+    const l1 = { rpcUrls: ['https://eth.example'], portal: '0x534361be805CA30Bdb6404eC5E6cDAFFB3E9f3b3', portalFromBlock: 1 };
+    expect(pinnedPortal('0x534361be805ca30bdb6404ec5e6cdaffb3e9f3b3', l1)).toBe(l1.portal);
+    expect(() => pinnedPortal('0x' + '66'.repeat(20), l1)).toThrow("not this network's");
+  });
+
+  it('refuses a wallet that would sign for another chain than the one checked', async () => {
+    const { sameChainEverywhere } = await import('../src/open');
+    const network = { expected: { l1ChainId: 1, rollupVersion: 7 } } as never;
+    const wallet = (chainId: bigint, version: bigint) => ({ getChainInfo: async () => ({ chainId: new Fr(chainId), version: new Fr(version) }) });
+    await expect(sameChainEverywhere(wallet(1n, 7n), network)).resolves.toBeUndefined();
+    await expect(sameChainEverywhere(wallet(1n, 8n), network)).rejects.toThrow("not this network's");
   });
 });
