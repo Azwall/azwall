@@ -55,7 +55,7 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
         return contents
     }
 
-    /** The vault before its last [upgrade], kept until the upgraded one has been opened once. */
+    /** The vault before its last [upgrade], kept until the upgraded one has been opened, or changed, once ([write]). */
     private val previous = File(file.parentFile, file.name + ".previous")
 
     /** Whether the vault is sealed with a key the box replaces: [upgrade] after unlocking it. */
@@ -89,7 +89,8 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
      */
     fun upgrade(contents: VaultContents) {
         check(needsUpgrade()) { "the vault is already sealed with the current key" }
-        write(contents)
+        file.copyTo(previous, overwrite = true)
+        seal(contents)
     }
 
     private fun decode(plain: ByteArray): VaultContents = json.decodeFromString(VaultContents.serializer(), plain.decodeToString())
@@ -112,9 +113,20 @@ class Vault(private val file: File, private val box: SecretBox, private val rand
         previous.delete()
     }
 
+    /**
+     * Saves a change. Only [upgrade] keeps the vault it replaces, since it holds the same contents: going back to it
+     * after any other change would undo that change (an imported key lost). So once a change is saved with the new key,
+     * the vault kept from before the upgrade and the old key go.
+     */
     private fun write(contents: VaultContents) {
-        // Any write leaving the old key (an upgrade, or an account added before one) keeps the vault it replaces.
-        if (needsUpgrade()) file.copyTo(previous, overwrite = true)
+        val replacesOldKey = needsUpgrade()
+        seal(contents)
+        if (!replacesOldKey && !previous.exists()) return
+        if (previous.exists()) check(previous.delete()) { "could not drop the vault kept from before the upgrade" }
+        box.dropLegacy()
+    }
+
+    private fun seal(contents: VaultContents) {
         val sealed = box.seal(json.encodeToString(VaultContents.serializer(), contents).encodeToByteArray())
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeBytes(sealed)

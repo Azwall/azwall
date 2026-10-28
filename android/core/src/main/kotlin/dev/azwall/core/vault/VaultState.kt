@@ -1,5 +1,6 @@
 package dev.azwall.core.vault
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -11,7 +12,7 @@ import kotlinx.coroutines.withContext
  * network) thus sees what that save wrote, and its own next save starts from it; unlocking waits for a save still
  * running, so it reads the vault that save left.
  */
-class VaultState(private val vault: Vault) {
+class VaultState(private val vault: Vault, private val io: CoroutineDispatcher = Dispatchers.IO) {
     private val lock = Mutex()
 
     @Volatile
@@ -39,12 +40,22 @@ class VaultState(private val vault: Vault) {
     }
 
     /**
+     * Deletes the wallet with [erase], once any save under way has landed: run alongside, that save would write the
+     * vault again after it was deleted. The wallet is locked first, so a change asked for later finds no vault to
+     * change.
+     */
+    suspend fun erase(erase: () -> Unit) {
+        forget()
+        lock.withLock { withContext(io) { erase() } }
+    }
+
+    /**
      * Changes the vault from its latest contents, off the main thread (sealing may wait for the user to
      * authenticate): [write] saves the next contents with [vault] and returns them with its own result.
      */
     suspend fun <R> change(write: (Vault, VaultContents) -> Pair<VaultContents, R>): R = lock.withLock {
         val since = epoch
-        val (next, result) = withContext(Dispatchers.IO) { write(vault, contents) }
+        val (next, result) = withContext(io) { write(vault, contents) }
         if (since == epoch) held = next
         result
     }

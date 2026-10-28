@@ -160,7 +160,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
      */
     fun startOver() = action {
         check(_phase.value == AppPhase.KeyLost) { "the wallet can still be unlocked" }
-        withContext(io) { deps.wipe() }
+        vaultState.erase(deps::wipe)
         _phase.value = AppPhase.Onboarding
     }
 
@@ -234,7 +234,8 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     fun wipe(auth: Auth) = action {
         if (!auth()) throw AuthCancelled()
         lock()
-        withContext(io) { deps.wipe() }
+        // After any save under way, which would otherwise write the deleted vault back.
+        vaultState.erase(deps::wipe)
         _phase.value = AppPhase.Onboarding
     }
 

@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -28,8 +29,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * From the 2026-10-28 re-audit (docs/audits): a Retry, a lock or a network switch while an account is being saved
- * must not make the next save drop it. The save is held mid-way, as the user's fingerprint holds it on a phone.
+ * From the 2026-10-28 audits (docs/audits): a Retry, a lock or a network switch while an account is being saved
+ * must not make the next save drop it, and deleting the wallet then must not let that save write it back. The save
+ * is held mid-way, as the user's fingerprint holds it on a phone.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountRaceTest {
@@ -82,7 +84,7 @@ class AccountRaceTest {
             override val approvals = DappApprovals()
             override var lastNetwork: String? = null
             override var searchEngine = SearchEngine.DEFAULT
-            override fun wipe() {}
+            override fun wipe() = saved.wipe()
         }, dispatcher)
         vm.boot()
         advanceUntilIdle()
@@ -127,5 +129,20 @@ class AccountRaceTest {
         vm.addAccount("third", "0x" + "03".repeat(32)) { true }.join()
         advanceUntilIdle()
         assertEquals(listOf("first", "second", "third"), saved.unlock().accounts.map { it.alias })
+    }
+
+    /** From the independent audit (A04): the save used to land after the deletion and write the vault back. */
+    @Test
+    fun deletingTheWalletWhileSavingLeavesNoVault() = runTest {
+        val vm = unlocked()
+        val adding = importingSecond(vm)
+        val wiping = vm.wipe { true }
+        runCurrent()
+        release.countDown()
+        adding.join()
+        wiping.join()
+        advanceUntilIdle()
+        assertEquals(AppPhase.Onboarding, vm.phase.value)
+        assertFalse("the deleted vault was written back", saved.exists())
     }
 }

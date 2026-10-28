@@ -90,7 +90,8 @@ class SignTest {
         vm.unlock(auth = { true })
         assertEquals(AppPhase.KeyLost, vm.phase.value)
         assertTrue(vm.message.value!!.contains("recovery phrase"))
-        vm.startOver()
+        // Deleting waits for any save under way (VaultState.erase), off the main thread.
+        kotlinx.coroutines.runBlocking { vm.startOver().join() }
         assertTrue(wiped)
         assertEquals(AppPhase.Onboarding, vm.phase.value)
     }

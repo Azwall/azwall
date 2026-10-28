@@ -44,10 +44,12 @@ public final class AppModel {
     public private(set) var nodes: [String: NodeCheck] = [:]
 
     private let deps: AppDependencies
-    private var contents: VaultContents?
+    /// The unlocked vault, owned here once for every session (VaultState).
+    @ObservationIgnored private let vaultState: VaultState
 
     public init(deps: AppDependencies) {
         self.deps = deps
+        vaultState = VaultState(vault: deps.vault)
     }
 
     public var approvals: DappApprovals { deps.approvals }
@@ -74,7 +76,8 @@ public final class AppModel {
         await action {
             let deps = self.deps
             let (account, phrase) = try await Task.detached { try Recovery.firstAccount(secret, alias: alias, backend: try deps.backend()) }.value
-            await self.start(try await Task.detached { try deps.vault.create(first: account, phrase: phrase) }.value)
+            _ = try await self.vaultState.open { try await Task.detached { try deps.vault.create(first: account, phrase: phrase) }.value }
+            await self.start()
         }
     }
 
@@ -93,37 +96,39 @@ public final class AppModel {
     }
 
     /// False for a wallet created from a signing key, before recovery phrases.
-    public var hasRecoveryPhrase: Bool { contents?.phrase != nil }
+    public var hasRecoveryPhrase: Bool { vaultState.current?.phrase != nil }
 
     /// Re-authenticates, then returns the recovery phrase (nil for a wallet created from a key).
     public func revealPhrase() async -> String? {
         guard await deps.authenticate(reason: "Show the recovery phrase") else { return nil }
-        return contents?.phrase
+        return vaultState.current?.phrase
     }
 
     /// Reading the vault shows the system prompt (Face ID, Touch ID or passcode).
     public func unlock() async {
         await action {
             let vault = self.deps.vault
-            await self.start(try await Task.detached { try vault.unlock() }.value)
+            // After any save still running: it reads the vault that save leaves.
+            _ = try await self.vaultState.open { try await Task.detached { try vault.unlock() }.value }
+            await self.start()
         }
     }
 
     public func switchNetwork(_ id: String) async {
-        guard let current = session, current.network.id != id, let contents else { return }
+        guard let current = session, current.network.id != id, vaultState.current != nil else { return }
         // The host that asked is going away: its pending requests cannot be answered.
         deps.approvals.rejectAll()
         await current.close()
         deps.lastNetwork = id
-        await start(contents)
+        await start()
     }
 
     /// Starts the network's session again: after it failed to open, or its PXE host stopped.
     public func restart() async {
-        guard let current = session, let contents else { return }
+        guard let current = session, vaultState.current != nil else { return }
         deps.approvals.rejectAll()
         await current.close()
-        await start(contents)
+        await start()
     }
 
     @ObservationIgnored private var autoLock = AutoLock()
@@ -154,7 +159,7 @@ public final class AppModel {
     public func lock() async {
         deps.approvals.rejectAll()
         await session?.close()
-        contents = nil
+        vaultState.forget()
         phase = .locked
     }
 
@@ -167,7 +172,9 @@ public final class AppModel {
     public func wipe() async {
         guard await deps.authenticate(reason: "Remove the wallet from this device") else { return }
         await lock()
-        await action { try self.deps.wipe() }
+        // After any save under way, which would otherwise write the deleted vault back.
+        let deps = deps
+        await action { try await self.vaultState.erase { try deps.wipe() } }
         phase = .onboarding
     }
 
@@ -212,8 +219,8 @@ public final class AppModel {
         await deps.authenticate(reason: "Confirm the transaction")
     }
 
-    private func start(_ unlocked: VaultContents) async {
-        contents = unlocked
+    /// Opens the session of the last network on the unlocked vault (which it reads from `vaultState`, not a copy).
+    private func start() async {
         let deps = deps
         let backend: WalletBackend
         do {
@@ -230,7 +237,7 @@ public final class AppModel {
         }
         deps.lastNetwork = network.id
         let session = WalletSession(
-            backend: backend, launcher: deps.launcher, vault: deps.vault, contents: unlocked, storeDirectory: deps.storeDirectory, network: network
+            backend: backend, launcher: deps.launcher, vaultState: vaultState, storeDirectory: deps.storeDirectory, network: network
         )
         phase = .unlocked(session)
         await session.open()

@@ -86,17 +86,49 @@ class VaultUpgradeTest {
     }
 
     @Test
-    fun anAccountAddedBeforeTheUpgradeKeepsTheOldVaultToo() {
-        val created = legacyVault()
+    fun anAccountAddedBeforeTheUpgradeIsNeverRolledBack() {
+        legacyVault()
         val box = Upgrading()
         val vault = Vault(file, box)
-        val more = vault.addAccount(vault.unlock(), AccountSecrets("second", "0x" + "cd".repeat(32), Vault.ZERO_SALT))
+        vault.addAccount(vault.unlock(), AccountSecrets("second", "0x" + "cd".repeat(32), Vault.ZERO_SALT))
         assertFalse(vault.needsUpgrade())
+        assertFalse("a vault without the new account is not kept to go back to", previous.exists())
+        assertTrue(box.dropped)
         box.current = { throw VaultKeyLost(IllegalStateException("key invalidated")) }
-        // The new key failing gives back the vault as it was before that write.
-        assertEquals(created, vault.unlock())
+        assertThrows(VaultKeyLost::class.java) { vault.unlock() }
         box.current = null
-        assertEquals(2, more.accounts.size)
+        assertEquals(2, vault.unlock().accounts.size)
+    }
+
+    /** From the 2026-10-28 independent audit (A01): a failing new key used to roll an imported account back. */
+    @Test
+    fun anAccountAddedAfterTheUpgradeIsNeverRolledBack() {
+        legacyVault()
+        val box = Upgrading()
+        val vault = Vault(file, box)
+        val original = vault.unlock()
+        vault.upgrade(original)
+        vault.addAccount(original, AccountSecrets("imported", "0x" + "02".repeat(32), Vault.ZERO_SALT))
+        assertFalse(previous.exists())
+        assertTrue(box.dropped)
+        box.current = { throw java.security.ProviderException("temporary provider failure") }
+        assertThrows(java.security.ProviderException::class.java) { vault.unlock() }
+        box.current = null
+        assertEquals(listOf("main", "imported"), vault.unlock().accounts.map { it.alias })
+    }
+
+    @Test
+    fun aRenameAfterTheUpgradeIsNeverRolledBack() {
+        legacyVault()
+        val box = Upgrading()
+        val vault = Vault(file, box)
+        val original = vault.unlock()
+        vault.upgrade(original)
+        vault.renameAccount(original, first.signingKey, "renamed")
+        box.current = { throw VaultKeyLost(IllegalStateException("key invalidated")) }
+        assertThrows(VaultKeyLost::class.java) { vault.unlock() }
+        box.current = null
+        assertEquals("renamed", vault.unlock().accounts.single().alias)
     }
 
     @Test
