@@ -20,6 +20,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -107,6 +109,35 @@ private fun Feature(icon: ImageVector, title: String, body: String) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/**
+ * The vault's key is gone (Android erases it when the screen lock is removed). Starting over removes the vault, which
+ * nothing can open any more, and goes to restoring from the recovery phrase; confirmed first, as it cannot be undone.
+ */
+@Composable
+fun KeyLostScreen(busy: Boolean, onStartOver: () -> Unit) = Screen {
+    var confirming by remember { mutableStateOf(false) }
+    Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text("Your wallet cannot be unlocked", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "This phone's screen lock was turned off or reset, and Android erased the key that protected your wallet. " +
+                "Your funds are safe on the network: restore the wallet with your recovery phrase.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+        )
+    }
+    PrimaryButton("Restore with my recovery phrase", busy = busy) { confirming = true }
+    Spacer(Modifier.height(24.dp))
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text("Start over?") },
+            text = { Text("The locked wallet is removed from this phone. Without your recovery phrase, its funds cannot be recovered.") },
+            confirmButton = { TextButton(onClick = { confirming = false; onStartOver() }) { Text("Start over") } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancel") } },
+        )
     }
 }
 

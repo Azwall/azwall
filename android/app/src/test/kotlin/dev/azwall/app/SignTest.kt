@@ -3,6 +3,7 @@ package dev.azwall.app
 import dev.azwall.core.WalletBackend
 import dev.azwall.core.vault.SecretBox
 import dev.azwall.core.vault.Vault
+import dev.azwall.core.vault.VaultKeyLost
 import dev.azwall.core.wallet.ApprovalKind
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.PxeLauncher
@@ -35,20 +36,26 @@ class SignTest {
     @After
     fun reset() = Dispatchers.resetMain()
 
-    private fun model(secure: Boolean = true) = AppViewModel(object : AppDeps {
+    private val plain = object : SecretBox {
+        override fun seal(plain: ByteArray) = plain
+        override fun open(sealed: ByteArray) = sealed
+    }
+
+    private var wiped = false
+
+    private fun model(secure: Boolean = true, box: SecretBox = plain, io: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO) = AppViewModel(object : AppDeps {
         override val backend: WalletBackend get() = error("not used")
-        override val vault = Vault(tmp.root.resolve("vault"), object : SecretBox {
-            override fun seal(plain: ByteArray) = plain
-            override fun open(sealed: ByteArray) = sealed
-        })
+        override val vault = Vault(tmp.root.resolve("vault"), box)
         override val launcher = PxeLauncher { error("not used") }
         override val storeDir: File = tmp.root
         override val approvals = DappApprovals()
         override var lastNetwork: String? = null
         override var searchEngine = SearchEngine.entries.first()
         override val deviceSecure = secure
-        override fun wipe() {}
-    })
+        override fun wipe() {
+            wiped = true
+        }
+    }, io)
 
     @Test
     fun aDeclinedFingerprintSendsNothing() {
@@ -69,6 +76,23 @@ class SignTest {
         vm.createWallet("some phrase", "Account 1", auth = { true })
         assertEquals(NoScreenLock().message, vm.message.value)
         assertFalse(vm.busy.value)
+    }
+
+    @Test
+    fun aVaultWhoseKeyAndroidErasedLeadsToRestoringFromThePhrase() {
+        Vault(tmp.root.resolve("vault"), plain).create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val lost = object : SecretBox {
+            override fun seal(plain: ByteArray) = plain
+            override fun open(sealed: ByteArray): ByteArray = throw VaultKeyLost(IllegalStateException("key permanently invalidated"))
+        }
+        // Off the IO pool: the phase is read right after each action.
+        val vm = model(box = lost, io = Dispatchers.Main)
+        vm.unlock(auth = { true })
+        assertEquals(AppPhase.KeyLost, vm.phase.value)
+        assertTrue(vm.message.value!!.contains("recovery phrase"))
+        vm.startOver()
+        assertTrue(wiped)
+        assertEquals(AppPhase.Onboarding, vm.phase.value)
     }
 
     @Test

@@ -1,6 +1,7 @@
 package dev.azwall.core.vault
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import java.nio.ByteBuffer
@@ -12,6 +13,15 @@ import javax.crypto.spec.GCMParameterSpec
 
 /** Thrown when the Keystore key needs the user to authenticate (biometric or device credential) first. */
 class AuthenticationRequired(cause: Throwable) : Exception("authenticate to unlock the wallet", cause)
+
+/**
+ * Thrown when Android erased the vault's key, as it does when the phone's screen lock is removed: the vault can never
+ * be opened again, and only the recovery phrase brings the wallet back.
+ */
+class VaultKeyLost(cause: Throwable) : Exception(
+    "This phone's screen lock was turned off or reset, which erased the key protecting your wallet. Restore it with your recovery phrase.",
+    cause,
+)
 
 /**
  * AES-256-GCM with a key that never leaves the Android Keystore and only works for [AUTH_SECONDS] after the
@@ -40,6 +50,8 @@ class KeystoreSecretBox(private val alias: String = "azwall.vault") : SecretBox 
         block()
     } catch (e: UserNotAuthenticatedException) {
         throw AuthenticationRequired(e)
+    } catch (e: KeyPermanentlyInvalidatedException) {
+        throw VaultKeyLost(e)
     }
 
     private fun keyStore(): KeyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }

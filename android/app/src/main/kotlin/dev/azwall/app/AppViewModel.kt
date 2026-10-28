@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
 import dev.azwall.core.vault.AuthenticationRequired
+import dev.azwall.core.vault.VaultKeyLost
 import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.VaultContents
 import dev.azwall.core.wallet.AutoLock
@@ -25,6 +26,9 @@ sealed interface AppPhase {
     data object Onboarding : AppPhase
 
     data object Locked : AppPhase
+
+    /** The vault's key is gone (the screen lock was removed): only the recovery phrase restores the wallet. */
+    data object KeyLost : AppPhase
 
     data class Unlocked(val session: WalletSession) : AppPhase
 
@@ -122,7 +126,23 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
      */
     fun unlock(auth: Auth) = action {
         if (!auth()) throw AuthCancelled()
-        start(withAuth(auth) { withContext(io) { deps.vault.unlock() } })
+        val contents = try {
+            withAuth(auth) { withContext(io) { deps.vault.unlock() } }
+        } catch (e: VaultKeyLost) {
+            _phase.value = AppPhase.KeyLost
+            throw e
+        }
+        start(contents)
+    }
+
+    /**
+     * After the vault's key was lost: removes the vault, which nothing can open any more, so the wallet can be
+     * restored from its recovery phrase. No authentication can be asked: the key it would unlock is gone.
+     */
+    fun startOver() = action {
+        check(_phase.value == AppPhase.KeyLost) { "the wallet can still be unlocked" }
+        withContext(io) { deps.wipe() }
+        _phase.value = AppPhase.Onboarding
     }
 
     fun switchNetwork(id: String) = action {

@@ -13,6 +13,7 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
     /// leaves this device), so a backup does not undo the privacy Aztec gives.
     let storeDirectory: URL = {
         var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wallet")
+        AppContainer.hadData = FileManager.default.fileExists(atPath: url.path)
         var failure: Error?
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -29,6 +30,32 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
         return url
     }()
     let approvals = DappApprovals()
+
+    /// Whether the wallet's data directory was there at launch: it goes with the app, unlike the Keychain.
+    // Written once, by storeDirectory's initializer during init, before anything else reads it.
+    nonisolated(unsafe) private static var hadData = false
+    private static let installedKey = "azwall.installed"
+
+    init() {
+        forgetEarlierInstall()
+    }
+
+    /// Keychain items outlive the app: after an uninstall and a reinstall, the old wallet would open again with the
+    /// device passcode. A fresh install (no marker in UserDefaults and no data directory, both removed with the app)
+    /// deletes them. An update keeps both, so it never gets here.
+    private func forgetEarlierInstall() {
+        _ = storeDirectory
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.installedKey) else { return }
+        if !Self.hadData && vault.exists() {
+            do {
+                try vault.wipe()
+            } catch {
+                DiagnosticLog.shared.report("vault", error)
+            }
+        }
+        defaults.set(true, forKey: Self.installedKey)
+    }
     var launcher: PxeLauncher {
         IosPxeLauncher(backend: { try self.backend() }, approve: approvals.handler, stores: storeDirectory.appendingPathComponent("pxe"))
     }

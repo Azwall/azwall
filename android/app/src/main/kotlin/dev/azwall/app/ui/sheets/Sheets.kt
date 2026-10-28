@@ -36,7 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.azwall.app.ui.components.SecureWindow
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.app.ui.components.PrimaryButton
 import dev.azwall.app.ui.send.QrScanner
@@ -117,6 +119,8 @@ fun AccountsSheet(
 private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
     var alias by rememberSaveable { mutableStateOf("Account $number") }
     var key by remember { mutableStateOf("") }
+    // A signing key typed or pasted here is a secret: kept out of screenshots and the recent-apps thumbnail.
+    SecureWindow()
     // The failure is the answer: its message is shown under the key field.
     val keyError = key.takeIf { it.isNotBlank() }?.let { runCatching { Vault.parseSigningKey(it) }.exceptionOrNull()?.message }
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,6 +130,7 @@ private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
             { key = it.trim() },
             label = { Text("Signing key to import (optional)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+            visualTransformation = PasswordVisualTransformation(),
             isError = keyError != null,
             supportingText = { Text(keyError ?: "Leave empty for the next account of your recovery phrase") },
             textStyle = MonoStyle,

@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azwall.app.AppPhase
 import dev.azwall.app.AppViewModel
 import dev.azwall.app.Auth
+import dev.azwall.app.ui.onboarding.KeyLostScreen
 import dev.azwall.app.ui.onboarding.LockScreen
 import dev.azwall.app.ui.onboarding.OnboardingActions
 import dev.azwall.app.ui.onboarding.OnboardingFlow
@@ -56,6 +57,7 @@ fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
                     OnboardingActions(vm::newRecoveryPhrase, vm::checkSecret) { secret -> vm.createWallet(secret, "Account 1", auth("Secure your wallet")) },
                 )
                 AppPhase.Locked -> LockScreen(busy) { vm.unlock(auth("Unlock Azwall")) }
+                AppPhase.KeyLost -> KeyLostScreen(busy, onStartOver = vm::startOver)
                 is AppPhase.Unlocked -> WalletScreens(vm, p.session, busy, auth) { snackbar.currentSnackbarData?.dismiss() }
                 is AppPhase.Failed -> Centered { Text("Azwall could not start:\n${p.message}", textAlign = TextAlign.Center) }
             }
