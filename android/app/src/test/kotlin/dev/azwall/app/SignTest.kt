@@ -96,6 +96,33 @@ class SignTest {
         assertEquals(AppPhase.Onboarding, vm.phase.value)
     }
 
+    /** 2026-10-28 store-release audit (F6): a vault that keeps failing must not leave the user on a lock screen with no way out. */
+    @Test
+    fun anUnlockThatKeepsFailingOffersTheWayToRestore() {
+        Vault(tmp.root.resolve("vault"), plain).create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val broken = object : SecretBox {
+            override fun seal(plain: ByteArray) = plain
+            override fun open(sealed: ByteArray): ByteArray = throw IllegalStateException("Keystore operation failed")
+        }
+        val vm = model(box = broken, io = Dispatchers.Main)
+        vm.unlock(auth = { true })
+        assertTrue(vm.unlockFailed.value)
+        vm.cannotUnlock()
+        assertEquals(AppPhase.KeyLost, vm.phase.value)
+    }
+
+    @Test
+    fun decliningTheUnlockOffersNothingMore() {
+        Vault(tmp.root.resolve("vault"), plain).create(dev.azwall.core.pxe.AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val declined = object : SecretBox {
+            override fun seal(plain: ByteArray) = plain
+            override fun open(sealed: ByteArray): ByteArray = throw dev.azwall.core.vault.AuthenticationCancelled()
+        }
+        val vm = model(box = declined, io = Dispatchers.Main)
+        vm.unlock(auth = { true })
+        assertFalse(vm.unlockFailed.value)
+    }
+
     @Test
     fun onlyDappSpendsAskForTheOwner() {
         assertEquals(listOf(ApprovalKind.TRANSACTION, ApprovalKind.AUTHWIT), ApprovalKind.entries.filter { it.signs })

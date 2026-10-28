@@ -24,6 +24,23 @@ class VaultKeyLost(cause: Throwable) : Exception(
 )
 
 /**
+ * The key to open a vault with. A missing one was erased by Android (the screen lock removed, a Keystore reset after an
+ * update): generating a new one under the alias would never open what the old one sealed, and the lock screen would
+ * fail on every attempt. So it is a lost key, which leads to restoring from the recovery phrase.
+ */
+internal fun keyToOpen(key: SecretKey?): SecretKey = key ?: throw VaultKeyLost(IllegalStateException("the vault's Keystore key is gone"))
+
+/**
+ * Opens with [block]; a tag that does not match means the key under the alias is not the one that sealed the vault (it
+ * was replaced): as lost as a missing one.
+ */
+internal fun <T> openingWith(block: () -> T): T = try {
+    block()
+} catch (e: javax.crypto.AEADBadTagException) {
+    throw VaultKeyLost(e)
+}
+
+/**
  * AES-256-GCM with a key that never leaves the Android Keystore and only works for [AUTH_SECONDS] after the
  * user authenticated with a strong biometric or the device credential. Sealed format: IV length, IV, ciphertext.
  */
@@ -38,7 +55,8 @@ class KeystoreSecretBox(private val alias: String = "azwall.vault") : SecretBox 
         val buffer = ByteBuffer.wrap(sealed)
         val iv = ByteArray(buffer.int.also { require(it in 12..32) { "corrupt vault" } }).also(buffer::get)
         val body = ByteArray(buffer.remaining()).also(buffer::get)
-        Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv)) }.doFinal(body)
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, keyToOpen(existing()), GCMParameterSpec(128, iv)) }
+        openingWith { cipher.doFinal(body) }
     }
 
     /** Deletes the Keystore key (with the vault file, on wipe). */
@@ -56,7 +74,9 @@ class KeystoreSecretBox(private val alias: String = "azwall.vault") : SecretBox 
 
     private fun keyStore(): KeyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }
 
-    private fun key(): SecretKey = (keyStore().getKey(alias, null) as? SecretKey) ?: generate()
+    private fun existing(): SecretKey? = keyStore().getKey(alias, null) as? SecretKey
+
+    private fun key(): SecretKey = existing() ?: generate()
 
     private fun generate(): SecretKey {
         val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)

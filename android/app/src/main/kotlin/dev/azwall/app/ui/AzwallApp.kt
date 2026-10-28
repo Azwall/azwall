@@ -56,7 +56,10 @@ fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
                     busy,
                     OnboardingActions(vm::newRecoveryPhrase, vm::checkSecret) { secret -> vm.createWallet(secret, "Account 1", auth("Secure your wallet")) },
                 )
-                AppPhase.Locked -> LockScreen(busy) { vm.unlock(auth("Unlock Azwall")) }
+                AppPhase.Locked -> {
+                    val failed by vm.unlockFailed.collectAsStateWithLifecycle()
+                    LockScreen(busy, failed, onCannotUnlock = vm::cannotUnlock) { vm.unlock(auth("Unlock Azwall")) }
+                }
                 AppPhase.KeyLost -> KeyLostScreen(busy, onStartOver = vm::startOver)
                 is AppPhase.Unlocked -> WalletScreens(vm, p.session, busy, auth) { snackbar.currentSnackbarData?.dismiss() }
                 is AppPhase.Failed -> Centered { Text("Azwall could not start:\n${p.message}", textAlign = TextAlign.Center) }

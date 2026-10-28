@@ -146,7 +146,7 @@ fun KeyLostScreen(busy: Boolean, onStartOver: () -> Unit) = Screen {
 
 /** Shown when a vault exists: one tap, then biometric or device credential. */
 @Composable
-fun LockScreen(busy: Boolean, onUnlock: () -> Unit) = Screen {
+fun LockScreen(busy: Boolean, failed: Boolean = false, onCannotUnlock: () -> Unit = {}, onUnlock: () -> Unit) = Screen {
     Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(120.dp))
         Spacer(Modifier.height(16.dp))
@@ -154,5 +154,7 @@ fun LockScreen(busy: Boolean, onUnlock: () -> Unit) = Screen {
         Text("Your wallet is locked", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
     PrimaryButton("Unlock", busy = busy, onClick = onUnlock)
+    // Only after an unlock failed for another reason than declining: a way out that does not need the lost key.
+    if (failed) TextButton(onClick = onCannotUnlock, enabled = !busy) { Text("Can't unlock? Restore with my recovery phrase") }
     Spacer(Modifier.height(24.dp))
 }

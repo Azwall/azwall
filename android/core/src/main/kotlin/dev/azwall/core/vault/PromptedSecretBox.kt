@@ -38,8 +38,9 @@ class PromptedSecretBox(private val authorizer: CipherAuthorizer, private val al
         require(buffer.get() == MAGIC) { "not sealed with the vault's current key" }
         val iv = ByteArray(buffer.int.also { require(it in 12..32) { "corrupt vault" } }).also(buffer::get)
         val body = ByteArray(buffer.remaining()).also(buffer::get)
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv)) }
-        authorizer.authorize(cipher, "Unlock Azwall").doFinal(body)
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, keyToOpen(existing()), GCMParameterSpec(128, iv)) }
+        val authorized = authorizer.authorize(cipher, "Unlock Azwall")
+        openingWith { authorized.doFinal(body) }
     }
 
     fun deleteKey() {
@@ -54,7 +55,10 @@ class PromptedSecretBox(private val authorizer: CipherAuthorizer, private val al
 
     private fun keyStore(): KeyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }
 
-    private fun key(): SecretKey = (keyStore().getKey(alias, null) as? SecretKey) ?: generate()
+    private fun existing(): SecretKey? = keyStore().getKey(alias, null) as? SecretKey
+
+    /** Only sealing may make the key: a vault is opened with the one that sealed it, or not at all ([keyToOpen]). */
+    private fun key(): SecretKey = existing() ?: generate()
 
     private fun generate(): SecretKey {
         val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)

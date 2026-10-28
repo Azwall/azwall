@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.azwall.core.NetworkInfo
 import dev.azwall.core.NodeCheck
+import dev.azwall.core.vault.AuthenticationCancelled
 import dev.azwall.core.vault.AuthenticationRequired
 import dev.azwall.core.vault.VaultKeyLost
 import dev.azwall.core.DiagnosticLog
@@ -61,6 +62,10 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     /** True while a user action runs (buttons show progress). */
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    /** The last unlock failed for another reason than the user declining: the lock screen then offers a way out. */
+    private val _unlockFailed = MutableStateFlow(false)
+    val unlockFailed: StateFlow<Boolean> = _unlockFailed.asStateFlow()
 
     /** Latest node check per network id. */
     private val _nodes = MutableStateFlow<Map<String, NodeCheck>>(emptyMap())
@@ -139,7 +144,11 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         } catch (e: VaultKeyLost) {
             _phase.value = AppPhase.KeyLost
             throw e
+        } catch (e: Exception) {
+            _unlockFailed.value = e !is AuthCancelled && e !is AuthenticationCancelled && e !is AuthenticationRequired
+            throw e
         }
+        _unlockFailed.value = false
         if (legacy) upgradeVault()
         start()
     }
@@ -152,6 +161,14 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         // Kept for the log; the user already has their wallet open, and is asked again at the next unlock.
         runCatching { vaultState.change { vault, current -> vault.upgrade(current); current to Unit } }
             .onFailure { DiagnosticLog.shared.report("vault", it) }
+    }
+
+    /**
+     * The wallet will not unlock (an error that is not the user declining, again and again): the screen that restores it
+     * from the recovery phrase, which asks before removing anything.
+     */
+    fun cannotUnlock() {
+        if (_unlockFailed.value && _phase.value !is AppPhase.Unlocked) _phase.value = AppPhase.KeyLost
     }
 
     /**
