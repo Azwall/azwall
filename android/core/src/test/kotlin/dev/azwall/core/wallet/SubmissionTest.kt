@@ -144,4 +144,17 @@ class SubmissionTest {
         answer.complete(Unit)
         sending.await()
     }
+
+    /** Store-release audit (F13): a transaction that failed before its proof left must never be sent behind that failure. */
+    @Test
+    fun aTransactionThatFailedBeforeItsProofLeftIsNeverSentLater() = runTest {
+        val s = session().apply { open() }
+        pxe.whileProving = { throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min") }
+        val failed = runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }.exceptionOrNull()
+        assertTrue(failed is dev.azwall.core.pxe.PxeException)
+        // The page finishes that proof later: refused, so it is not sent.
+        org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release() }
+        pxe.whileProving = {}
+        assertEquals(ActivityStatus.PENDING, s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE).status)
+    }
 }

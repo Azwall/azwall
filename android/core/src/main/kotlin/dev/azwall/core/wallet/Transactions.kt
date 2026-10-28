@@ -183,6 +183,13 @@ class Transactions internal constructor(private val session: WalletSession) {
             select<String?> { work.onAwait { it }; stop.onAwait { null } }
         } catch (e: Exception) {
             val cancelled = ProofGate.cancelled || stop.isCompleted
+            // Failed before its proof was handed over (a call that timed out while the app was frozen): the page may still
+            // finish that proof, and it must not be sent behind a transaction shown failed. The gate stays shut until the
+            // next transaction opens it.
+            if (!cancelled && !ProofGate.released.value) {
+                ProofGate.cancel()
+                throw e
+            }
             ProofGate.reset()
             throw if (cancelled) CancelledByUser() else e
         }
