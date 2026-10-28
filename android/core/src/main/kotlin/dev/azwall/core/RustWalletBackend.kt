@@ -1,6 +1,7 @@
 package dev.azwall.core
 
 import dev.azwall.core.ffi.AzwallException
+import dev.azwall.core.ffi.InternalException
 import dev.azwall.core.ffi.Network
 import dev.azwall.core.ffi.NodeStatus
 import dev.azwall.core.ffi.WalletCore
@@ -40,6 +41,9 @@ private inline fun <T> rust(block: () -> T): T =
         block()
     } catch (e: AzwallException) {
         throw WalletException(e.message ?: e.javaClass.simpleName, e)
+    } catch (e: InternalException) {
+        // A panic in the Rust core, caught by uniffi: an error like the others, never a crash of the app.
+        throw WalletException("the wallet core failed: ${e.message ?: "internal error"}", e)
     }
 
 internal fun Network.toInfo() = NetworkInfo(

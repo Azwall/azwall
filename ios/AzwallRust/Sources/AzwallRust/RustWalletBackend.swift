@@ -52,6 +52,9 @@ private func rust<T>(_ body: () throws -> T) throws -> T {
         return try body()
     } catch let error as AzwallError {
         throw WalletError(message(of: error))
+    } catch {
+        // A panic in the Rust core, caught by uniffi: an error like the others, with words the user can read.
+        throw WalletError("the wallet core failed: \(error)")
     }
 }
 
