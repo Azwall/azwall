@@ -98,6 +98,8 @@ struct ErrorsTests {
         // A dropped connection says what happened and what to do, not WebKit's or Chromium's words.
         #expect(Errors.friendly("claimFeeJuice: Load failed") == Errors.network)
         #expect(Errors.friendly("transfer: Failed to fetch") == Errors.network)
+        // The node may have received it before the connection dropped: never tell the user nothing was sent.
+        #expect(!Errors.network.contains("nothing was sent"))
         #expect(Errors.friendly(nil) == "Something went wrong")
         #expect(Errors.friendly("\nstack only") == "Something went wrong")
     }

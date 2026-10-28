@@ -7,10 +7,11 @@ object Errors {
 
     /**
      * What the PXE's web view says when a request never got an answer (Chromium, WebKit, Firefox): the connection
-     * dropped, often because the app went to the background while proving. Nothing reached the network.
+     * dropped, often because the app went to the background while proving. It can drop after the node received the
+     * transaction: the outcome is unknown, and a retry could send it twice.
      */
     private val LOST_CONNECTION = setOf("Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource.", "The network connection was lost.")
-    const val NETWORK = "The network could not be reached, so nothing was sent: check your connection and try again, with the app kept open while it proves."
+    const val NETWORK = "The connection to the network was lost before it answered, so the transaction may have been sent or not: check the activity list, and wait a few minutes before trying again, with the app kept open while it proves."
 
     /** The first line, without the bridge's method prefix: no stack trace, no URL scheme cut in half. */
     fun friendly(message: String?): String =
