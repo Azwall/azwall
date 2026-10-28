@@ -6,6 +6,14 @@ import org.junit.Test
 
 class BrowsingTest {
     @Test
+    fun aBuildWithoutTheConnectionScriptSaysSoAndWhatToDo() {
+        assertEquals(
+            "Apps cannot connect to the wallet on Mainnet (v6): this version of Azwall lacks the connection script for it. Update the app.",
+            Browsing.noConnectionScript("Mainnet (v6)"),
+        )
+    }
+
+    @Test
     fun addressesOpenAsTypedAndTextIsSearchedPrivately() {
         val ddg = SearchEngine.DEFAULT
         assertEquals("https://vote.example.org", Browsing.addressOf(" vote.example.org ", ddg))

@@ -82,7 +82,7 @@ struct MainView: View {
         } catch {
             // A build without the network's content script: the browser opens sites but no dApp can reach the wallet.
             DiagnosticLog.shared.report("browser", error)
-            model.message = "Apps cannot connect to the wallet on \(session.network.label): this version of Azwall lacks the connection script for it. Update the app."
+            model.message = Browsing.noConnectionScript(network: session.network.label)
         }
     }
 }

@@ -47,6 +47,10 @@ enum class SearchEngine(val label: String, private val query: String) {
 }
 
 object Browsing {
+    /** Said when this build lacks the network's content script: sites open, but no dApp can reach the wallet. */
+    fun noConnectionScript(network: String) =
+        "Apps cannot connect to the wallet on $network: this version of Azwall lacks the connection script for it. Update the app."
+
     /**
      * What the address bar opens: a URL as typed, a host (https; http for this device), or a search with [engine].
      * Null for nothing typed: the start page.

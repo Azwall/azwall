@@ -94,6 +94,11 @@ public enum SearchEngine: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum Browsing {
+    /// Said when this build lacks the network's content script: sites open, but no dApp can reach the wallet.
+    public static func noConnectionScript(network: String) -> String {
+        "Apps cannot connect to the wallet on \(network): this version of Azwall lacks the connection script for it. Update the app."
+    }
+
     /// What the address bar opens: a URL as typed, a host (https; http for this device), or a search with `engine`.
     /// Nil for nothing typed: the start page.
     public static func address(of input: String, engine: SearchEngine) -> String? {

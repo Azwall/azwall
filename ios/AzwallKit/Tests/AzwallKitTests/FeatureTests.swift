@@ -96,6 +96,18 @@ struct FeatureTests {
         #expect(item.blockNumber == 11)
     }
 
+    @Test func aDisconnectTheGatewayFailsIsReportedNotDropped() async throws {
+        let pxe = FakePxe()
+        let s = try base.session(pxe)
+        await s.open()
+        pxe.failing = ["dappDisconnect"]
+        // The site would stay connected while the list says otherwise: the caller must hear of it.
+        await #expect(throws: PxeError.self) { try await s.dapps.disconnect("s1") }
+        pxe.failing = []
+        try await s.dapps.disconnect("s1")
+        #expect(pxe.calls.last { $0.0 == "dappDisconnect" }?.1["sessionId"]?.stringValue == "s1")
+    }
+
     @Test func gatewayRepliesAreRoutedPerTabAndSessionsFollowed() async throws {
         let pxe = FakePxe()
         let s = try base.session(pxe)
@@ -373,6 +385,11 @@ struct PaymentRequestTests {
 }
 
 struct BrowsingTests {
+    @Test func aBuildWithoutTheConnectionScriptSaysSoAndWhatToDo() {
+        #expect(Browsing.noConnectionScript(network: "Mainnet (v6)")
+            == "Apps cannot connect to the wallet on Mainnet (v6): this version of Azwall lacks the connection script for it. Update the app.")
+    }
+
     @Test func addressesOpenAsTypedAndTextIsSearchedPrivately() {
         let ddg = SearchEngine.default
         #expect(Browsing.address(of: " vote.example.org ", engine: ddg) == "https://vote.example.org")

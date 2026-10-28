@@ -31,6 +31,7 @@ import dev.azwall.app.AppViewModel
 import dev.azwall.app.Auth
 import dev.azwall.app.ui.components.AccountAvatar
 import dev.azwall.core.DiagnosticLog
+import dev.azwall.core.wallet.Browsing
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.SessionState
 import dev.azwall.core.wallet.WalletSession
@@ -96,7 +97,7 @@ fun rememberBrowser(session: WalletSession, approvals: DappApprovals, onProblem:
             runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.onFailure { DiagnosticLog.shared.report("browser", it) }.getOrNull()
         }
         // A build without it: sites open, but no dApp can reach the wallet, which the user must know.
-        if (script == null) onProblem("Apps cannot connect to the wallet on ${session.network.label}: this version of Azwall lacks the connection script for it. Update the app.")
+        if (script == null) onProblem(Browsing.noConnectionScript(session.network.label))
         if (script != null && BrowserTabs.supported()) browser.attach(session.dapps, script, scope)
     }
     return browser
