@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+import { SenderGuard } from '../src/senders';
+import { otherCallLines } from '../src/dapp/calls';
+
+const accountA = `0x${'01'.repeat(32)}`;
+const accountB = `0x${'02'.repeat(32)}`;
+const token = `0x${'03'.repeat(32)}`;
+
+describe('independent sender boundary review', () => {
+  it('must refuse account B authorization requested by A even while B has a separate send in flight', async () => {
+    const guard = new SenderGuard();
+    let finishB!: () => void;
+    const held = new Promise<void>(resolve => { finishB = resolve; });
+    const sendingB = guard.sending(accountB, () => held);
+    try {
+      await guard.sending(accountA, async () => {
+        // This is the guard called by AzwallWallet.createAuthWit when EmbeddedWallet.sendTx handles A's offchain effects.
+        expect(() => guard.check(accountB)).toThrow('another account');
+      });
+    } finally {
+      finishB();
+      await sendingB;
+    }
+  });
+});
+
+describe('independent summary review', () => {
+  it('must not hide a token administration call merely because this token also has a balance delta', async () => {
+    const payload = { calls: [
+      { name: 'transfer_in_public', to: token },
+      { name: 'set_admin', to: token },
+    ] };
+    const lines = await otherCallLines(payload, async () => undefined, new Set([token]));
+    expect(lines.join('\n')).toContain('set_admin');
+  });
+});

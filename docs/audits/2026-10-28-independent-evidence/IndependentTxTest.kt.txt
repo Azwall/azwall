@@ -1,0 +1,66 @@
+package dev.azwall.core.wallet
+
+import dev.azwall.core.NetworkInfo
+import dev.azwall.core.pxe.PxeCaller
+import dev.azwall.core.pxe.PxeClient
+import dev.azwall.core.pxe.PxeEvent
+import dev.azwall.core.pxe.TransferKind
+import dev.azwall.core.pxe.TokenInfo
+import dev.azwall.core.vault.Vault
+import dev.azwall.core.vault.VaultState
+import dev.azwall.core.pxe.AccountSecrets
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.*
+import kotlinx.serialization.json.Json
+import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+import org.junit.Assert.*
+import java.math.BigInteger
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class IndependentTxTest {
+    @get:Rule val tmp = TemporaryFolder()
+
+    @Test
+    fun cancellationAfterBroadcastMustNotPromiseNothingWasSent() = runTest {
+        val fake = FakePxe()
+        val response = CompletableDeferred<Unit>()
+        var broadcast = false
+        val caller = PxeCaller { method, params ->
+            if (method != "transfer") fake.call(method, params) else {
+                ProofGate.check()
+                broadcast = true
+                response.await()
+                Json.parseToJsonElement("""{"txHash":"0xaccepted"}""")
+            }
+        }
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob())
+        val vault = Vault(tmp.root.resolve("vault"), PlainBox)
+        val contents = vault.create(AccountSecrets("first", "0x" + "01".repeat(32), Vault.ZERO_SALT))
+        val state = VaultState(vault).apply { open { contents } }
+        val launcher = PxeLauncher { object : RunningPxe {
+            override val client = PxeClient(caller)
+            override val events = emptyFlow<PxeEvent>()
+            override fun stop() {}
+        } }
+        val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0", "6.0.0", "node", "v6", true)
+        val session = WalletSession(FakeBackend, launcher, state, tmp.root, network, scope)
+        try {
+            session.open()
+            val work = async { runCatching { session.transactions.send(TransferKind.PUBLIC, TokenInfo("0xt", "Token", "TOK", 6), "0xrecipient", BigInteger.ONE) } }
+            runCurrent()
+            assertTrue(broadcast)
+            session.transactions.cancel()
+            runCurrent()
+            val error = work.await().exceptionOrNull()
+            assertNotNull(error)
+            assertFalse(error!!.message!!.contains("nothing was sent"))
+        } finally {
+            response.complete(Unit)
+            scope.cancel()
+            ProofGate.reset()
+        }
+    }
+}

@@ -1,0 +1,63 @@
+package dev.azwall.core.vault
+
+import dev.azwall.core.pxe.AccountSecrets
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+/** Sealing again with the key bound to each operation, without ever leaving the wallet without a readable vault. */
+class IndependentVaultRollbackTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    /** The old key's format: a first byte of 0. */
+    private object Legacy : SecretBox {
+        override fun seal(plain: ByteArray) = byteArrayOf(0) + plain
+        override fun open(sealed: ByteArray) = sealed.copyOfRange(1, sealed.size)
+    }
+
+    /** Seals with the new key (its magic byte first), opens both; the new key can be made to fail or be declined. */
+    private class Upgrading : SecretBox {
+        var current: (() -> Unit)? = null
+        var dropped = false
+
+        override fun seal(plain: ByteArray) = byteArrayOf(PromptedSecretBox.MAGIC) + plain
+
+        override fun open(sealed: ByteArray): ByteArray {
+            if (!isLegacy(sealed)) current?.invoke()
+            return sealed.copyOfRange(1, sealed.size)
+        }
+
+        override fun isLegacy(sealed: ByteArray) = sealed.firstOrNull() != PromptedSecretBox.MAGIC
+
+        override fun dropLegacy() {
+            dropped = true
+        }
+    }
+
+    private val file get() = tmp.root.resolve("vault.bin")
+    private val previous get() = tmp.root.resolve("vault.bin.previous")
+    private val first = AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT)
+
+    /** A vault sealed with the old key, as every wallet has before the update. */
+    private fun legacyVault(): VaultContents = Vault(file, Legacy).create(first)
+
+    @Test
+    fun transientNewKeyFailureMustNotEraseAccountsSavedAfterMigration() {
+        legacyVault()
+        val box = Upgrading()
+        val vault = Vault(file, box)
+        val original = vault.unlock()
+        vault.upgrade(original)
+        val added = vault.addAccount(original, AccountSecrets("imported", "0x" + "02".repeat(32), Vault.ZERO_SALT))
+        assertEquals(2, added.accounts.size)
+        box.current = { throw java.security.ProviderException("temporary provider failure") }
+        vault.unlock()
+        box.current = null
+        assertEquals("fallback erased a successfully saved imported key", 2, vault.unlock().accounts.size)
+    }
+}

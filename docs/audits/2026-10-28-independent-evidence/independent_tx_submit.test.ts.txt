@@ -1,0 +1,23 @@
+import { TxStatus } from '@aztec/stdlib/tx';
+import { expect, it } from 'vitest';
+import { confirmSubmissions } from '../src/submit';
+
+it('an accepted transaction is not reported as an ordinary failure when receipt queries are offline', async () => {
+  let accepted = false;
+  let polls = 0;
+  const tx = { getTxHash: () => ({ toString: () => '0xaccepted' }) };
+  const node = {
+    sendTx: async (_tx: typeof tx) => { accepted = true; throw new Error('connection reset after acceptance'); },
+    getTxReceipt: async () => {
+      polls++;
+      if (polls <= 3) throw new Error('offline');
+      return { status: TxStatus.PROPOSED };
+    },
+  };
+  confirmSubmissions(node, async () => {});
+  const error = await node.sendTx(tx).catch(e => e);
+  expect(accepted).toBe(true);
+  expect((await node.getTxReceipt()).status).toBe(TxStatus.PROPOSED);
+  // The caller must retain this known hash for reconciliation when submission is uncertain.
+  expect(error.txHash).toBe('0xaccepted');
+});
