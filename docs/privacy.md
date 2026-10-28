@@ -5,6 +5,17 @@ nav_order: 5
 
 # Privacy policy
 
+Last updated: 28 October 2026
+
+## Who we are
+
+Azwall is published by **Swiss Block Services Sàrl**, Route de Meyrin 267, 1217 Meyrin, Switzerland
+(UID CHE-207.982.263), which is responsible for this policy. You can reach us through the contact form at
+[swissblockservices.ch/en/#contact](https://swissblockservices.ch/en/#contact), or through the developer's contact
+details on the app's Google Play listing.
+
+## In short
+
 Azwall is a self-custodial wallet for the Aztec network. It has no account, no server of its own, no analytics and
 no advertising. Nobody behind Azwall can see your keys, balances, addresses or transactions.
 
@@ -48,6 +59,6 @@ Azwall is not directed at children under 13 and does not knowingly collect any d
 
 ## Changes and contact
 
-Changes to this policy are published on this page, with the source code, at
-[github.com/Azwall/azwall](https://github.com/Azwall/azwall). Questions can be sent through the issue tracker there,
-or to the contact address on the app's store page.
+Changes to this policy are published on this page, with its date above, and with the source code at
+[github.com/Azwall/azwall](https://github.com/Azwall/azwall). Questions about it can be sent to Swiss Block Services
+Sàrl (see "Who we are").
