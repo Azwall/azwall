@@ -60,6 +60,11 @@ targets:
           # The CRS proofs are made with: the bundled files must be the ones scripts/crs.sha256 names (fetch-crs.sh).
           cd "$SRCROOT/../assets/crs"
           shasum -a 256 --check --quiet "$SRCROOT/../scripts/crs.sha256" || { echo "error: assets/crs does not match scripts/crs.sha256: run scripts/fetch-crs.sh"; exit 1; }
+      - name: Check the prover
+        script: |
+          # The Barretenberg built from the commit scripts/bb-commits records, and nothing else (docs/release.md).
+          cd "$SRCROOT/.."
+          grep '  vendor/bb-ios/' scripts/bb-libs.sha256 | shasum -a 256 --check --quiet || { echo "error: vendor/bb-ios does not match scripts/bb-libs.sha256: rebuild it with scripts/build-bb-ios.sh"; exit 1; }
       - name: Resolve network config
         script: |
           # Xcode runs scripts without the login shell's PATH: add rustup's and Homebrew's.

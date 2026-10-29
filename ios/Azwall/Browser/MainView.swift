@@ -55,7 +55,8 @@ struct MainView: View {
             browser.selectPage(request.tab)
             tab = .explore
         }
-        .task(id: session.network.id) { attachBrowser() }
+        // Keyed on the session itself: a Retry replaces it on the same network, and the browser must follow the new one.
+        .task(id: ObjectIdentifier(session)) { attachBrowser() }
     }
 
     private func openMenu() {

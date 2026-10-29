@@ -50,6 +50,8 @@ struct OnboardingView: View {
             Spacer()
             Button("Create a new wallet", action: start).buttonStyle(PrimaryButtonStyle())
             Button("Restore a wallet") { path.append(.restore) }.frame(maxWidth: .infinity, minHeight: 44)
+            // Before anything is created, as the stores ask: what the wallet keeps and sends.
+            Link("Privacy policy", destination: Browsing.privacyPolicy).font(.subheadline)
         }
         .padding(24)
         .background(Palette.background)
@@ -87,5 +89,32 @@ struct LockView: View {
         }
         .padding(24)
         .background(Palette.background)
+    }
+}
+
+/// A wallet was created on this iPhone but iOS erased its vault: the passcode was turned off, or a backup was restored
+/// to another device (the vault never leaves the device it was made on). Said, rather than a welcome screen as if the
+/// wallet had never been here.
+struct VaultLostView: View {
+    let model: AppModel
+    @State private var confirming = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Text("Your wallet's keys are no longer on this iPhone").font(.title2.bold()).multilineTextAlignment(.center)
+            Text("iOS erased them: the passcode was turned off, or this iPhone was restored from another one's backup. Your funds are safe on the network: restore the wallet with your recovery phrase.")
+                .multilineTextAlignment(.center).foregroundStyle(.secondary)
+            Spacer()
+            Button("Restore with my recovery phrase") { confirming = true }.buttonStyle(PrimaryButtonStyle()).disabled(model.busy)
+        }
+        .padding(24)
+        .background(Palette.background)
+        .alert("Start over?", isPresented: $confirming) {
+            Button("Start over", role: .destructive) { Task { await model.startOver() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("What is left of the old wallet on this iPhone is removed. Without your recovery phrase, its funds cannot be recovered.")
+        }
     }
 }

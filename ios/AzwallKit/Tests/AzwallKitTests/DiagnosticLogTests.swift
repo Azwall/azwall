@@ -10,6 +10,10 @@ struct DiagnosticLogTests {
         #expect(DiagnosticLog.redact("node https://lb.drpc.org/aztec/SECRETKEY?x=1 is down") == "node https://lb.drpc.org is down")
         #expect(DiagnosticLog.redact("block 0x1f 12") == "block 0x1f 12")
         #expect(DiagnosticLog.redact("two\nlines") == "two lines")
+        // Store-release audit: a key without 0x, or base64, is cut too; ordinary words are not.
+        #expect(DiagnosticLog.redact("key " + String(repeating: "ab", count: 32)) == "key ababab…abab")
+        #expect(DiagnosticLog.redact("blob QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0NTY3ODk=") == "blob QUJDRE…")
+        #expect(DiagnosticLog.redact("the wallet engine stopped: the system ended it") == "the wallet engine stopped: the system ended it")
     }
 
     @Test func onlyTheLastLinesAreKeptAndTheyLastAcrossLaunches() throws {

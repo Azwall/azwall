@@ -92,6 +92,9 @@ public final class DiagnosticLog: @unchecked Sendable {
         var text = message.replacingOccurrences(of: "\n", with: " ")
         text = text.replacingOccurrences(of: #"(https?|wss?)://([^/\s"'?#]+)[^\s"']*"#, with: "$1://$2", options: .regularExpression)
         text = text.replacingOccurrences(of: #"0x([0-9a-fA-F]{6})[0-9a-fA-F]{28,}([0-9a-fA-F]{4})"#, with: "0x$1…$2", options: .regularExpression)
+        // A key or hash written without 0x, and long base64 (a sealed blob, a proof): never words, cut the same way.
+        text = text.replacingOccurrences(of: #"\b([0-9a-fA-F]{6})[0-9a-fA-F]{28,}([0-9a-fA-F]{4})\b"#, with: "$1…$2", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"([A-Za-z0-9+/]{6})[A-Za-z0-9+/]{34,}={0,2}"#, with: "$1…", options: .regularExpression)
         return text
     }
 }

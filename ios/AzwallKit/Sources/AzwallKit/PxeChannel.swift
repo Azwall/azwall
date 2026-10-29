@@ -40,11 +40,13 @@ public actor PxeChannel {
     public static let closed = "closed"
 
     /// Methods that prove, wait for a block or open a network: minutes on a phone.
-    private static let long: Set<String> = ["open", "transfer", "deployAccount", "deployToken", "mint", "claimFeeJuice", "waitForTx", "close", "flush"]
+    private static let long: Set<String> = ["open", "transfer", "deployAccount", "deployToken", "mint", "claimFeeJuice", "waitForTx", "flush"]
 
-    /// How long a call may go unanswered: reads are quick, proving and waiting for a block are not.
+    /// How long a call may go unanswered: reads are quick, proving and waiting for a block are not. `close` only lets
+    /// the page finish its writes before its host stops anyway: a page that does not answer must not hold up a lock.
     public static func defaultTimeout(_ method: String) -> Duration? {
-        long.contains(method) ? .seconds(20 * 60) : .seconds(2 * 60)
+        if method == "close" { return .seconds(15) }
+        return long.contains(method) ? .seconds(20 * 60) : .seconds(2 * 60)
     }
 
     /// `timeoutOf` gives how long a call may go unanswered (nil: for good), so a lost reply or a stuck page fails

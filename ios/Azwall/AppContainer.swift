@@ -2,6 +2,7 @@ import AzwallKit
 import AzwallPlatform
 import AzwallRust
 import Foundation
+import LocalAuthentication
 import WebKit
 
 /// The platform side of the app: Rust core, Keychain vault, PXE hosts in hidden web views.
@@ -77,6 +78,13 @@ final class AppContainer: AppDependencies, @unchecked Sendable {
     func authenticate(reason: String) async -> Bool {
         await DeviceOwner.authenticate(reason: reason)
     }
+
+    var walletCreated: Bool {
+        get { UserDefaults.standard.bool(forKey: "azwall.walletCreated") }
+        set { UserDefaults.standard.set(newValue, forKey: "azwall.walletCreated") }
+    }
+
+    var deviceSecure: Bool { LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) }
 
     func wipe() throws {
         try vault.wipe()

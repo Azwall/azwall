@@ -15,15 +15,27 @@ public protocol AppDependencies: Sendable {
     func authenticate(reason: String) async -> Bool
     /// Deletes the vault and the wallet's local data.
     func wipe() throws
+    /// Set once a wallet was created on this device, cleared when it is removed: a vault missing while it is set was
+    /// erased by iOS (the passcode turned off, or a backup restored to another device), not never created.
+    var walletCreated: Bool { get nonmutating set }
+    /// Whether the device has a passcode: the Keychain item that holds the vault needs one.
+    var deviceSecure: Bool { get }
+}
+
+/// The device has no passcode: the vault cannot be stored behind one.
+public struct NoPasscode: Error, LocalizedError {
+    public init() {}
+    public var errorDescription: String? { "Set a passcode in your iPhone's settings first: it protects your wallet's key" }
 }
 
 public enum AppPhase: Equatable {
-    case booting, onboarding, locked, failed(String)
+    /// `vaultLost`: a wallet was created here but iOS erased its vault (VaultLostView).
+    case booting, onboarding, locked, vaultLost, failed(String)
     case unlocked(WalletSession)
 
     public static func == (a: AppPhase, b: AppPhase) -> Bool {
         switch (a, b) {
-        case (.booting, .booting), (.onboarding, .onboarding), (.locked, .locked): true
+        case (.booting, .booting), (.onboarding, .onboarding), (.locked, .locked), (.vaultLost, .vaultLost): true
         case (.failed(let x), .failed(let y)): x == y
         case (.unlocked(let x), .unlocked(let y)): x === y
         default: false
@@ -65,7 +77,7 @@ public final class AppModel {
         do {
             let (list, exists) = try await Task.detached { (try deps.backend().networks(), deps.vault.exists()) }.value
             networks = list
-            phase = exists ? .locked : .onboarding
+            phase = exists ? .locked : deps.walletCreated ? .vaultLost : .onboarding
         } catch {
             phase = .failed(error.localizedDescription)
         }
@@ -75,8 +87,11 @@ public final class AppModel {
     public func createWallet(secret: String, alias: String) async {
         await action {
             let deps = self.deps
+            // Checked first: otherwise the Keychain refuses the vault with a status the user cannot act on.
+            guard deps.deviceSecure else { throw NoPasscode() }
             let (account, phrase) = try await Task.detached { try Recovery.firstAccount(secret, alias: alias, backend: try deps.backend()) }.value
             _ = try await self.vaultState.open { try await Task.detached { try deps.vault.create(first: account, phrase: phrase) }.value }
+            deps.walletCreated = true
             await self.start()
         }
     }
@@ -156,11 +171,27 @@ public final class AppModel {
         if autoLock.foregrounded(), let session, session.proving == nil { await lock() }
     }
 
+    /// Locked at once: the keys leave memory and the screens close before the page is asked to close, which a busy page
+    /// may take a while to answer (WalletSession.close bounds that wait).
     public func lock() async {
+        let closing = session
         deps.approvals.rejectAll()
-        await session?.close()
         vaultState.forget()
         phase = .locked
+        await closing?.close()
+    }
+
+    /// iOS erased the vault (`vaultLost`): its leftovers go, and the user restores from the recovery phrase.
+    public func startOver() async {
+        let deps = deps
+        var erased = false
+        await action {
+            try await self.vaultState.erase { try deps.wipe() }
+            erased = true
+        }
+        guard erased else { return }
+        deps.walletCreated = false
+        phase = .onboarding
     }
 
     /// Re-authenticates, then returns the signing key of the account at `address` (for backup).
@@ -172,9 +203,16 @@ public final class AppModel {
     public func wipe() async {
         guard await deps.authenticate(reason: "Remove the wallet from this device") else { return }
         await lock()
-        // After any save under way, which would otherwise write the deleted vault back.
+        // After any save under way, which would otherwise write the deleted vault back. Failed, the error is shown and
+        // the wallet stays locked: a welcome screen would hide that something of it is still on the phone.
         let deps = deps
-        await action { try await self.vaultState.erase { try deps.wipe() } }
+        var erased = false
+        await action {
+            try await self.vaultState.erase { try deps.wipe() }
+            erased = true
+        }
+        guard erased else { return }
+        deps.walletCreated = false
         phase = .onboarding
     }
 

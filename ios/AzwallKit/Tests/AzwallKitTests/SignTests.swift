@@ -14,6 +14,8 @@ struct OwnerOnlyDeps: AppDependencies {
     var lastNetwork: String? { get { nil } nonmutating set {} }
     func authenticate(reason: String) async -> Bool { owner }
     func wipe() throws {}
+    var walletCreated: Bool { get { false } nonmutating set {} }
+    var deviceSecure: Bool { true }
 }
 
 @MainActor

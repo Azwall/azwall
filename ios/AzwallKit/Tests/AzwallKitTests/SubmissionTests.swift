@@ -41,6 +41,21 @@ struct SubmissionTests {
         #expect(s.activity.first?.status != .failed)
     }
 
+    /// Store-release audit (F13): a transaction that failed before its proof left must never be sent behind that failure.
+    @Test func aTransactionThatFailedBeforeItsProofLeftIsNeverSentLater() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try SessionTests().session(pxe)
+        await s.open()
+        pxe.failing = ["transfer"]
+        await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "1") }
+        // The page finishes that proof later: refused, so it is not sent.
+        #expect(throws: CancelledByUser.self) { try pxe.gate.release() }
+        pxe.failing = []
+        try await s.send(.private, token: token, to: recipient, amount: "1")
+        #expect(s.activity.first?.status == .pending || s.activity.first?.status == .confirmed)
+    }
+
     @Test func aTransactionInterruptedWhileSendingIsFollowedAfterARestart() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = WalletStore(directory: dir, networkId: "testnet-v6")

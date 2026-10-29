@@ -9,6 +9,9 @@ struct ApprovalPanel: View {
     let onDecide: (Bool) -> Void
     @State private var expanded = true
     @State private var showsAll = false
+    /// A request a page raised under the user's finger (timed to a tap on its own button) must not be answered by that
+    /// tap: the buttons wait half a second after each new request.
+    @State private var armedFor: ApprovalRequest.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -19,6 +22,11 @@ struct ApprovalPanel: View {
                 Button(request.kind.approveLabel) { onDecide(true) }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
             }
             .controlSize(.large)
+            .disabled(armedFor != request.id)
+            .task(id: request.id) {
+                try? await Task.sleep(for: .milliseconds(500)) // cancelled with the request: the next one waits its own
+                armedFor = request.id
+            }
         }
         .sheet(isPresented: $showsAll) {
             ApprovalDetailsSheet(request: request) { approved in

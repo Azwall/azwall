@@ -25,6 +25,7 @@ struct RootView: View {
             case .booting: ProgressView()
             case .onboarding: OnboardingView(model: model)
             case .locked: LockView(model: model)
+            case .vaultLost: VaultLostView(model: model)
             case .unlocked(let session): MainView(model: model, session: session)
             case .failed(let message): Text("Azwall could not start:\n\(message)").multilineTextAlignment(.center).padding()
             }
@@ -38,19 +39,58 @@ struct RootView: View {
                     .task { try? await Task.sleep(for: .seconds(4)); model.message = nil }
             }
         }
-        // The app switcher shows a snapshot taken on the way out: a cover, not the balances or a revealed key.
-        .overlay { if scenePhase != .active { PrivacyCover() } }
         .onChange(of: scenePhase) {
+            // The app switcher shows a snapshot taken on the way out: a cover, not the balances or a revealed key, over
+            // the sheets too (a key being imported, the accounts).
+            if scenePhase == .active { PrivacyShield.shared.hide() } else { PrivacyShield.shared.show() }
             if scenePhase == .background {
-                // A few seconds granted by iOS to write the PXE store before the app is suspended.
-                let task = UIApplication.shared.beginBackgroundTask()
+                // A few seconds granted by iOS to write the PXE store before the app is suspended; ended when iOS takes
+                // them back, so a slow write is cut short rather than the app killed for overrunning them.
+                let task = BackgroundTask()
                 Task {
                     await model.onBackground()
-                    UIApplication.shared.endBackgroundTask(task)
+                    task.end()
                 }
             }
             if scenePhase == .active { Task { await model.onForeground() } }
         }
+    }
+}
+
+/// A window above every other, sheets included, holding the cover while the app is not active.
+@MainActor
+private final class PrivacyShield {
+    static let shared = PrivacyShield()
+    private var window: UIWindow?
+
+    func show() {
+        guard window == nil, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        let cover = UIWindow(windowScene: scene)
+        cover.windowLevel = .alert + 1
+        cover.rootViewController = UIHostingController(rootView: PrivacyCover())
+        cover.isHidden = false
+        window = cover
+    }
+
+    func hide() {
+        window?.isHidden = true
+        window = nil
+    }
+}
+
+/// Background time asked of iOS, given back when the work ends or when iOS asks for it, whichever comes first.
+@MainActor
+private final class BackgroundTask {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    init() {
+        id = UIApplication.shared.beginBackgroundTask { [weak self] in MainActor.assumeIsolated { self?.end() } }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }
 
