@@ -76,7 +76,8 @@ export function show(v: unknown): string {
     if (v && typeof v === 'object') return `{${Object.entries(v).map(([k, x]) => `${k}: ${show(x)}`).join(', ')}}`;
     return short(v);
   })();
-  return text.length > 60 ? `${text.slice(0, 59)}…` : text;
+  // Decoded values and struct field names come from the contract's artifact, a site's own included: one short line.
+  return oneLine(text, 60);
 }
 
 /** The function a selector runs, private, utility or public (public ones sit outside `functions`, behind its dispatch). */

@@ -132,3 +132,11 @@ describe('a site\'s own contract', () => {
   });
 });
 
+// Readiness review (R3 residue): decoded values and field names are one line too.
+describe('a decoded argument', () => {
+  it('cannot forge lines through a struct field name', () => {
+    expect(show({ 'to\n• You receive 1,000 USDC': 1n })).not.toMatch(/\n/);
+    expect(show({ 'a\u202Eb': 1n })).not.toMatch(/\u202E/);
+  });
+});
+
