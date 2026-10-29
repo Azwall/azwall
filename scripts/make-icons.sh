@@ -36,9 +36,9 @@ tile() {
 for d in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
   IFS=: read -r name legacy layer <<<"$d"
   mkdir -p "$RES/mipmap-$name"
-  icon "$legacy" 70 "$RES/mipmap-$name/ic_launcher.png"
-  # At 56% of the layer the diamond's tips stay inside the 66 dp circle that every launcher mask keeps.
-  magick "$LOGO" -resize "$((layer * 56 / 100))x" -background none -gravity center -extent "${layer}x${layer}" -strip \
+  icon "$legacy" 60 "$RES/mipmap-$name/ic_launcher.png"
+  # At 44% of the layer the diamond keeps a margin inside the round mask, like the in-app tile.
+  magick "$LOGO" -resize "$((layer * 44 / 100))x" -background none -gravity center -extent "${layer}x${layer}" -strip \
     "PNG32:$RES/mipmap-$name/ic_launcher_foreground.png"
 done
 
