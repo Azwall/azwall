@@ -12,7 +12,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.azwall"
+        // The app's identity on Google Play and on phones, for good once published: the publisher's (Swiss Block
+        // Services, sbss). The Kotlin packages keep their dev.azwall names, which nothing outside the code sees.
+        applicationId = "com.sbss.azwall"
         minSdk = 30
         targetSdk = 37
         versionName = "0.8.0"

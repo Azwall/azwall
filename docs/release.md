@@ -53,7 +53,7 @@ Without this file the release is built unsigned.
 ## Trying the release build first
 
 R8 shrinks and renames the release; what works in the debug build can break there. The `staging` build is the same
-release, signed with the debug key and installed beside the app (`dev.azwall.staging`), so it can be tried without
+release, signed with the debug key and installed beside the app (`com.sbss.azwall.staging`), so it can be tried without
 replacing the wallet on the phone:
 
 ```bash
