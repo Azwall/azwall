@@ -10,6 +10,7 @@ import dev.azwall.core.vault.VaultKeyLost
 import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.vault.Recovery
 import dev.azwall.core.vault.VaultState
+import dev.azwall.core.wallet.Errors
 import dev.azwall.core.wallet.AutoLock
 import dev.azwall.core.wallet.SearchEngine
 import dev.azwall.core.wallet.WalletSession
@@ -129,7 +130,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
     /** Null when [secret] is a usable phrase or key, else what is wrong with it. */
     suspend fun checkSecret(secret: String): String? = withContext(io) {
         // The failure is the answer: its message tells the user what is wrong with what they typed.
-        runCatching { Recovery.firstAccount(secret, "", deps.backend) }.exceptionOrNull()?.message
+        runCatching { Recovery.firstAccount(secret, "", deps.backend) }.exceptionOrNull()?.let { Errors.friendly(it.message) }
     }
 
     /** False for a wallet created from a signing key, before recovery phrases. */

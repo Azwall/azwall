@@ -10,6 +10,7 @@ class ErrorsTest {
         assertEquals("insufficient balance", Errors.friendly("transfer: insufficient balance\n  at stack"))
         assertEquals("node https://rpc.io/… is down", Errors.friendly("open: node https://rpc.io/… is down"))
         assertEquals("Timeout after 30 s", Errors.friendly("Timeout after 30 s\nmore"))
+        assertEquals("this is not a valid recovery phrase", Errors.friendly("detail=this is not a valid recovery phrase"))
         assertEquals("Something went wrong", Errors.friendly(null))
         assertEquals("Something went wrong", Errors.friendly("\nstack only"))
         // A dropped connection says what happened and what to do, not WebKit's or Chromium's words.

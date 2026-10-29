@@ -1,5 +1,6 @@
 package dev.azwall.app.ui.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +68,8 @@ fun OnboardingFlow(busy: Boolean, actions: OnboardingActions) {
     var phrase by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val words = phrase?.split(' ')
+    // The back gesture does what each screen's arrow does, instead of leaving the app mid-onboarding.
+    BackHandler(enabled = step != Step.WELCOME) { step = if (step == Step.VERIFY) Step.BACKUP else Step.WELCOME }
     when {
         step == Step.IMPORT -> Import(busy, actions.check, onBack = { step = Step.WELCOME }, onImport = actions.onCreate)
         step == Step.BACKUP && words != null -> Backup(words, onBack = { step = Step.WELCOME }, onNext = { step = Step.VERIFY })

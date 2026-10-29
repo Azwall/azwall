@@ -2,8 +2,11 @@ package dev.azwall.core.wallet
 
 /** Error text for people, the same on both apps. */
 object Errors {
-    /** A `method: ` prefix the PXE bridge adds to a failed call's error. */
-    private val PREFIX = Regex("^[A-Za-z][A-Za-z0-9]*: ")
+    /**
+     * A `method: ` prefix the PXE bridge adds to a failed call's error, or the `detail=` the Rust core's errors carry
+     * (the generated bindings' message is their field list).
+     */
+    private val PREFIX = Regex("^(?:[A-Za-z][A-Za-z0-9]*: |detail=)")
 
     /**
      * What the PXE's web view says when a request never got an answer (Chromium, WebKit, Firefox): the connection
