@@ -13,9 +13,13 @@ public struct PxeEvent: Equatable, Sendable {
 
 public struct PxeError: Error, Equatable, LocalizedError {
     public let message: String
+    /// The call got no answer in time, so the page may still be running it (a suspended app, a stuck page), unlike an
+    /// error the page reported.
+    public let unanswered: Bool
 
-    public init(_ message: String) {
+    public init(_ message: String, unanswered: Bool = false) {
         self.message = message
+        self.unanswered = unanswered
     }
 
     public var errorDescription: String? { message }
@@ -81,7 +85,7 @@ public actor PxeChannel {
     /// Fails call `id` if the host has not answered it by now.
     private func expire(_ id: Int, after limit: Duration) {
         guard let entry = pending.removeValue(forKey: id) else { return }
-        entry.continuation.resume(throwing: PxeError("\(entry.method): no answer from the wallet engine after \(limit.components.seconds / 60) min"))
+        entry.continuation.resume(throwing: PxeError("\(entry.method): no answer from the wallet engine after \(limit.components.seconds / 60) min", unanswered: true))
     }
 
     /// A stream of the host's events, from now on.

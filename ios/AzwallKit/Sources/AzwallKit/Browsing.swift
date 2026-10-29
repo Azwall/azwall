@@ -120,16 +120,34 @@ public enum SiteName {
     /// Second-level labels under a two-letter country code that are not a domain of their own (`co.uk`, `com.au`).
     private static let publicSecondLevel: Set<String> = ["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go"]
 
+    /// Hosts where anyone gets a subdomain: `evil.github.io` is not `azwall.github.io`, so the subdomain is kept.
+    private static let sharedHosts: Set<String> = [
+        "github.io", "gitlab.io", "vercel.app", "netlify.app", "pages.dev", "workers.dev", "web.app", "firebaseapp.com",
+        "herokuapp.com", "onrender.com", "fly.dev", "appspot.com", "azurewebsites.net", "cloudfront.net", "surge.sh",
+        "glitch.me", "replit.app", "ngrok.io", "ngrok-free.app", "ipfs.dweb.link", "eth.limo",
+    ]
+
     /// `https://app.aztec.network.verify.evil-host.io:8443` → `evil-host.io`; an IP address or a single label stays whole.
     public static func domain(of origin: String) -> String {
         var host = Substring(origin)
         if let scheme = host.range(of: "://") { host = host[scheme.upperBound...] }
-        host = host.prefix { $0 != "/" && $0 != ":" }
+        host = host.prefix { $0 != "/" }
+        if host.hasPrefix("[") { return String(host.prefix { $0 != "]" }) + "]" }
+        host = host.prefix { $0 != ":" }
         let name = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
         let labels = name.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         if labels.count <= 2 || labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) { return name }
-        let countryCode = labels[labels.count - 1].count == 2 && publicSecondLevel.contains(labels[labels.count - 2])
-        return labels.suffix(countryCode ? 3 : 2).joined(separator: ".")
+        let publicPart: Int
+        if sharedHosts.contains(labels.suffix(3).joined(separator: ".")) {
+            publicPart = 3
+        } else if sharedHosts.contains(labels.suffix(2).joined(separator: ".")) {
+            publicPart = 2
+        } else if labels[labels.count - 1].count == 2 && publicSecondLevel.contains(labels[labels.count - 2]) {
+            publicPart = 2
+        } else {
+            publicPart = 1
+        }
+        return labels.suffix(min(labels.count, publicPart + 1)).joined(separator: ".")
     }
 
     /// The host without the scheme, for the line under the domain.

@@ -462,5 +462,10 @@ struct SiteNameTests {
         #expect(SiteName.domain(of: "http://192.168.1.10:3000") == "192.168.1.10")
         #expect(SiteName.domain(of: "http://localhost:5173") == "localhost")
         #expect(SiteName.host(of: "https://aztec.palmyr.io:8443/swap") == "aztec.palmyr.io:8443")
+        // Re-audit (R3): shared hosting keeps the tenant, and an IPv6 address stays whole.
+        #expect(SiteName.domain(of: "https://evil.github.io/azwall") == "evil.github.io")
+        #expect(SiteName.domain(of: "https://azwall.github.io") == "azwall.github.io")
+        #expect(SiteName.domain(of: "https://preview.app.vercel.app") == "app.vercel.app")
+        #expect(SiteName.domain(of: "http://[::1]:8080") == "[::1]")
     }
 }

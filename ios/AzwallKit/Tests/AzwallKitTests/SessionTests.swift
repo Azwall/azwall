@@ -10,6 +10,8 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
     var failBalances = false
     /// Methods that fail, as when the gateway refuses.
     var failing: Set<String> = []
+    /// Methods that fail as a call nobody answered in time (PxeChannel's timeout).
+    var unanswered: Set<String> = []
     /// What the network declares: "sponsored", or "feeJuice" (the account pays).
     var fees = "sponsored"
     /// Base units of Fee Juice every account holds.
@@ -44,6 +46,7 @@ final class FakePxe: PxeCaller, @unchecked Sendable {
         func p(_ k: String) -> String { params[k]?.stringValue ?? "" }
         calls.append((method, params))
         if failing.contains(method) { throw PxeError("\(method) failed") }
+        if unanswered.contains(method) { throw PxeError("\(method): no answer from the wallet engine after 20 min", unanswered: true) }
         switch method {
         case "open":
             if let failOpen { throw PxeError("open: \(failOpen)") }

@@ -47,13 +47,26 @@ struct SubmissionTests {
         pxe.deployed = true
         let s = try SessionTests().session(pxe)
         await s.open()
-        pxe.failing = ["transfer"]
+        pxe.unanswered = ["transfer"]
         await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "1") }
         // The page finishes that proof later: refused, so it is not sent.
         #expect(throws: CancelledByUser.self) { try pxe.gate.release() }
-        pxe.failing = []
+        pxe.unanswered = []
         try await s.send(.private, token: token, to: recipient, amount: "1")
         #expect(s.activity.first?.status == .pending || s.activity.first?.status == .confirmed)
+    }
+
+    /// Store-release re-audit (R1): a send the page refused must not leave every dApp proof after it refused as cancelled.
+    @Test func aSendThePageRefusedLetsTheNextDappProofThrough() async throws {
+        let pxe = FakePxe()
+        pxe.deployed = true
+        let s = try SessionTests().session(pxe)
+        await s.open()
+        pxe.failing = ["transfer"]
+        await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "1") }
+        try pxe.gate.check()
+        try pxe.gate.release()
+        #expect(!pxe.gate.cancelled)
     }
 
     @Test func aTransactionInterruptedWhileSendingIsFollowedAfterARestart() throws {

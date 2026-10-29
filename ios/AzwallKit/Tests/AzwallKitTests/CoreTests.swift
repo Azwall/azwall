@@ -130,7 +130,8 @@ struct ChannelTests {
         let channel = PxeChannel(send: { _ in }, handlers: [:], timeoutOf: { $0 == "transfer" ? nil : .milliseconds(50) })
         let read = Task { try await channel.call("balances") }
         let proof = Task { try await channel.call("transfer") }
-        await #expect(throws: PxeError("balances: no answer from the wallet engine after 0 min")) { try await read.value }
+        // Marked unanswered: the page may still be running it (re-audit R1 keeps the proof gate shut on this only).
+        await #expect(throws: PxeError("balances: no answer from the wallet engine after 0 min", unanswered: true)) { try await read.value }
         try await Task.sleep(for: .milliseconds(100))
         await channel.close("done")
         await #expect(throws: PxeError("transfer: done")) { try await proof.value }

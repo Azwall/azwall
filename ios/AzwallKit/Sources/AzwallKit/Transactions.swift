@@ -160,10 +160,11 @@ extension WalletSession {
             if let hash = try await first.value() { return hash }
         } catch {
             let cancelled = gate.cancelled || error is CancelledByUser
-            // Failed before its proof was handed over (a call that timed out while the app was away): the page may still
-            // finish that proof, and it must not be sent behind a transaction shown failed. The gate stays shut until the
-            // next transaction opens it.
-            if !cancelled && !gate.released {
+            // Unanswered before its proof was handed over (a call that timed out while the app was away): the page may
+            // still finish that proof, and it must not be sent behind a transaction shown failed. The gate stays shut until
+            // the next transaction opens it. Any other error (a wrong recipient, a low balance) ended the call: the gate
+            // opens again, or every dApp proof after it would be refused as cancelled.
+            if !cancelled, (error as? PxeError)?.unanswered == true, !gate.released {
                 gate.cancel()
                 throw error
             }
