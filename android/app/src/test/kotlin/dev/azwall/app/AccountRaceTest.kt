@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * From the 2026-10-28 audits (docs/audits): a Retry, a lock or a network switch while an account is being saved
+ * From the 2026-10-28 audits: a Retry, a lock or a network switch while an account is being saved
  * must not make the next save drop it, and deleting the wallet then must not let that save write it back. The save
  * is held mid-way, as the user's fingerprint holds it on a phone.
  */

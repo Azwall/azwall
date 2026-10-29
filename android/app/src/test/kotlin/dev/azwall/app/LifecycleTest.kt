@@ -118,7 +118,7 @@ class LifecycleTest {
 
     @Test
     fun accountsAddedBeforeARetryAreKeptByTheNextWrite() = runTest {
-        // From the 2026-10-28 audit (docs/audits): an imported key was dropped from the vault after a retry.
+        // From the 2026-10-28 audit: an imported key was dropped from the vault after a retry.
         val vm = unlocked()
         vm.addAccount("second", "0x" + "02".repeat(32)) { true }.join()
         advanceUntilIdle()
