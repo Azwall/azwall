@@ -3,7 +3,7 @@
 // accepted: it cannot read private state (simulations, utilities, private events) of other contracts, nor propose
 // transactions outside its scope. A site asking again for what it already has gets it without a prompt; asking for
 // more prompts with only what it adds.
-import { type ArtifactOf, readCall, short } from './calls';
+import { type ArtifactOf, oneLine, readCall, short } from './calls';
 import { list, obj } from './json';
 import { NotGranted } from './policy';
 
@@ -95,13 +95,17 @@ const KIND_LINES: Record<Kind, string> = {
 
 /** What a request adds, as the approval panel lists it. */
 export async function addedLines(more: ReturnType<typeof added>, nameOf: (address: string) => Promise<string | undefined>): Promise<string[]> {
-  // The name only labels the line; without it the short address says which contract.
-  const contract = async (c: string) => (c === ANY ? 'any contract' : ((await nameOf(c).catch(() => undefined)) ?? short(c)));
+  const contract = async (c: string) => {
+    if (c === ANY) return 'any contract';
+    // The name only labels the line; unreadable, the short address says which contract.
+    const name = await nameOf(c).catch(() => undefined);
+    return name ? oneLine(name, 40) : short(c);
+  };
   const scopes = await Promise.all(
     more.scopes.map(async s => {
       const target = await contract(s.contract);
       if (s.kind === 'events') return `${KIND_LINES.events} ${target}`;
-      return `${KIND_LINES[s.kind]} ${s.fn === ANY ? 'any function' : s.fn} of ${target}`;
+      return `${KIND_LINES[s.kind]} ${s.fn === ANY ? 'any function' : oneLine(s.fn, 40)} of ${target}`;
     }),
   );
   return [...more.flags.map(f => FLAG_LINES[f]), ...scopes];
@@ -115,7 +119,7 @@ async function permitCalls(set: Set<string>, calls: unknown[], artifactOf: Artif
     const to = obj(call).to;
     // Without the contract's artifact the function name is the site's word: only a whole-contract grant covers it.
     if (!allows(set, to, read.fn?.name)) {
-      throw new NotGranted(`this site was not allowed to ${what} ${read.name} on ${read.contract ?? short(to)}`);
+      throw new NotGranted(`this site was not allowed to ${what} ${oneLine(read.name, 40)} on ${read.contract ?? short(to)}`);
     }
   }
 }

@@ -79,13 +79,28 @@ object SiteName {
     /** Second-level labels under a two-letter country code that are not a domain of their own (`co.uk`, `com.au`). */
     private val PUBLIC_SECOND_LEVEL = setOf("co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go")
 
+    /** Hosts where anyone gets a subdomain: `evil.github.io` is not `azwall.github.io`, so the subdomain is kept. */
+    private val SHARED_HOSTS = setOf(
+        "github.io", "gitlab.io", "vercel.app", "netlify.app", "pages.dev", "workers.dev", "web.app", "firebaseapp.com",
+        "herokuapp.com", "onrender.com", "fly.dev", "appspot.com", "azurewebsites.net", "cloudfront.net", "surge.sh",
+        "glitch.me", "replit.app", "ngrok.io", "ngrok-free.app", "ipfs.dweb.link", "eth.limo",
+    )
+
     /** `https://app.aztec.network.verify.evil-host.io:8443` → `evil-host.io`; an IP address or a single label stays whole. */
     fun domainOf(origin: String): String {
-        val host = origin.substringAfter("://").substringBefore('/').substringBefore(':').trimEnd('.').lowercase()
+        val authority = origin.substringAfter("://").substringBefore('/')
+        if (authority.startsWith("[")) return authority.substringBefore(']') + "]"
+        val host = authority.substringBefore(':').trimEnd('.').lowercase()
         val labels = host.split('.')
         if (labels.size <= 2 || labels.all { it.all(Char::isDigit) }) return host
-        val countryCode = labels.last().length == 2 && labels[labels.size - 2] in PUBLIC_SECOND_LEVEL
-        return labels.takeLast(if (countryCode) 3 else 2).joinToString(".")
+        val suffix = labels.takeLast(2).joinToString(".")
+        val publicPart = when {
+            labels.takeLast(3).joinToString(".") in SHARED_HOSTS -> 3
+            suffix in SHARED_HOSTS -> 2
+            labels.last().length == 2 && labels[labels.size - 2] in PUBLIC_SECOND_LEVEL -> 2
+            else -> 1
+        }
+        return labels.takeLast(minOf(labels.size, publicPart + 1)).joinToString(".")
     }
 
     /** The host without the scheme, for the line under the domain. */

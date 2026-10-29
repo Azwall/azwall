@@ -372,7 +372,7 @@ export class DappGateway {
         tab: session.tabId,
         origin: session.origin,
         title: more ? 'Let this site do more?' : 'Let this site use your account?',
-        details: more ? [...(await addedLines(more, nameOf)), ...claim] : [...asked.map(c => String(c.type)), ...claim],
+        details: more ? [...(await addedLines(more, nameOf)), ...claim] : [...asked.map(c => oneLine(c.type, 40)), ...claim],
         sections: [...(await capabilitySections(manifest, account, nameOf)), rawSection(manifest)],
       });
       if (!ok) throw new Error('the user refused the requested capabilities');

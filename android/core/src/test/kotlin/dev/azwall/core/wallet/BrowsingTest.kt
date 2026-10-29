@@ -66,5 +66,10 @@ class BrowsingTest {
         assertEquals("192.168.1.10", SiteName.domainOf("http://192.168.1.10:3000"))
         assertEquals("localhost", SiteName.domainOf("http://localhost:5173"))
         assertEquals("aztec.palmyr.io:8443", SiteName.hostOf("https://aztec.palmyr.io:8443/swap"))
+        // Re-audit (R3): shared hosting keeps the tenant, and an IPv6 address stays whole.
+        assertEquals("evil.github.io", SiteName.domainOf("https://evil.github.io/azwall"))
+        assertEquals("azwall.github.io", SiteName.domainOf("https://azwall.github.io"))
+        assertEquals("app.vercel.app", SiteName.domainOf("https://preview.app.vercel.app"))
+        assertEquals("[::1]", SiteName.domainOf("http://[::1]:8080"))
     }
 }

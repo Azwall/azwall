@@ -136,14 +136,16 @@ async function readFresh(call: unknown, artifactOf: ArtifactOf): Promise<ReadCal
     // The parameters as one struct: decodes them in order, by name.
     const type = { kind: 'struct', path: fn.name, fields: fn.parameters.map(p => ({ name: p.name, type: p.type })) } as AbiType;
     values = decodeStruct(type, list(c.args).map(a => Fr.fromString(String(a)))) as Record<string, unknown>;
-    args = fn.parameters.map(p => `${p.name}: ${show(values?.[p.name])}`);
+    args = fn.parameters.map(p => `${oneLine(p.name, 30)}: ${show(values?.[p.name])}`);
   } catch { // Arguments that do not fit the function's parameters are shown as `…`; the raw request is in the details.
     values = undefined;
   }
-  const named = isSiteRegistered(to) ? `${artifact.name} (as this site names it)` : artifact.name;
-  const line = summary(fn.name, args, `${named} ${short(to)}`);
+  // Names from a site's own artifact are its words too: one short line each, like its labels (oneLine).
+  const contract = oneLine(artifact.name, 40);
+  const named = isSiteRegistered(to) ? `${contract} (as this site names it)` : contract;
+  const line = summary(oneLine(fn.name, 40), args, `${named} ${short(to)}`);
   const fee = FEE_FUNCTIONS.has(fn.name) && feePayers.has(to.toLowerCase());
-  return { name: fn.name, line, fee, contract: artifact.name, fn, values };
+  return { name: fn.name, line, fee, contract, fn, values };
 }
 
 /**

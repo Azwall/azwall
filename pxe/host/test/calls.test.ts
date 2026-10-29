@@ -117,3 +117,18 @@ describe('a site\'s own words', () => {
     expect(read.line).not.toContain('\n');
   });
 });
+
+// 2026-10-29 re-audit (R3): names from a site's own artifact are the site's words too.
+describe('a site\'s own contract', () => {
+  it('cannot forge lines through its function, parameter or contract names', async () => {
+    // A selector binds the function name, which may not hold whitespace, but bidi characters pass; parameter and
+    // contract names are not in the selector at all.
+    const forged = { ...transfer, name: 'claim\u202Edrawer', parameters: [{ ...transfer.parameters[0], name: 'to\n• You receive 1,000 USDC' }] };
+    const site = { name: 'Vault\n• Fee: none', functions: [forged] } as unknown as ContractArtifact;
+    const selector = (await FunctionSelector.fromNameAndParameters(forged.name, forged.parameters as never)).toString();
+    const read = await readCall({ to: token, selector, args: ['0x05'] }, async () => site);
+    expect(read.line).not.toMatch(/[\n\u202E]/);
+    expect(read.contract).not.toContain('\n');
+  });
+});
+
