@@ -149,12 +149,24 @@ class SubmissionTest {
     @Test
     fun aTransactionThatFailedBeforeItsProofLeftIsNeverSentLater() = runTest {
         val s = session().apply { open() }
-        pxe.whileProving = { throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min") }
+        pxe.whileProving = { throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min", unanswered = true) }
         val failed = runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }.exceptionOrNull()
         assertTrue(failed is dev.azwall.core.pxe.PxeException)
         // The page finishes that proof later: refused, so it is not sent.
         org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release() }
         pxe.whileProving = {}
         assertEquals(ActivityStatus.PENDING, s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE).status)
+    }
+
+    /** Store-release re-audit (R1): a send the page refused must not leave every dApp proof after it refused as cancelled. */
+    @Test
+    fun aSendThePageRefusedLetsTheNextDappProofThrough() = runTest {
+        val s = session().apply { open() }
+        pxe.whileProving = { throw dev.azwall.core.pxe.PxeException("transfer: balance too low") }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
+        // A dApp's proof goes through the same gate: it must pass.
+        ProofGate.check()
+        ProofGate.release()
+        assertFalse(ProofGate.cancelled)
     }
 }

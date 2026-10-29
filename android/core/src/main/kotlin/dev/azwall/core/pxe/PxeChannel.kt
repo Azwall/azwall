@@ -25,7 +25,11 @@ import java.util.concurrent.atomic.AtomicInteger
 /** A notification from the PXE host: `log`, `ready`, `proved`… */
 data class PxeEvent(val name: String, val data: JsonElement)
 
-class PxeException(message: String) : Exception(message)
+/**
+ * An error of the PXE host. [unanswered]: the call got no answer in time, so the page may still be running it (a frozen
+ * app, a stuck page), unlike an error the page reported.
+ */
+class PxeException(message: String, val unanswered: Boolean = false) : Exception(message)
 
 /** Methods the PXE host may call on the app (today: `prove`). */
 typealias NativeHandler = suspend (params: JsonObject) -> JsonElement
@@ -66,7 +70,7 @@ class PxeChannel(
         return try {
             if (limit == null) reply.await() else withTimeout(limit) { reply.await() }
         } catch (e: TimeoutCancellationException) {
-            throw PxeException("$method: no answer from the wallet engine after ${limit!! / 60_000} min")
+            throw PxeException("$method: no answer from the wallet engine after ${limit!! / 60_000} min", unanswered = true)
         } finally {
             pending.remove(id)
         }
