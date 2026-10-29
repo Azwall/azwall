@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
@@ -24,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azwall.app.ui.components.Panel
@@ -63,8 +65,9 @@ internal fun Backup(words: List<String>, onBack: () -> Unit, onNext: () -> Unit)
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         PhraseGrid(words)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = saved, onCheckedChange = { saved = it })
+        // The whole line ticks the box, not only the box itself.
+        Row(Modifier.toggleable(value = saved, role = Role.Checkbox, onValueChange = { saved = it }), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = saved, onCheckedChange = null)
             Text("I wrote the ${words.size} words down, in order")
         }
     }
