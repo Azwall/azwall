@@ -4,6 +4,9 @@ import Foundation
 /// made on the device), pending (accepted by the node), then confirmed or failed. Proving is the long part
 /// (15 to 30 s on a phone); mining is awaited in the background.
 extension WalletSession {
+    /// Why the wallet engine was stopped after a transaction it left unanswered.
+    static let stuck = "The wallet engine stopped answering during a transaction. It was stopped so that transaction can never be sent late: check the activity, then tap Retry."
+
     /// Deploys the selected account's contract, once: a second activation would only pay a fee to fail. With Fee Juice
     /// bridged and ready to claim, the activation claims it and pays its fee with it, in one transaction. Refused when
     /// nothing can pay it (Fees.canActivate): it would only fail once proven. `reviewedClaim` is the message hash of the
@@ -114,6 +117,8 @@ extension WalletSession {
     /// Proves and sends with `send` (returns the tx hash), then follows the transaction to a block.
     private func track(_ draft: ActivityItem, _ send: @escaping (PxeClient) async throws -> String) async throws {
         guard proving == nil else { throw PxeError("another transaction is being proven") }
+        // A failed session has no host to send with; checked before anything reopens the proof gate (retireHost).
+        guard phase != .failed else { throw PxeError(error ?? "the wallet is not open") }
         // Its review could not say how its fee is paid (Fees.unknown): nothing is sent on a guess.
         guard check != nil else { throw PxeError("the wallet is still reaching the network: try again in a moment") }
         // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
@@ -166,6 +171,9 @@ extension WalletSession {
             // opens again, or every dApp proof after it would be refused as cancelled.
             if !cancelled, (error as? PxeError)?.unanswered == true, !gate.released {
                 gate.cancel()
+                // The gate alone does not hold: the next transaction opens it again. The page that may still finish this
+                // proof is stopped for good, so nothing can send it; Retry starts a new one.
+                await retireHost(Self.stuck)
                 throw error
             }
             gate.reset()

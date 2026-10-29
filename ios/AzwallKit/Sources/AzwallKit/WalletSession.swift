@@ -308,11 +308,29 @@ public final class WalletSession {
             return
         }
         let from = data["from"]?.stringValue?.lowercased()
-        let waiting = store.proving().filter { $0.txHash == nil && (from == nil || $0.account.lowercased() == from) }
-        // Two transactions of that account being proven: which one this is cannot be told, and none is guessed.
+        let id = data["id"]?.stringValue
+        // A dApp transaction comes with its id (the gateway labels its send): that very row. Else the wallet's own, of
+        // which one at most is being proven; never guessed among several.
+        let waiting = store.proving().filter { item in
+            guard item.txHash == nil else { return false }
+            if let id { return item.id == id }
+            return item.kind != .dapp && (from == nil || item.account.lowercased() == from)
+        }
         guard waiting.count == 1, var item = waiting.first else { return }
         item.txHash = hash
         record(item)
+    }
+
+    /// Stops the running host for good (it left a transaction unanswered and may still send it late): the session fails
+    /// with `reason`, and Retry starts a new host.
+    func retireHost(_ reason: String) async {
+        guard let running = pxe else { return }
+        pxe = nil
+        eventLoop?.cancel()
+        await running.stop()
+        DiagnosticLog.shared.record(.warn, "pxe", reason)
+        phase = .failed
+        error = reason
     }
 
     /// The host can stop on its own (the system ends its web view to free memory): every call would fail from then on,

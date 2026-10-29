@@ -41,19 +41,22 @@ struct SubmissionTests {
         #expect(s.activity.first?.status != .failed)
     }
 
-    /// Store-release audit (F13): a transaction that failed before its proof left must never be sent behind that failure.
-    @Test func aTransactionThatFailedBeforeItsProofLeftIsNeverSentLater() async throws {
+    /// Store-release audit (F13) and open-test audit (OT-01): a transaction left unanswered before its proof left must
+    /// never be sent behind that failure, even by the proof finishing after a retry started. Its host is stopped for good.
+    @Test func aTransactionLeftUnansweredIsNeverSentLater() async throws {
         let pxe = FakePxe()
         pxe.deployed = true
         let s = try SessionTests().session(pxe)
         await s.open()
         pxe.unanswered = ["transfer"]
         await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "1") }
-        // The page finishes that proof later: refused, so it is not sent.
-        #expect(throws: CancelledByUser.self) { try pxe.gate.release() }
+        #expect(s.phase == .failed)
+        #expect(s.error == WalletSession.stuck)
+        // A retry on this session cannot start, so nothing reopens the gate for the old proof.
         pxe.unanswered = []
-        try await s.send(.private, token: token, to: recipient, amount: "1")
-        #expect(s.activity.first?.status == .pending || s.activity.first?.status == .confirmed)
+        await #expect(throws: PxeError.self) { try await s.send(.private, token: token, to: recipient, amount: "2") }
+        #expect(throws: CancelledByUser.self) { try pxe.gate.release() }
+        #expect(pxe.sent.isEmpty)
     }
 
     /// Store-release re-audit (R1): a send the page refused must not leave every dApp proof after it refused as cancelled.
@@ -67,6 +70,21 @@ struct SubmissionTests {
         try pxe.gate.check()
         try pxe.gate.release()
         #expect(!pxe.gate.cancelled)
+    }
+
+    /// Open-test audit (OT-02): with two dApp transactions of one account queued, the hash goes to the one sent.
+    @Test func queuedDappSendsKeepTheirHash() async throws {
+        let pxe = FakePxe()
+        let s = try SessionTests().session(pxe)
+        await s.open()
+        for id in ["first", "second"] {
+            pxe.emit.yield(PxeEvent(name: "dappTx", data: try JSONValue.parse(#"{"id":"\#(id)","account":"addr-abab","origin":"https://x.example","summary":"vote","status":"proving"}"#)))
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        pxe.emit.yield(PxeEvent(name: "txSubmitting", data: try JSONValue.parse(#"{"from":"addr-abab","txHash":"0xaccepted","id":"first"}"#)))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(s.store.item(id: "first")?.txHash == "0xaccepted")
+        #expect(s.store.item(id: "second")?.txHash == nil)
     }
 
     @Test func aTransactionInterruptedWhileSendingIsFollowedAfterARestart() throws {

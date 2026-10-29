@@ -64,6 +64,9 @@ public actor PxeChannel {
         self.timeoutOf = timeoutOf
     }
 
+    /// Whether the host stopped (or was stopped): nothing it asked for may be handed back any more.
+    public var isClosed: Bool { closedReason != nil }
+
     /// Calls a PXE host method; throws `PxeError` with the host's error.
     public func call(_ method: String, _ params: JSONValue = .object([:])) async throws -> JSONValue {
         if let reason = closedReason { throw PxeError("\(method): \(reason)") }

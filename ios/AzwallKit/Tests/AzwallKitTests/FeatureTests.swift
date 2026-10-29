@@ -105,7 +105,7 @@ struct FeatureTests {
         let tx = #""id":"t5","account":"addr-abab","origin":"https://vote.example","summary":"vote""#
         pxe.emit.yield(PxeEvent(name: "dappTx", data: try JSONValue.parse("{\(tx),\"status\":\"proving\"}")))
         await eventually { s.activity.first?.status == .proving }
-        pxe.emit.yield(PxeEvent(name: "txSubmitting", data: try JSONValue.parse(#"{"from":"addr-abab","txHash":"0xtold"}"#)))
+        pxe.emit.yield(PxeEvent(name: "txSubmitting", data: try JSONValue.parse(#"{"from":"addr-abab","txHash":"0xtold","id":"t5"}"#)))
         await eventually { s.activity.first?.txHash == "0xtold" }
         pxe.emit.yield(PxeEvent(name: "dappTx", data: try JSONValue.parse("{\(tx),\"status\":\"failed\",\"error\":\"wait timed out\"}")))
         await eventually { s.activity.first?.status == .confirmed }

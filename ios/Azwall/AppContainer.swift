@@ -112,12 +112,17 @@ struct IosPxeLauncher: PxeLauncher {
     func launch(_ network: NetworkInfo) async throws -> RunningPxe {
         guard let resources = Bundle.main.resourceURL else { throw PxeError("no app resources") }
         let backend = backend
+        // The prove handler is made before its host: it reads the host once started, to give nothing back to a dead one.
+        let started = StartedHost()
         let prove: NativeHandler = { params in
             guard let id = params["network"]?.stringValue, let b64 = params["request"]?.stringValue, let request = Data(base64Encoded: b64) else {
                 throw PxeError("malformed prove request")
             }
             try ProofGate.shared.check()
             let response = try await Task.detached(priority: .userInitiated) { try backend().prove(networkId: id, request: request) }.value
+            // A host stopped meanwhile (it left this transaction unanswered: Transactions retires it) gets nothing back, so
+            // the transaction shown failed is never sent; and this proof must not mark the next transaction as sending.
+            if let channel = started.channel, await channel.isClosed { throw PxeError("the wallet engine that asked for this proof was stopped") }
             // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction. Past this, it may.
             try ProofGate.shared.release()
             return .object(["response": .string(response.base64EncodedString())])
@@ -125,7 +130,18 @@ struct IosPxeLauncher: PxeLauncher {
         let files = PxeStoreFiles(directory: stores.appendingPathComponent(network.pxeBundle))
         let handlers = files.handlers.merging(["prove": prove, "approve": approve]) { _, new in new }
         let host = try await PxeHost.start(bundle: network.pxeBundle, resources: resources, handlers: handlers)
+        started.channel = host.channel
         return RunningHost(host: host)
+    }
+}
+
+/// The channel of a host once started, for the handlers made before it.
+private final class StartedHost: @unchecked Sendable {
+    private let lock = NSLock()
+    private var held: PxeChannel?
+    var channel: PxeChannel? {
+        get { lock.withLock { held } }
+        set { lock.withLock { held = newValue } }
     }
 }
 
