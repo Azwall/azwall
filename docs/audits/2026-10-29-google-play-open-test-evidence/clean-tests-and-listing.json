@@ -1,0 +1,52 @@
+{
+  "core": {
+    "tests": 141,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "app": {
+    "tests": 32,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "store_images": {
+    "store/play/icon-512.png": [
+      512,
+      512
+    ],
+    "store/play/feature-graphic.png": [
+      1024,
+      500
+    ],
+    "store/play/screenshots/7-receive.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/5-activity.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/3-review.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/4-proving.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/2-send.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/6-explore.png": [
+      1080,
+      2160
+    ],
+    "store/play/screenshots/1-home.png": [
+      1080,
+      2160
+    ]
+  }
+}

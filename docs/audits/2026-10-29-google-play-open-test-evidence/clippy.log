@@ -1,0 +1,4 @@
+    Checking azwall-core v0.8.0 (/home/eddy/Projects/azwall/rust/azwall-core)
+    Checking azwall-prover v0.8.0 (/home/eddy/Projects/azwall/rust/azwall-prover)
+    Checking azwall-ffi v0.8.0 (/home/eddy/Projects/azwall/rust/azwall-ffi)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.58s
