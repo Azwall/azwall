@@ -80,4 +80,8 @@ wrap_framework iphoneos "arm64-apple-ios$MIN_IOS"
 wrap_framework iphonesimulator "arm64-apple-ios$MIN_IOS-simulator"
 rm -rf "$OUT"
 xcodebuild -create-xcframework -framework "$WORK/iphoneos/$NAME.framework" -framework "$WORK/iphonesimulator/$NAME.framework" -output "$OUT"
+# What the app build checks before embedding it (scripts/bb-libs.sha256).
+for slice in ios-arm64 ios-arm64-simulator; do
+  bb_record_hash "$ROOT" "vendor/bb-ios/$NAME.xcframework/$slice/$NAME.framework/$NAME"
+done
 echo "-> $OUT ($(du -sh "$OUT" | cut -f1))"
