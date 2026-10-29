@@ -100,6 +100,9 @@ count as collected and shared:
 
 - **Is all data encrypted in transit?** Yes (https only; plain http is refused except to the device itself).
 - **Can users ask for their data to be deleted?** The developer holds none. Removing the wallet in Settings, or
-  uninstalling, deletes everything on the phone.
+  uninstalling, deletes everything on the phone. The RPC providers' own request logs are theirs: the developer cannot
+  delete them (the privacy policy says so).
+- **Account addresses**: declared above as financial info. Google may also read them as "Personal info › User IDs"
+  (an identifier that follows the user across requests); declaring both is the cautious answer.
 - **Collection required or optional?** Required for the wallet to work (it cannot read balances without the node).
 - No data is used for advertising, analytics, personalisation or fraud prevention; nothing is sold.

@@ -5,7 +5,7 @@ nav_order: 5
 
 # Privacy policy
 
-Last updated: 28 October 2026
+Last updated: 29 October 2026
 
 ## Who we are
 
@@ -40,12 +40,14 @@ visit, under their own privacy policies:
 
 | Service | Why | What it receives |
 |---|---|---|
-| The Aztec node of the selected network (by default dRPC: `aztec-mainnet.drpc.org`, `aztec-testnet.drpc.org`) | Read the chain, send your proven transactions | Encrypted chain data requests and your transactions, which are public on chain by design (their private parts stay encrypted) |
-| An Ethereum endpoint (by default Tenderly's public gateway, then MEV Blocker or 0xrpc.io as fallback) | Find Fee Juice bridged to your account from Ethereum | Your Aztec account address, to look up deposits made to it |
+| The Aztec node of the selected network (dRPC: `aztec-mainnet.drpc.org`, `aztec-testnet.drpc.org`) | Read the chain, send your proven transactions | Your account addresses (to read their public balances and state), chain data requests, and your transactions, which are public on chain by design (their private parts stay encrypted) |
+| An Ethereum endpoint (Tenderly's public gateway, then MEV Blocker or 0xrpc.io as fallback) | Find Fee Juice bridged to your account from Ethereum | Your Aztec account address, to look up deposits made to it |
 | Websites you open in the built-in browser, and the search engine you pick (DuckDuckGo by default) | Browse Aztec apps | What any browser sends to a website |
 | A block explorer (Aztecscan), only when you tap a link to it | Show a transaction | The transaction you open |
 
-You can replace the default Aztec node and Ethereum endpoint with your own.
+These services may keep logs of the requests they receive (with your IP address) under their own policies; we do not
+receive them and cannot delete them. Removing the wallet from Settings, or uninstalling the app, deletes everything the
+wallet keeps on your phone.
 
 ## Permissions
 

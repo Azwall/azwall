@@ -1,0 +1,9 @@
+mac reachable at 11:15:32
+config mtime before: Oct 29 11:09:12 2026
+PhaseScriptExecution Check\ the\ Rust\ core\ is\ built build/ios/DerivedData/Build/Intermediates.noindex/Azwall.build/Debug-iphonesimulator/
+PhaseScriptExecution Check\ the\ CRS build/ios/DerivedData/Build/Intermediates.noindex/Azwall.build/Debug-iphonesimulator/Azwall.build/Scrip
+PhaseScriptExecution Check\ the\ prover build/ios/DerivedData/Build/Intermediates.noindex/Azwall.build/Debug-iphonesimulator/Azwall.build/Sc
+** BUILD SUCCEEDED **
+config mtime after: Oct 29 11:09:12 2026
+
+[exited with code 0]
