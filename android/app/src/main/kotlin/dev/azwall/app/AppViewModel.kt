@@ -50,6 +50,9 @@ sealed interface AppPhase {
 class AuthCancelled : Exception("authentication was cancelled")
 
 /** The phone has no screen lock, so the vault's key (which requires one) cannot be created. */
+/** Why a key-only wallet needs a promise before it makes an account: no backup holds the new account's key. */
+const val NEEDS_OWN_BACKUP = "This wallet has no recovery phrase: a new account gets a random key that only its own backup can restore"
+
 class NoScreenLock : Exception("Set a screen lock (PIN, pattern or password) in your phone's settings first: it protects your wallet's key")
 
 /**
@@ -260,9 +263,14 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         _phase.value = AppPhase.Locked
     }
 
-    /** Creates (or imports, with [importedKey]) an account; saving it in the vault may need [auth]. */
-    fun addAccount(alias: String, importedKey: String?, auth: Auth) = action {
+    /**
+     * Creates (or imports, with [importedKey]) an account; saving it in the vault may need [auth]. A wallet without a
+     * recovery phrase gives a new account a random key that no backup holds: created only once the user said they will
+     * back it up ([backupPromised]).
+     */
+    fun addAccount(alias: String, importedKey: String?, backupPromised: Boolean = false, auth: Auth) = action {
         val session = (_phase.value as? AppPhase.Unlocked)?.session ?: return@action
+        check(importedKey != null || hasRecoveryPhrase || backupPromised) { NEEDS_OWN_BACKUP }
         withAuth(auth) { session.addAccount(alias, importedKey) }
     }
 

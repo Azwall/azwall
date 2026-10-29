@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,7 +96,8 @@ fun AccountsSheet(
     accounts: List<AccountView>,
     selected: String?,
     onSelect: (String) -> Unit,
-    onCreate: (alias: String, importedKey: String?) -> Unit,
+    hasPhrase: Boolean,
+    onCreate: (alias: String, importedKey: String?, backupPromised: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) = Sheet("Accounts", onDismiss) {
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -110,15 +112,18 @@ fun AccountsSheet(
         )
     }
     Spacer(Modifier.height(8.dp))
-    if (adding) NewAccount(accounts.size + 1, onCreate) else TextButton(onClick = { adding = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
+    if (adding) NewAccount(accounts.size + 1, hasPhrase, onCreate) else TextButton(onClick = { adding = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
         Text("+ Add or import an account")
     }
 }
 
 @Composable
-private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
+private fun NewAccount(number: Int, hasPhrase: Boolean, onCreate: (String, String?, Boolean) -> Unit) {
     var alias by rememberSaveable { mutableStateOf("Account $number") }
     var key by remember { mutableStateOf("") }
+    // Without a recovery phrase, a new account's random key is in no backup: the user promises to make one first.
+    var promised by rememberSaveable { mutableStateOf(false) }
+    val needsPromise = !hasPhrase && key.isBlank()
     // A signing key typed or pasted here is a secret: kept out of screenshots and the recent-apps thumbnail.
     SecureWindow()
     // The failure is the answer: its message is shown under the key field.
@@ -132,12 +137,27 @@ private fun NewAccount(number: Int, onCreate: (String, String?) -> Unit) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             visualTransformation = PasswordVisualTransformation(),
             isError = keyError != null,
-            supportingText = { Text(keyError ?: "Leave empty for the next account of your recovery phrase") },
+            supportingText = {
+                Text(
+                    keyError ?: if (hasPhrase) {
+                        "Leave empty for the next account of your recovery phrase"
+                    } else {
+                        "Leave empty for a new random key. This wallet has no recovery phrase: nothing you backed up restores it."
+                    },
+                )
+            },
             textStyle = MonoStyle,
             modifier = Modifier.fillMaxWidth(),
         )
-        PrimaryButton(if (key.isBlank()) "Create account" else "Import account", enabled = keyError == null && alias.isNotBlank()) {
-            onCreate(alias, key.ifBlank { null })
+        if (needsPromise) {
+            Row(Modifier.fillMaxWidth().clickable { promised = !promised }, verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(promised, { promised = it })
+                Text("I will back up this account's key (Settings › Show secret key) before I receive funds on it", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        val ready = keyError == null && alias.isNotBlank() && (!needsPromise || promised)
+        PrimaryButton(if (key.isBlank()) "Create account" else "Import account", enabled = ready) {
+            onCreate(alias, key.ifBlank { null }, promised)
         }
     }
 }

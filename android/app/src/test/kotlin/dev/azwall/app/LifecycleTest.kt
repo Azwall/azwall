@@ -129,4 +129,18 @@ class LifecycleTest {
         advanceUntilIdle()
         assertEquals(listOf("main", "second", "third"), saved.unlock().accounts.map { it.alias })
     }
+
+    /** Open-test audit (OT-03): a wallet made from a key has no phrase that could bring a random new account back. */
+    @Test
+    fun aKeyOnlyWalletMakesNoRandomAccountWithoutABackupPromise() = runTest {
+        val vm = unlocked()
+        vm.addAccount("second", null) { true }.join()
+        advanceUntilIdle()
+        assertEquals(NEEDS_OWN_BACKUP, vm.message.value)
+        assertEquals(1, saved.unlock().accounts.size)
+        vm.addAccount("second", null, backupPromised = true) { true }.join()
+        advanceUntilIdle()
+        assertEquals(2, saved.unlock().accounts.size)
+    }
 }
+

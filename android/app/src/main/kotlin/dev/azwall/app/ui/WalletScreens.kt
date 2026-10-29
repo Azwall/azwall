@@ -209,7 +209,8 @@ private fun WalletSheets(vm: AppViewModel, session: WalletSession, sheet: Sheet,
             state.accounts,
             state.selected,
             onSelect = { session.select(it); close() },
-            onCreate = { alias, key -> vm.addAccount(alias, key, auth("Save the new account")); close() },
+            hasPhrase = vm.hasRecoveryPhrase,
+            onCreate = { alias, key, promised -> vm.addAccount(alias, key, promised, auth("Save the new account")); close() },
             onDismiss = close,
         )
         Sheet.ADD_TOKEN -> AddTokenSheet(state.network.id, busy, onAdd = { address -> vm.run("Token added.") { it.addToken(address) }; close() }, onDismiss = close)
