@@ -115,3 +115,41 @@ app's identity is now the publisher's (`com.sbss.azwall`): keep it; it cannot ch
    stopped engine, approve a dApp transaction right after a failed transfer. Record the revision and results.
 4. **Play Console**: organisation account, financial-features declaration, Data safety, privacy-policy URL, listing,
    content rating, pre-launch report. Decide whether the open test exposes mainnet or ships testnet only.
+
+## Re-audit at `5bc258a` (evening, second pass)
+
+One code commit since `4bbcbc9`: `106ec68`, which addresses NF-1, NF-2 and NF-3 as recommended (the generic catch reads
+the stored hash first, `unsent()` keeps "uncertain" only when no hash came, the unanswered branch is decided by
+`cancel()` alone, an uncertain row holds the auto-lock and reads "Unknown: it may have been sent", three regression
+tests). The rest is branding and the welcome screen's layout.
+
+| Check | Result |
+|---|---|
+| archived `ReauditProbeTest` (NF-1 probes, retired-host interleavings) | the two NF-1 probes and the interleaving probe pass; the fourth probe fails because it asserts the previous behaviour ("the auto-lock does not wait for an uncertain row"), which NF-3's fix reversed on purpose |
+| archived `FinalOpenAuditTest` (adapted) and `OpenTestAuditTest` (v2) | 2 of 2 and 2 of 2 pass |
+| `scripts/test-all.sh` | pass (PXE 14 + 100; Rust 73; Android suites) |
+| `./gradlew lintRelease :app:bundleRelease` | pass; `app-release.aab` 71,956,141 bytes, `com.sbss.azwall` 0.8.0 (800), **still unsigned** |
+| Pixel 3 (Android 12, arm64), staging `com.sbss.azwall.staging` installed at 16:56 from `5bc258a`, driven over adb with the owner authenticating at each prompt | **Passed so far**: launch and welcome screen (`pixel3-welcome.png`); create a wallet: 24 words shown under `FLAG_SECURE` (a screenshot of that window comes back empty), checkbox, the three-word check (words 10, 14, 23), the per-operation Keystore prompt "Save your wallet" (fingerprint or pattern); lock screen and unlock prompt; PXE opened on testnet, node reached ("its fee is sponsored on this network", Settings: node 6.0.0, block 10885, RPC shown as its host only, prover Barretenberg 6.0.0); account activation cancelled during the proof (overlay with Cancel, row "Cancelled · Failed", nothing sent); real activation: "Confirm the transaction" prompt, proof in about 20 s on the phone, "Activation sent", row Pending; `am force-stop` while pending, relaunch, unlock prompt required (system log: biometric session 17:23:28, authenticated 17:23:30), row reconciled to Confirmed within seconds; Settings "Remove wallet from this device" after a confirmation dialog and the prompt; restore from the 24 words: "Secure your wallet" prompt, same address `0x0e8a…0e4d`, activation read back from the chain. No crash, no PXE warning or error in logcat. Then: "Create a token" (Test Token, TST, fee by the sponsor): proof in about 25 s, "Token creation sent", confirmed in block 10898; auto-lock: the app sent to the background for 5 min 25 s locked by itself with its process alive, and asked the unlock prompt on return; mint of 1,000 TST privately to the account (a "100" typed in the recipient field by mistake was refused: "an Aztec address is 0x followed by 64 hexadecimal characters"): proof in about 20 s, "Mint sent", confirmed in block 10921, balance 1,000 TST private; Account 2 added from the phrase after the vault-save prompt (`0x21d7…e052`); private transfer of 250 TST from Account 1 to Account 2 (address copied with "Copy address", pasted): the review sheet showed the amount, the full recipient address, "Amount, sender and recipient stay hidden", the network and "Fee: None, paid by the network's sponsor"; "Confirm the transaction" prompt, proof in about 20 s, "Sent". Confirmed in block 10953 ("Sent privately · to 0x21d7…e052 · −250 TST · Confirmed"); balances read back: Account 1 750 TST private, Account 2 250 TST private, 0 public on both. Not exercised: a dApp connect and approval (no Aztec dApp with the wallet-sdk protocol was tried). |
+
+Observation (P3, not a regression): the 24 words are readable through the accessibility tree (that is how this run read
+them), as on every Android wallet that does not mark the grid `importantForAccessibility = no`; doing so would hide the
+words from screen readers too, so decide with that trade-off in mind. Leaving the welcome flow with the back gesture
+keeps the process alive in the background on the phrase screen (secure-flagged, no vault yet): harmless.
+
+**NF-1, NF-2, NF-3: closed. Device checklist passed** on a Pixel 3 (Android 12, arm64) with the staging build of
+`5bc258a`: create, phrase check, Keystore prompt, lock and unlock, auto-lock in the background, PXE on testnet,
+cancel during a proof, account activation (proof, broadcast, pending, reconciliation after `am force-stop`),
+remove and restore from the phrase (same address, activation read from the chain), token creation, private mint,
+a second phrase-derived account, a private transfer with its review sheet, and the balances of both accounts after
+the block. Every signing step asked the fingerprint; no crash, no PXE warning in logcat. Not exercised: a dApp
+connect and approval, and mainnet.
+
+Observations from the run (P3, not blocking): an error from the Rust core reaches the screen with its field name
+("detail=this is not a valid recovery phrase: …", from the uniffi error's string form); the back gesture leaves the
+onboarding screens (the in-app arrow returns to the welcome screen) and sends the home screen to the background;
+the 24 words are readable through the accessibility tree.
+
+**Verdict: the code is ready for the Google Play open test.** What remains is the publisher's: the upload signature
+(`android/keystore.properties`, then `:app:bundleRelease` and a check that the bundle is signed with a version code
+never uploaded), the Play Console items (organisation account, financial-features declaration, Data safety, privacy
+policy URL, listing, content rating, pre-launch report), and the decision whether the open test exposes mainnet.
