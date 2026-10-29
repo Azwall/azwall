@@ -9,7 +9,7 @@ import java.math.BigInteger
 object ActivityDetails {
     fun of(item: ActivityItem, date: String): List<Pair<String, String>> = buildList {
         add("Status" to status(item))
-        if (item.status == ActivityStatus.FAILED) add("Error" to Errors.friendly(item.error))
+        if (item.status == ActivityStatus.FAILED || item.uncertain) add("Error" to Errors.friendly(item.error))
         exactAmount(item)?.let { add("Amount" to it) }
         item.token?.let { add("Token" to it) }
         item.counterparty?.let { add((if (item.kind == ActivityKind.RECEIVE) "From" else "To") to it) }
@@ -20,7 +20,7 @@ object ActivityDetails {
         add("Date" to date)
     }
 
-    private fun status(item: ActivityItem): String = when (item.status) {
+    private fun status(item: ActivityItem): String = if (item.uncertain) "Unknown: it may have been sent" else when (item.status) {
         ActivityStatus.PROVING -> "Being proven on this phone"
         ActivityStatus.PENDING -> "Sent, waiting for a block"
         ActivityStatus.CONFIRMED -> item.blockNumber?.let { "Confirmed in block $it" } ?: "Confirmed"

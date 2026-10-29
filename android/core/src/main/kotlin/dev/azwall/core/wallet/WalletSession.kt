@@ -174,11 +174,14 @@ class WalletSession(
     val isSending: Boolean get() = isSending(transactions.proving.value, state.value)
 
     /**
-     * Every account's dApp rows count, not the selected one's only; a row with its hash is on the network already, and
-     * a failed session sends nothing more (its rows would never end).
+     * Every account's dApp rows count, not the selected one's only, and a wallet send left uncertain (its proof went, no
+     * answer yet: closing the page would leave it unknown); a row with its hash is on the network already, and a failed
+     * session sends nothing more (its rows would never end).
      */
     private fun isSending(proving: ProvingJob?, s: SessionState) = proving != null ||
-        s.phase != Phase.FAILED && store.proving().any { it.kind == ActivityKind.DAPP && it.txHash == null }
+        s.phase != Phase.FAILED && store.proving().any {
+            it.txHash == null && (it.kind == ActivityKind.DAPP || it.error == Transactions.UNCERTAIN)
+        }
 
     /** Events of the running PXE host (they restart with it). */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

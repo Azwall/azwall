@@ -161,16 +161,12 @@ class Transactions internal constructor(private val session: WalletSession) {
         val client = session.client.labelled(draft.id)
         val sent = try {
             draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, { send(client) }, stop))
-        } catch (e: UncertainSubmission) {
-            // Kept as being sent: its hash, if it comes, makes it pending and followed (followSubmissions).
-            session.recordActivity(draft.copy(error = UNCERTAIN))
-            throw e
         } catch (e: Exception) {
             // Told before sending (followSubmissions): the node may have it, so it is followed until a receipt says how it
-            // ended, never called failed (and sent again).
+            // ended, never called failed (and sent again). An uncertain one too: its hash came, the network call hung after.
             val hash = session.store.item(draft.id)?.txHash.takeIf { e !is CancelledByUser }
             if (hash == null) {
-                session.recordActivity(draft.copy(status = ActivityStatus.FAILED, error = if (e is CancelledByUser) "Cancelled" else e.message))
+                session.recordActivity(unsent(draft, e))
                 throw e
             }
             DiagnosticLog.shared.report("transactions", e)
@@ -182,6 +178,16 @@ class Transactions internal constructor(private val session: WalletSession) {
         session.recordActivity(sent)
         session.scope.launch { confirm(sent) }
         return sent
+    }
+
+    /**
+     * How a send that ended without a hash is kept: one unanswered after its proof went stays being sent (its hash, if it
+     * comes, makes it pending and followed: followSubmissions); any other failed.
+     */
+    private fun unsent(draft: ActivityItem, e: Exception): ActivityItem = when (e) {
+        is UncertainSubmission -> draft.copy(error = UNCERTAIN)
+        is CancelledByUser -> draft.copy(status = ActivityStatus.FAILED, error = "Cancelled")
+        else -> draft.copy(status = ActivityStatus.FAILED, error = e.message)
     }
 
     /**
@@ -203,11 +209,12 @@ class Transactions internal constructor(private val session: WalletSession) {
             // opens again, or every dApp proof after it would be refused as cancelled.
             val unanswered = !cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered
             // Its proof already went: the page may still send it, and nothing can stop that. Not a failure: uncertain.
-            if (unanswered && ProofGate.released.value) {
+            // Decided by cancel() alone: a proof released after a separate read of the gate would take neither branch.
+            if (unanswered && !ProofGate.cancel()) {
                 ProofGate.reset()
                 throw UncertainSubmission(e)
             }
-            if (unanswered && ProofGate.cancel()) {
+            if (unanswered) {
                 // The gate alone does not hold: the next transaction opens it again. The page that may still finish this
                 // proof is stopped for good, so nothing can send it (its late proof is refused: ProofGate.release); Retry
                 // starts a new one, whose dApp proofs must then go through.

@@ -30,7 +30,12 @@ data class ActivityItem(
     /** DAPP items: the site that asked for the transaction, and what it does (its first call). */
     val origin: String? = null,
     val summary: String? = null,
-)
+) {
+    /** A wallet send left without an answer after its proof went (Transactions.UNCERTAIN): neither failed nor sent. */
+    val uncertain: Boolean
+        get() = error == Transactions.UNCERTAIN && txHash == null &&
+            (status == ActivityStatus.PROVING || status == ActivityStatus.FAILED)
+}
 
 @Serializable
 private data class StoredNetwork(

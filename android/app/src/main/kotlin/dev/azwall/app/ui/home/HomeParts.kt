@@ -220,7 +220,7 @@ internal fun ActivityRow(item: ActivityItem, onClick: () -> Unit = {}) {
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             activityAmount(item)?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-            StatusChip(item.status)
+            StatusChip(item.status, item.uncertain)
         }
     }
 }

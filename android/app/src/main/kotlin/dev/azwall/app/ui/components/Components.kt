@@ -81,9 +81,10 @@ fun TokenBadge(symbol: String, address: String, size: Dp = 40.dp) {
 }
 
 @Composable
-fun StatusChip(status: ActivityStatus) {
+fun StatusChip(status: ActivityStatus, uncertain: Boolean = false) {
     val c = WalletTheme.colors
-    val (label, color) = when (status) {
+    // Its proof went and no answer came: "Failed" would invite a second send that may pay twice.
+    val (label, color) = if (uncertain) "Unknown" to c.pending else when (status) {
         ActivityStatus.PROVING -> "Proving" to c.private
         ActivityStatus.PENDING -> "Pending" to c.pending
         ActivityStatus.CONFIRMED -> "Confirmed" to c.success

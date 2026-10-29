@@ -244,5 +244,60 @@ class SubmissionTest {
         assertEquals(ActivityStatus.FAILED, restarted.item(id)?.status)
         assertEquals("never 'not sent': it may have been", Transactions.UNCERTAIN, restarted.item(id)?.error)
     }
-}
 
+    /** Sends a transfer whose hash the PXE tells, then whose network call goes unanswered (play-store readiness, NF-1). */
+    private suspend fun TestScope.toldThenUnanswered(s: WalletSession): Result<ActivityItem> {
+        val hangs = CompletableDeferred<Unit>()
+        pxe.whileSending = {
+            val id = s.store.proving().single().id
+            events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"addr-abab","txHash":"0xtold","id":"$id"}""")))
+            hangs.await()
+            throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min", unanswered = true)
+        }
+        val sending = async { runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) } }
+        runCurrent()
+        assertEquals("the hash was recorded before the timeout", "0xtold", s.store.proving().single().txHash)
+        hangs.complete(Unit)
+        return sending.await()
+    }
+
+    /** Its hash came before the network call hung: the node very probably has it, so it is followed, never re-sendable. */
+    @Test
+    fun aHashToldBeforeTheTimeoutIsKeptAndFollowed() = runTest {
+        val s = session().apply { open() }
+        val sent = toldThenUnanswered(s).getOrThrow()
+        assertEquals("0xtold", sent.txHash)
+        val row = s.store.item(sent.id)!!
+        assertEquals("0xtold", row.txHash)
+        assertEquals(ActivityStatus.PENDING, row.status)
+        assertFalse(row.uncertain)
+    }
+
+    @Test
+    fun aHashToldBeforeTheTimeoutIsStillFollowedAfterARestart() = runTest {
+        val s = session().apply { open() }
+        val id = toldThenUnanswered(s).getOrThrow().id
+        s.close()
+        val restarted = WalletStore(tmp.root, network.id)
+        restarted.failInterrupted()
+        assertEquals("0xtold", restarted.item(id)?.txHash)
+        assertEquals(ActivityStatus.PENDING, restarted.item(id)?.status)
+        assertEquals(1, restarted.unsettled().size)
+    }
+
+    /** NF-3: an uncertain send holds the auto-lock (bounded by AutoLock), and reads "Unknown", never just "Failed". */
+    @Test
+    fun anUncertainSendHoldsTheAutoLockAndReadsUnknown() = runTest {
+        val s = session().apply { open() }
+        pxe.whileSending = { throw dev.azwall.core.pxe.PxeException("transfer: no answer", unanswered = true) }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
+        val row = s.store.proving().single()
+        assertTrue(row.uncertain)
+        assertTrue("closing the page now would leave it unknown", s.isSending)
+        assertEquals("Unknown: it may have been sent", ActivityDetails.of(row, "today").toMap()["Status"])
+        assertNotNull(ActivityDetails.of(row, "today").toMap()["Error"])
+        s.close()
+        val restarted = WalletStore(tmp.root, network.id).apply { failInterrupted() }
+        assertTrue("still unknown after a restart, not a plain failure", restarted.item(row.id)!!.uncertain)
+    }
+}
