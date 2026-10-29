@@ -121,7 +121,7 @@ Run `scripts/build-ios.sh` again after any Rust change.
 
 ### App icon
 
-`branding/azwall-icon.png` is the source of every icon and logo; after changing it:
+`branding/azwall-logo.png` (the wallet and its pyramid, on a transparent background) is the source of every icon and logo; after changing it:
 
 ```bash
 scripts/make-icons.sh   # needs ImageMagick 7

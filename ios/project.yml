@@ -95,7 +95,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.azwall
-        # ios/Azwall/Assets.xcassets, built from branding/azwall-icon.png by scripts/make-icons.sh.
+        # ios/Azwall/Assets.xcassets, built from branding/azwall-logo.png by scripts/make-icons.sh.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.8.0
         # Stores refuse a build number they saw: it follows the version (0.8.0 → 800), as on Android.
