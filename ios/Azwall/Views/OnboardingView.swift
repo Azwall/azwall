@@ -43,7 +43,7 @@ struct OnboardingView: View {
             Spacer()
             Image("Logo").resizable().scaledToFit().frame(height: 72).frame(maxWidth: .infinity)
             Text("Azwall").font(.largeTitle.bold()).frame(maxWidth: .infinity)
-            Text("A private wallet for Aztec.").font(.title3).foregroundStyle(.secondary)
+            Text("Your wallet for the Aztec network.").font(.title3).foregroundStyle(.secondary)
             Feature(icon: "lock", title: "Private by default", text: "Balances and transfers stay encrypted. Only you can see them.")
             Feature(icon: "bolt", title: "Proven on your phone", text: "Every transaction is proven on this device, natively, in seconds.")
             Feature(icon: "point.3.connected.trianglepath.dotted", title: "Every Aztec network", text: "Switch between networks running different Aztec versions.")

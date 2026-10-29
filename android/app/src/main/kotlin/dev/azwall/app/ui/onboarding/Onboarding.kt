@@ -88,20 +88,22 @@ internal fun Screen(onBack: (() -> Unit)? = null, content: @Composable ColumnSco
 
 @Composable
 private fun Welcome(onCreate: () -> Unit, onImport: () -> Unit) = Screen {
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(72.dp).align(Alignment.CenterHorizontally))
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(60.dp).align(Alignment.CenterHorizontally))
         Text("Azwall", style = MaterialTheme.typography.displaySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
-        Text("A private wallet for Aztec.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Your wallet for the Aztec network.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Feature(Icons.Outlined.Lock, "Private by default", "Balances and transfers stay encrypted. Only you can see them.")
         Feature(Icons.Outlined.Bolt, "Proven on your phone", "Every transaction is proven on this device, natively, in seconds.")
         Feature(Icons.Outlined.Hub, "Every Aztec network", "Switch between networks running different Aztec versions.")
     }
+    Spacer(Modifier.height(20.dp))
     PrimaryButton("Create a new wallet", onClick = onCreate)
     Spacer(Modifier.height(12.dp))
     SecondaryButton("Restore a wallet", onClick = onImport)
-    // Before anything is created: what the wallet sends where, and what stays on the phone.
+    Spacer(Modifier.height(32.dp))
+    // Before anything is created: what the wallet sends where, and what stays on the phone. At the very bottom.
     PrivacyPolicyLink(Modifier.align(Alignment.CenterHorizontally))
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(8.dp))
 }
 
 @Composable
