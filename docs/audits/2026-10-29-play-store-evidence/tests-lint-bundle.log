@@ -1,0 +1,190 @@
+size limits ok
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/debug/deps/azwall_core-a2371d2a3771f662)
+
+running 33 tests
+test config::tests::from_json_checks_the_default ... ok
+test config::tests::the_default_network_must_resolve ... ok
+test config::tests::networks_without_rpc_are_unavailable ... ok
+test config::tests::env_overrides_the_default_rpc ... ok
+test config::tests::pxe_open_params_match_the_host_api ... ok
+test config::tests::the_ethereum_side_reaches_the_pxe_from_env_or_registry ... ok
+test dotenv::tests::empty_values_count_as_unset ... ok
+test config::tests::rejects_bad_urls_and_batch_sizes ... ok
+test dotenv::tests::parses_keys_comments_and_quotes ... ok
+test config::tests::json_round_trip ... ok
+test dotenv::tests::a_missing_file_is_empty ... ok
+test dotenv::tests::reports_the_failing_line ... ok
+test dotenv::tests::keeps_urls_with_query_strings ... ok
+test network::tests::env_keys_and_majors ... ok
+test mnemonic::tests::new_phrases_have_24_valid_words ... ok
+test mnemonic::tests::phrases_are_normalized_and_checked ... ok
+test network::tests::an_ethereum_side_takes_a_fallback_endpoint ... ok
+test network::tests::http_urls ... ok
+test network::tests::lists_dapps_per_network ... ok
+test network::tests::lists_explorers_per_network ... ok
+test network::tests::parses_a_valid_registry ... ok
+test network::tests::lists_known_tokens_per_network ... ok
+test network::tests::rejects_bad_ids_versions_and_urls ... ok
+test network::tests::rejects_duplicate_ids ... ok
+test network::tests::rejects_other_schemas ... ok
+test network::tests::rejects_unknown_default ... ok
+test network::tests::unknown_network_is_an_error ... ok
+test rpc::tests::a_matching_node_is_compatible ... ok
+test rpc::tests::redacts_keys_from_errors ... ok
+test rpc::tests::reports_every_mismatch ... ok
+test rpc::tests::sends_a_json_rpc_request_and_parses_node_info ... ok
+test rpc::tests::surfaces_rpc_errors ... ok
+test mnemonic::tests::account_keys_are_frozen ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/azwall-config.rs (target/debug/deps/azwall_config-c2237d44aa0f8f4c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/license.rs (target/debug/deps/license-fb427e9ab7c96b9b)
+
+running 1 test
+test every_package_declares_the_license_of_the_license_file ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/registry_file.rs (target/debug/deps/registry_file-b5a6a32808c5f30f)
+
+running 6 tests
+test every_explorer_has_a_shipped_logo ... ok
+test env_example_declares_a_key_for_every_network ... ok
+test only_test_networks_are_sponsored ... ok
+test the_shipped_registry_is_valid ... ok
+test the_example_env_resolves_every_network ... ok
+test every_network_has_a_matching_pxe_bundle ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/rpc_live.rs (target/debug/deps/rpc_live-e29d6d6a6720c46c)
+
+running 1 test
+test every_configured_node_answers_and_matches_its_network ... ignored, needs network access to the configured Aztec nodes
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/versions.rs (target/debug/deps/versions-0444de383f08f718)
+
+running 2 tests
+test android_derives_its_build_number_from_the_version ... ok
+test every_version_is_the_workspace_one ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/azwall_ffi-c00913dae62b99d9)
+
+running 7 tests
+test tests::rejects_invalid_config ... ok
+test tests::every_network_has_an_explorer_for_its_transactions ... ok
+test tests::lists_the_bundled_networks ... ok
+test tests::exposes_pxe_bundles_and_open_params ... ok
+test tests::unknown_networks_are_reported ... ok
+test tests::proving_without_libraries_is_a_prover_error ... ok
+test tests::exposes_the_supported_releases ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/azwall_prover-40ed40ab084ee910)
+
+running 17 tests
+test bindings::tests::an_invalid_proof_is_an_error ... ok
+test bindings::tests::missing_vks_and_empty_requests_are_rejected ... ok
+test bindings::tests::release_table ... ok
+test bindings::tests::errors_name_the_release_and_command ... ok
+test library::tests::a_missing_library_is_a_clear_error ... ok
+test library::tests::a_library_without_the_shim_is_rejected ... ok
+test library::tests::file_names_per_platform ... ok
+test bindings::tests::runs_the_chonk_sequence_and_verifies_with_the_last_vk ... ok
+test srs::tests::missing_files_point_to_the_fetch_script ... ok
+test srs::tests::truncated_files_are_rejected ... ok
+test wire::tests::rejects_non_gzip_payloads ... ok
+test wire::tests::response_fields_must_be_32_bytes ... ok
+test wire::tests::response_round_trip ... ok
+test wire::tests::unpacking_stops_at_the_cap ... ok
+test wire::tests::a_request_unpacking_to_too_much_altogether_is_refused ... ok
+test wire::tests::rejects_bad_magic_counts_and_truncation ... ok
+test wire::tests::request_round_trip ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/manager.rs (target/debug/deps/manager-7c43963bcae3aec4)
+
+running 6 tests
+test native_manager_reports_missing_libraries ... ok
+test proves_and_frames_the_response ... ok
+test reuses_the_active_release ... ok
+test unloads_the_previous_release_before_loading_the_next ... ok
+test malformed_requests_do_not_kill_the_engine ... ok
+test a_failed_load_leaves_nothing_active ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/registry_releases.rs (target/debug/deps/registry_releases-2630973e07cf3e49)
+
+running 1 test
+test every_registry_release_has_a_binding ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests azwall_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests azwall_ffi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests azwall_prover
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+$ pnpm -r test
+Scope: 2 of 3 workspace projects
+$ vitest run
+
+ RUN  v5.0.5 /home/eddy/Projects/azwall/pxe/shared
+
+
+ Test Files  3 passed (3)
+      Tests  14 passed (14)
+   Start at  15:54:49
+   Duration  242ms (tests 87%, import 8%, transform 3%, worker 3%)
+
+$ node ../scripts/sync-host.mjs && vitest run
+
+ RUN  v5.0.5 /home/eddy/Projects/azwall/pxe/v6
+
+
+ Test Files  25 passed (25)
+      Tests  100 passed (100)
+   Start at  15:54:50
+   Duration  1.41s (import 78%, tests 15%, transform 6%, worker 1%)
+
+$ pnpm -r typecheck
+$ tsc -p .
+$ node ../scripts/sync-host.mjs && tsc -p .
+skipping iOS tests: no Swift toolchain
+test-all exit=0
+Wrote HTML report to file:///home/eddy/Projects/azwall/android/core/build/reports/lint-results-release.html
+Wrote SARIF report to file:///home/eddy/Projects/azwall/android/core/build/reports/lint-results-release.sarif
+Wrote HTML report to file:///home/eddy/Projects/azwall/android/app/build/reports/lint-results-release.html
+Wrote SARIF report to file:///home/eddy/Projects/azwall/android/app/build/reports/lint-results-release.sarif
+bundleRelease exit=0
+total 70720
+drwxrwxr-x 2 eddy eddy     4096 Oct 29 15:55 .
+drwxrwxr-x 3 eddy eddy     4096 Oct 28 11:01 ..
+-rw-rw-r-- 1 eddy eddy 72405990 Oct 29 15:55 app-release.aab
