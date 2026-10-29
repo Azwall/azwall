@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the app icons of both apps from branding/azwall-logo.png (the wallet with its pyramid, on a transparent
-# background), set on the icon background colour (#0D0B16, android/.../values/ic_launcher_background.xml).
+# background), set on the icon background colour (#0A2024, android/.../values/ic_launcher_background.xml).
 #   Android: adaptive icon (background colour + foreground layer) and legacy launcher PNGs, per density.
 #   iOS: the single 1024 px AppIcon of ios/Azwall/Assets.xcassets.
 #   Both: the logo alone on a transparent background, for the welcome and lock screens.
@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/branding/azwall-logo.png"
 RES="$ROOT/android/app/src/main/res"
-BG='#0D0B16'
+BG='#0A2024'
 LOGO=$(mktemp --suffix=.png)
 trap 'rm -f "$LOGO"' EXIT
 
