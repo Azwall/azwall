@@ -20,5 +20,8 @@ class AutoLock(private val timeoutMs: Long = DEFAULT_MS, private val now: () -> 
 
     companion object {
         const val DEFAULT_MS = 5 * 60_000L
+
+        /** The longest the background lock waits for a transaction on its way before locking anyway. */
+        const val MAX_SEND_WAIT_MS = 10 * 60_000L
     }
 }

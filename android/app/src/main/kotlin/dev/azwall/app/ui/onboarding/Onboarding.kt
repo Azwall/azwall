@@ -120,18 +120,29 @@ private fun Feature(icon: ImageVector, title: String, body: String) {
  * nothing can open any more, and goes to restoring from the recovery phrase; confirmed first, as it cannot be undone.
  */
 @Composable
-fun KeyLostScreen(busy: Boolean, onStartOver: () -> Unit) = Screen {
+fun KeyLostScreen(busy: Boolean, erased: Boolean = true, onTryAgain: () -> Unit = {}, onStartOver: () -> Unit) = Screen {
     var confirming by remember { mutableStateOf(false) }
     Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("Your wallet cannot be unlocked", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         Text(
-            "This phone's screen lock was turned off or reset, and Android erased the key that protected your wallet. " +
-                "Your funds are safe on the network: restore the wallet with your recovery phrase.",
+            if (erased) {
+                "This phone's screen lock was turned off or reset, and Android erased the key that protected your wallet. " +
+                    "Your funds are safe on the network: restore the wallet with your recovery phrase."
+            } else {
+                // The cause is not known: it may pass. Restoring removes the wallet from this phone, so it comes second.
+                "The wallet could not be unlocked on this phone. Try again; if it keeps failing, restore it with your " +
+                    "recovery phrase. Your funds are safe on the network."
+            },
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         )
     }
-    PrimaryButton("Restore with my recovery phrase", busy = busy) { confirming = true }
+    if (!erased) {
+        PrimaryButton("Try again", busy = busy, onClick = onTryAgain)
+        TextButton(onClick = { confirming = true }, enabled = !busy) { Text("Restore with my recovery phrase") }
+    } else {
+        PrimaryButton("Restore with my recovery phrase", busy = busy) { confirming = true }
+    }
     Spacer(Modifier.height(24.dp))
     if (confirming) {
         AlertDialog(

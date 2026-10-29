@@ -119,4 +119,19 @@ class AutoLockTest {
         runCurrent()
         assertEquals(AppPhase.Locked, vm.phase.value)
     }
+
+    /** Re-audit (R5): a dApp transaction that never ends (its site's wait never returns) must not keep the wallet open. */
+    @Test
+    fun aTransactionThatNeverEndsHoldsTheLockTenMinutesAtMost() = runTest {
+        val vm = unlocked()
+        events.emit(dappTx("proving"))
+        runCurrent()
+        vm.onBackground()
+        advanceTimeBy(AutoLock.DEFAULT_MS + AutoLock.MAX_SEND_WAIT_MS - 60_000)
+        runCurrent()
+        assertTrue(vm.phase.value is AppPhase.Unlocked)
+        advanceTimeBy(120_000)
+        runCurrent()
+        assertEquals(AppPhase.Locked, vm.phase.value)
+    }
 }

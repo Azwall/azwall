@@ -108,7 +108,15 @@ class SignTest {
         vm.unlock(auth = { true })
         assertTrue(vm.unlockFailed.value)
         vm.cannotUnlock()
-        assertEquals(AppPhase.KeyLost, vm.phase.value)
+        // Not known to be a lost key: it says so, and offers to try again first.
+        assertEquals(AppPhase.CannotUnlock, vm.phase.value)
+        vm.tryUnlockAgain()
+        assertEquals(AppPhase.Locked, vm.phase.value)
+        vm.cannotUnlock()
+        // Re-audit (R4): the next wallet does not inherit the offer.
+        kotlinx.coroutines.runBlocking { vm.startOver().join() }
+        assertFalse(vm.unlockFailed.value)
+        assertEquals(AppPhase.Onboarding, vm.phase.value)
     }
 
     @Test

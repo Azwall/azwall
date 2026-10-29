@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 sealed interface AppPhase {
     data object Booting : AppPhase
@@ -34,6 +35,12 @@ sealed interface AppPhase {
 
     /** The vault's key is gone (the screen lock was removed): only the recovery phrase restores the wallet. */
     data object KeyLost : AppPhase
+
+    /**
+     * The wallet keeps failing to unlock, for a reason that is not known to be a lost key (the user chose to stop
+     * trying): unlock again, or restore from the recovery phrase.
+     */
+    data object CannotUnlock : AppPhase
 
     data class Unlocked(val session: WalletSession) : AppPhase
 
@@ -109,6 +116,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         if (!deps.deviceSecure) throw NoScreenLock()
         val (account, phrase) = withContext(io) { Recovery.firstAccount(secret, alias, deps.backend) }
         vaultState.open { withAuth(auth) { withContext(io) { deps.vault.create(account, phrase) } } }
+        _unlockFailed.value = false
         start()
     }
 
@@ -169,7 +177,12 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
      * from the recovery phrase, which asks before removing anything.
      */
     fun cannotUnlock() {
-        if (_unlockFailed.value && _phase.value !is AppPhase.Unlocked) _phase.value = AppPhase.KeyLost
+        if (_unlockFailed.value && _phase.value !is AppPhase.Unlocked) _phase.value = AppPhase.CannotUnlock
+    }
+
+    /** Back to the lock screen from [AppPhase.CannotUnlock], to try once more. */
+    fun tryUnlockAgain() {
+        if (_phase.value == AppPhase.CannotUnlock) _phase.value = AppPhase.Locked
     }
 
     /**
@@ -177,8 +190,10 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
      * restored from its recovery phrase. No authentication can be asked: the key it would unlock is gone.
      */
     fun startOver() = action {
-        check(_phase.value == AppPhase.KeyLost) { "the wallet can still be unlocked" }
+        check(_phase.value == AppPhase.KeyLost || _phase.value == AppPhase.CannotUnlock) { "the wallet can still be unlocked" }
         vaultState.erase(deps::wipe)
+        // The next wallet starts clean: no "can't unlock" offered on its first lock screen.
+        _unlockFailed.value = false
         _phase.value = AppPhase.Onboarding
     }
 
@@ -212,8 +227,9 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
             delay(AutoLock.DEFAULT_MS)
             val session = (_phase.value as? AppPhase.Unlocked)?.session ?: return@launch
             // A transaction on its way (the wallet's or a dApp's) ends first: locking would stop it midway. Then the
-            // wallet locks, still in the background, rather than staying open until the app comes back.
-            session.sending.first { !it }
+            // wallet locks, still in the background, rather than staying open until the app comes back; a send that
+            // never ends (a site whose wait never returns) holds it [AutoLock.MAX_SEND_WAIT_MS] at most.
+            withTimeoutOrNull(AutoLock.MAX_SEND_WAIT_MS) { session.sending.first { !it } }
             lock()
         }
     }
@@ -267,6 +283,7 @@ class AppViewModel(private val deps: AppDeps, private val io: CoroutineDispatche
         lock()
         // After any save under way, which would otherwise write the deleted vault back.
         vaultState.erase(deps::wipe)
+        _unlockFailed.value = false
         _phase.value = AppPhase.Onboarding
     }
 
