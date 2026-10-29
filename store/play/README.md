@@ -16,13 +16,15 @@ What Play Console asks for, ready to paste. Images: `icon-512.png` (512×512), `
 **Full description** (4000):
 
 ```
+This is an early test version. Use small amounts, and keep your recovery phrase safe: without it, a lost phone means lost funds.
+
 Azwall is a self-custodial wallet for the Aztec network, where balances and transfers can stay private.
 
 PRIVATE BY DEFAULT
 Send tokens privately: the amount, the sender and the recipient stay hidden on chain. Shield public tokens into private notes, or unshield them back, in one tap.
 
 PROVEN ON YOUR PHONE
-Every transaction is proven on your device with a zero-knowledge proof. Your keys never leave the phone, and nothing is sent until the proof is ready. You can cancel while it is being proven.
+Every transaction is proven on your device with a zero-knowledge proof. Your keys never leave the phone, and nothing is sent until the proof is ready. You can cancel your own transfers while they are being proven.
 
 YOUR KEYS, YOUR FUNDS
 Azwall is non-custodial: there is no account and no server of ours. Your recovery phrase and keys are encrypted by the phone's secure hardware and unlocked with your fingerprint, face or device code. Every transaction asks you to confirm it.
@@ -35,8 +37,6 @@ Switch between Aztec networks. On test networks, fees are sponsored. Bridge Fee 
 
 NO TRACKING
 No analytics, no ads, no account. The wallet talks only to the Aztec node and Ethereum endpoints it needs, and to the sites you open.
-
-This is an early test version. Use small amounts, and keep your recovery phrase safe: without it, a lost phone means lost funds.
 ```
 
 ## Fiche en français (traduction)
@@ -49,13 +49,15 @@ This is an early test version. Use small amounts, and keep your recovery phrase 
 **Description complète** :
 
 ```
+Ceci est une première version de test. Utilisez de petits montants et gardez votre phrase de récupération en lieu sûr : sans elle, un téléphone perdu, ce sont des fonds perdus.
+
 Azwall est un wallet non custodial pour le réseau Aztec, où les soldes et les transferts peuvent rester privés.
 
 PRIVÉ PAR DÉFAUT
 Envoyez des tokens en privé : le montant, l'expéditeur et le destinataire restent cachés sur la chaîne. Passez des tokens publics en notes privées, ou l'inverse, en un geste.
 
 PROUVÉ SUR VOTRE TÉLÉPHONE
-Chaque transaction est prouvée sur votre appareil par une preuve à divulgation nulle de connaissance. Vos clés ne quittent jamais le téléphone, et rien n'est envoyé avant que la preuve soit prête. Vous pouvez annuler pendant la preuve.
+Chaque transaction est prouvée sur votre appareil par une preuve à divulgation nulle de connaissance. Vos clés ne quittent jamais le téléphone, et rien n'est envoyé avant que la preuve soit prête. Vous pouvez annuler vos propres envois pendant leur preuve.
 
 VOS CLÉS, VOS FONDS
 Azwall est non custodial : pas de compte, pas de serveur de notre part. Votre phrase de récupération et vos clés sont chiffrées par la puce sécurisée du téléphone et déverrouillées par votre empreinte, votre visage ou le code de l'appareil. Chaque transaction vous demande de la confirmer.
@@ -68,8 +70,6 @@ Passez d'un réseau Aztec à l'autre. Sur les réseaux de test, les frais sont s
 
 AUCUN PISTAGE
 Pas d'analytics, pas de publicité, pas de compte. Le wallet ne parle qu'au nœud Aztec et aux points d'accès Ethereum dont il a besoin, et aux sites que vous ouvrez.
-
-Ceci est une première version de test. Utilisez de petits montants et gardez votre phrase de récupération en lieu sûr : sans elle, un téléphone perdu, ce sont des fonds perdus.
 ```
 
 ## Store settings
