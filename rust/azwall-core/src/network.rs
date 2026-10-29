@@ -243,6 +243,10 @@ pub fn is_http_url(url: &str) -> bool {
     }
     let Some(rest) = url.strip_prefix("http://") else { return false };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    // `http://localhost:1@node.example/` goes to node.example: no user info in a plain http endpoint.
+    if authority.contains('@') {
+        return false;
+    }
     let host = match authority.strip_prefix('[') {
         Some(v6) => v6.split(']').next().unwrap_or_default(),
         None => authority.split(':').next().unwrap_or_default(),
@@ -371,6 +375,8 @@ mod tests {
         assert!(!is_http_url("http://node.example"));
         assert!(!is_http_url("http://localhost.evil.example"));
         assert!(!is_http_url("http://user@node.example"));
+        assert!(!is_http_url("http://localhost:1@node.example/"));
+        assert!(!is_http_url("http://[::1]:8080@node.example/"));
         assert!(!is_http_url("https://"));
         assert!(!is_http_url("wss://node"));
     }
