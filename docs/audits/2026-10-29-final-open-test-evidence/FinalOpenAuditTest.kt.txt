@@ -1,0 +1,89 @@
+package dev.azwall.core.wallet
+
+import dev.azwall.core.NetworkInfo
+import dev.azwall.core.pxe.AccountSecrets
+import dev.azwall.core.pxe.PxeClient
+import dev.azwall.core.pxe.PxeEvent
+import dev.azwall.core.pxe.PxeException
+import dev.azwall.core.pxe.TokenInfo
+import dev.azwall.core.pxe.TransferKind
+import dev.azwall.core.vault.Vault
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.math.BigInteger
+
+/** Adversarial lifecycle and journal scenarios for the open-test release audit. */
+@OptIn(ExperimentalCoroutinesApi::class)
+class FinalOpenAuditTest {
+    @get:Rule val tmp = TemporaryFolder()
+    private val network = NetworkInfo("testnet-v6", "Testnet", "6.0.0", "6.0.0", "node", "v6", true)
+    private val pxe = FakePxe().apply { deployed = true }
+    private val events = MutableSharedFlow<PxeEvent>(extraBufferCapacity = 16)
+    private val scopes = mutableListOf<CoroutineScope>()
+    private val token = TokenInfo("0xt", "Test", "TST", 6)
+    private val recipient = "0x" + "cd".repeat(32)
+
+    @After fun cleanup() {
+        scopes.forEach { it.cancel() }
+        ProofGate.reset()
+    }
+
+    private fun TestScope.session(): WalletSession {
+        val vault = Vault(tmp.root.resolve("vault"), PlainBox)
+        val contents = vault.create(AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
+        val launcher = PxeLauncher { object : RunningPxe {
+            override val client = PxeClient(pxe)
+            override val events = this@FinalOpenAuditTest.events
+            override fun stop() {}
+        } }
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
+        return WalletSession(FakeBackend, launcher, unlocked(vault, contents), tmp.root, network, scope)
+    }
+
+    /** A proof handed over can still be submitted by the host after the caller times out. */
+    @Test fun aReleasedButUnansweredSendMustNotBeCalledFailed() = runTest {
+        val s = session().apply { open() }
+        pxe.whileSending = { throw PxeException("transfer unanswered after proof release", unanswered = true) }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
+        val item = s.state.value.activity.single()
+        assertNotEquals("an unanswered released proof has an uncertain outcome, not a confirmed failure", ActivityStatus.FAILED, item.status)
+    }
+
+    /** A late submission notification belongs to the first call, never to its retry. */
+    @Test fun aLateHashMustNotBeAssignedToTheRetry() = runTest {
+        val s = session().apply { open() }
+        pxe.whileSending = { throw PxeException("transfer unanswered after proof release", unanswered = true) }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
+        val first = s.state.value.activity.single()
+        // The JS channel abandoned its wait, not the JS send: a retry queues behind that send.
+        val queued = CompletableDeferred<Unit>()
+        pxe.whileProving = { queued.await() }
+        val retry = async { runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.TWO) } }
+        runCurrent()
+        try {
+            val second = s.store.proving().single()
+            events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"addr-abab","txHash":"0xfirst"}""")))
+            runCurrent()
+            assertEquals("the retry must not inherit the first send's hash", null, s.store.item(second.id)?.txHash)
+            assertEquals("the original operation must retain its submission hash", "0xfirst", s.store.item(first.id)?.txHash)
+        } finally {
+            retry.cancel()
+            scopes.forEach { it.cancel() }
+        }
+    }
+}

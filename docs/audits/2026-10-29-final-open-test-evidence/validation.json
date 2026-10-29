@@ -1,0 +1,48 @@
+{
+  "app": {
+    "tests": 33,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "classes": 11,
+    "lint": {
+      "Warning": 17,
+      "Error": 0,
+      "Fatal": 0
+    }
+  },
+  "core": {
+    "tests": 142,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "classes": 24,
+    "lint": {
+      "Warning": 1,
+      "Error": 0,
+      "Fatal": 0
+    }
+  },
+  "rust_results": [
+    "test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "device": {
+    "physical": "Pixel 3",
+    "abi": "arm64-v8a",
+    "keyguard_showing": true,
+    "installed_audit_package": "dev.azwall.staging (older revision; not evidence for current bundle)",
+    "emulator": "x86_64, 16 KB; release arm64 libraries cannot be executed here"
+  }
+}

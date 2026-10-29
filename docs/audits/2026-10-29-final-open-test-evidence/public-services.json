@@ -1,0 +1,28 @@
+{
+  "testnet-v6": {
+    "reported_version": "6.0.0",
+    "l1_chain_id_matches": true,
+    "rollup_version_matches": true,
+    "vk_tree_matches": null,
+    "protocol_hash_matches": null,
+    "portal_matches": true,
+    "error": null,
+    "hash_check_note": "These hashes are absent from node_getNodeInfo; open.ts compares the local SDK hashes with the registry."
+  },
+  "mainnet-v6": {
+    "reported_version": "6.0.0",
+    "l1_chain_id_matches": true,
+    "rollup_version_matches": true,
+    "vk_tree_matches": null,
+    "protocol_hash_matches": null,
+    "portal_matches": true,
+    "error": null,
+    "hash_check_note": "These hashes are absent from node_getNodeInfo; open.ts compares the local SDK hashes with the registry."
+  },
+  "privacy": {
+    "status": 200,
+    "sha256": "1b890c09c1c68f4b43d6d0e87432bf7254b1433c0d765708ec5f39943e3b21cc",
+    "publisher_present": true,
+    "old_replace_rpc_claim_present": false
+  }
+}
