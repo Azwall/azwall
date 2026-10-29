@@ -1,14 +1,17 @@
 # Google Play listing
 
+The name and short description describe the wallet without claiming privacy: what the network and the app do for
+privacy is told in the full description, as features of Aztec.
+
 What Play Console asks for, ready to paste. Images: `icon-512.png` (512×512), `feature-graphic.png` (1024×500) and
 `screenshots/` (1080×2160, phone; taken on the testnet with a test wallet, `docs/release.md`). Lengths are Play's limits.
 
 ## Main store listing (English, default)
 
-**App name** (30): `Azwall: private Aztec wallet`
+**App name** (30): `Azwall: Aztec Wallet`
 
 **Short description** (80):
-`Private, self-custodial wallet for Aztec. Proofs made on your phone.`
+`Self-custodial wallet for the Aztec network. Proofs made on your phone.`
 
 **Full description** (4000):
 
@@ -38,10 +41,10 @@ This is an early test version. Use small amounts, and keep your recovery phrase 
 
 ## Fiche en français (traduction)
 
-**Nom** (30) : `Azwall : wallet Aztec privé`
+**Nom** (30) : `Azwall : wallet Aztec`
 
 **Description courte** (80) :
-`Wallet Aztec privé et non custodial. Preuves faites sur votre téléphone.`
+`Wallet non custodial pour le réseau Aztec. Preuves faites sur votre téléphone.`
 
 **Description complète** :
 
