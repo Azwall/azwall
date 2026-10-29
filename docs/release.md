@@ -64,6 +64,9 @@ Create a test wallet in it, open each network, send a transaction and connect a 
 
 ## Play Console
 
+The listing texts in English and French, the icon, the feature graphic, the screenshots and a proposal for the Data
+safety form are in [`store/play/`](https://github.com/Azwall/azwall/tree/main/store/play).
+
 - **Testing tracks**: internal testing (up to 100 testers, no review wait) is the quickest first step. New personal
   developer accounts must run a closed test with at least 12 testers for 14 days before open testing and production
   become available.
