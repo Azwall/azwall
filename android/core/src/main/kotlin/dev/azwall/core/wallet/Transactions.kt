@@ -189,11 +189,13 @@ class Transactions internal constructor(private val session: WalletSession) {
             // still finish that proof, and it must not be sent behind a transaction shown failed. The gate stays shut until
             // the next transaction opens it. Any other error (a wrong recipient, a low balance) ended the call: the gate
             // opens again, or every dApp proof after it would be refused as cancelled.
-            if (!cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered && !ProofGate.released.value) {
-                ProofGate.cancel()
+            // cancel() is false once the proof was released: then it may be on the network, and is followed as any other.
+            if (!cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered && ProofGate.cancel()) {
                 // The gate alone does not hold: the next transaction opens it again. The page that may still finish this
-                // proof is stopped for good, so nothing can send it; Retry starts a new one.
+                // proof is stopped for good, so nothing can send it (its late proof is refused: ProofGate.release); Retry
+                // starts a new one, whose dApp proofs must then go through.
                 session.retireHost(STUCK)
+                ProofGate.reset()
                 throw e
             }
             ProofGate.reset()

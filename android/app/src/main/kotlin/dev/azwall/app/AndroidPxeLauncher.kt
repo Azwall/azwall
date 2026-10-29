@@ -6,7 +6,6 @@ import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.NativeHandler
 import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
-import dev.azwall.core.pxe.PxeException
 import dev.azwall.core.pxe.PxeHost
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.ProofGate
@@ -49,11 +48,9 @@ class AndroidPxeLauncher(
         val request = Base64.getDecoder().decode(params["request"]!!.jsonPrimitive.content)
         ProofGate.check()
         val response = withContext(Dispatchers.Default) { backend().prove(network, request) }
-        // A host stopped meanwhile (it left this transaction unanswered: Transactions retires it) gets nothing back, so
-        // the transaction shown failed is never sent; and this proof must not mark the next transaction as sending.
-        if (!alive()) throw PxeException("the wallet engine that asked for this proof was stopped")
+        // A host stopped meanwhile (it left this transaction unanswered: Transactions retires it) gets nothing back.
         // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction. Past this, it may.
-        ProofGate.release()
+        ProofGate.release(hostAlive = alive())
         buildJsonObject { put("response", Base64.getEncoder().encodeToString(response)) }
     }
 }

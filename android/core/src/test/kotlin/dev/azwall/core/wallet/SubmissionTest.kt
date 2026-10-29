@@ -159,11 +159,17 @@ class SubmissionTest {
         assertTrue("the page that may still send it is stopped", stopped)
         assertEquals(Phase.FAILED, s.state.value.phase)
         assertEquals(Transactions.STUCK, s.state.value.error)
-        // A retry on this session cannot start, so nothing reopens the gate for the old proof.
+        // A retry on this session cannot start; the old proof, finishing late, is refused by its stopped host.
         pxe.whileProving = {}
         assertTrue(runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.TWO) }.isFailure)
-        org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release() }
+        org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release(hostAlive = false) }
         assertTrue(pxe.sent.isEmpty())
+        // Readiness review (N1): after Retry, the new host's first dApp proof goes through.
+        ProofGate.check()
+        ProofGate.release(hostAlive = true)
+        // (N5) a refresh does not erase why the session failed.
+        s.refresh()
+        assertEquals(Transactions.STUCK, s.state.value.error)
     }
 
     /** Store-release re-audit (R1): a send the page refused must not leave every dApp proof after it refused as cancelled. */

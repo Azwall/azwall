@@ -314,12 +314,13 @@ class WalletSession(
                     primary = store.primary(account.address),
                     created = store.created(account.address),
                     stale = false,
-                    error = null,
+                    // A failed session keeps saying why (Transactions.STUCK, a stopped host): a read does not undo that.
+                    error = if (s.phase == Phase.FAILED) s.error else null,
                 )
             }
             if (current()) Snapshots.save(_state.value, store)
         } catch (e: Exception) {
-            if (current()) _state.update { it.copy(error = e.message) }
+            if (current()) _state.update { if (it.phase == Phase.FAILED) it else it.copy(error = e.message) }
         } finally {
             _state.update { it.copy(refreshing = false, task = null) }
         }

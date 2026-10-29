@@ -40,9 +40,15 @@ object ProofGate {
         if (cancelled) throw CancelledByUser()
     }
 
-    /** Hands the finished proof over, unless the user cancelled first: then [CancelledByUser], and nothing is sent. */
+    /**
+     * Hands the finished proof over, unless the user cancelled first: then [CancelledByUser], and nothing is sent. A proof
+     * for a host already stopped ([hostAlive] false: one retired after leaving its transaction unanswered) is refused
+     * too, whatever the gate says: it would be sent behind a transaction shown failed, and must not mark the current
+     * transaction as sending.
+     */
     @Synchronized
-    fun release() {
+    fun release(hostAlive: Boolean = true) {
+        if (!hostAlive) throw CancelledByUser()
         check()
         _released.value = true
     }
