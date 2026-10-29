@@ -116,7 +116,9 @@ export function createHandlers(bridge: Bridge): Handlers {
     ...dappHandlers(() => dapps),
     ...feeHandlers(w),
   };
-  return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => f(asParams(params))]));
+  // A call that makes a transaction carries the app's id for it (`op`): its send is labelled with it (wallet.ts).
+  const labelled = (p: Params, f: (p: Params) => Promise<unknown>) => (typeof p.op === 'string' && wallet ? wallet.labelled(p.op, () => f(p)) : f(p));
+  return Object.fromEntries(Object.entries(handlers).map(([k, f]) => [k, async (params: unknown) => labelled(asParams(params), f)]));
 }
 
 /** Fees where there is no sponsor (fees.ts). */

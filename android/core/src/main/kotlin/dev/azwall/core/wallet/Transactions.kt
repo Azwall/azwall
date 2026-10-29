@@ -2,6 +2,7 @@ package dev.azwall.core.wallet
 
 import dev.azwall.core.DiagnosticLog
 import dev.azwall.core.pxe.FeeJuiceDeposit
+import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.Receipt
 import dev.azwall.core.pxe.TokenInfo
 import dev.azwall.core.pxe.TransferKind
@@ -31,6 +32,9 @@ data class ProvingJob(val item: ActivityItem, val startedAt: Long)
  * proof are made on the device), PENDING (accepted by the node, waiting for a block), then CONFIRMED or
  * FAILED. Proving is the long part (≈ 15 to 30 s on a phone); mining is waited for in the background.
  */
+/** A send whose proof went, then no answer: it may still reach the network ([Transactions.UNCERTAIN]). */
+class UncertainSubmission(cause: Throwable) : Exception(Transactions.UNCERTAIN, cause)
+
 class Transactions internal constructor(private val session: WalletSession) {
     private val _proving = MutableStateFlow<ProvingJob?>(null)
     val proving: StateFlow<ProvingJob?> = _proving.asStateFlow()
@@ -55,7 +59,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         check(Fees.canActivate(state.check, state.feeJuice, claim)) {
             "this account holds no Fee Juice to pay its activation: bridge AZTEC from Ethereum to its address first"
         }
-        return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { session.client.deployAccount(session.secretsOf(account), claim) }
+        return track(draft(ActivityKind.DEPLOY_ACCOUNT, account)) { it.deployAccount(session.secretsOf(account), claim) }
     }
 
     /** Claims Fee Juice bridged to the selected, active account; the transaction pays its fee with what it claims. */
@@ -63,7 +67,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         val account = selected()
         check(session.state.value.account?.deployed == true) { "activate the account first: activation claims it too" }
         check(!session.state.value.claiming) { "a claim of this Fee Juice is already on its way" }
-        return track(draft(ActivityKind.CLAIM_FEE_JUICE, account, FeeJuice.INFO, deposit.units)) { session.client.claimFeeJuice(account, deposit) }
+        return track(draft(ActivityKind.CLAIM_FEE_JUICE, account, FeeJuice.INFO, deposit.units)) { it.claimFeeJuice(account, deposit) }
     }
 
     /** Sends [amount] base units of [token]. For SHIELD and UNSHIELD the recipient is the sender. */
@@ -77,15 +81,15 @@ class Transactions internal constructor(private val session: WalletSession) {
             TransferKind.UNSHIELD -> ActivityKind.UNSHIELD
         }
         val item = draft(activity, from, token, amount).copy(counterparty = recipient.takeIf { it != from })
-        return track(item) { session.client.transfer(kind, from, recipient, token.address, amount) }
+        return track(item) { it.transfer(kind, from, recipient, token.address, amount) }
     }
 
     /** Deploys a token with the selected account as minter, and follows it (on any network: the account pays where there is no sponsor). */
     suspend fun deployTestToken(name: String, symbol: String, decimals: Int = 6): ActivityItem {
         val admin = selected()
         val item = draft(ActivityKind.DEPLOY_TOKEN, admin).copy(symbol = symbol)
-        return track(item) {
-            val deployed = session.client.deployToken(admin, name, symbol, decimals)
+        return track(item) { client ->
+            val deployed = client.deployToken(admin, name, symbol, decimals)
             session.store.addToken(TokenInfo(deployed.token, name, symbol, decimals))
             session.store.markCreated(admin, deployed.token)
             deployed.txHash
@@ -97,7 +101,7 @@ class Transactions internal constructor(private val session: WalletSession) {
         val me = selected()
         val recipient = to?.trim()?.takeIf { it.isNotEmpty() } ?: me
         val item = draft(ActivityKind.MINT, me, token, amount).copy(counterparty = recipient.takeIf { it != me })
-        return track(item) { session.client.mint(me, token.address, recipient, amount, toPrivate) }
+        return track(item) { it.mint(me, token.address, recipient, amount, toPrivate) }
     }
 
     private fun selected(): String = session.state.value.account?.address ?: error("no account selected")
@@ -138,8 +142,10 @@ class Transactions internal constructor(private val session: WalletSession) {
     private var winding: Job? = null
 
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
-    private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
+    private suspend fun track(draft: ActivityItem, send: suspend (PxeClient) -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
+        // One left without an answer after its proof went (UNCERTAIN) may still be sent: a retry could pay twice.
+        check(session.store.proving().none { it.kind != ActivityKind.DAPP && it.error == UNCERTAIN }) { UNCERTAIN }
         // A failed session has no host to send with; checked before anything reopens the proof gate (retireHost).
         check(session.state.value.phase != Phase.FAILED) { session.state.value.error ?: "the wallet is not open" }
         // Its review could not say how its fee is paid (Fees.UNKNOWN): nothing is sent on a guess.
@@ -151,8 +157,14 @@ class Transactions internal constructor(private val session: WalletSession) {
         session.recordActivity(draft)
         val stop = CompletableDeferred<Unit>().also { this.stop = it }
         _proving.value = ProvingJob(draft, System.currentTimeMillis())
+        // Its calls carry its id, so the hash the PXE tells before sending reaches this row and no other (followSubmissions).
+        val client = session.client.labelled(draft.id)
         val sent = try {
-            draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, send, stop))
+            draft.copy(status = ActivityStatus.PENDING, txHash = proveAndSend(draft, { send(client) }, stop))
+        } catch (e: UncertainSubmission) {
+            // Kept as being sent: its hash, if it comes, makes it pending and followed (followSubmissions).
+            session.recordActivity(draft.copy(error = UNCERTAIN))
+            throw e
         } catch (e: Exception) {
             // Told before sending (followSubmissions): the node may have it, so it is followed until a receipt says how it
             // ended, never called failed (and sent again).
@@ -189,8 +201,13 @@ class Transactions internal constructor(private val session: WalletSession) {
             // still finish that proof, and it must not be sent behind a transaction shown failed. The gate stays shut until
             // the next transaction opens it. Any other error (a wrong recipient, a low balance) ended the call: the gate
             // opens again, or every dApp proof after it would be refused as cancelled.
-            // cancel() is false once the proof was released: then it may be on the network, and is followed as any other.
-            if (!cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered && ProofGate.cancel()) {
+            val unanswered = !cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered
+            // Its proof already went: the page may still send it, and nothing can stop that. Not a failure: uncertain.
+            if (unanswered && ProofGate.released.value) {
+                ProofGate.reset()
+                throw UncertainSubmission(e)
+            }
+            if (unanswered && ProofGate.cancel()) {
                 // The gate alone does not hold: the next transaction opens it again. The page that may still finish this
                 // proof is stopped for good, so nothing can send it (its late proof is refused: ProofGate.release); Retry
                 // starts a new one, whose dApp proofs must then go through.
@@ -266,7 +283,15 @@ class Transactions internal constructor(private val session: WalletSession) {
             val waiting = session.store.proving().filter { it.txHash == null }.filter {
                 if (told.id != null) it.id == told.id else it.kind != ActivityKind.DAPP && (told.from == null || it.account.equals(told.from, ignoreCase = true))
             }
-            waiting.singleOrNull()?.let { session.recordActivity(it.copy(txHash = told.txHash)) }
+            val row = waiting.singleOrNull() ?: return@collect
+            // A row no call waits for any more (UNCERTAIN): its hash settles it, as sent, and it is followed.
+            if (row.error == UNCERTAIN) {
+                val sent = row.copy(status = ActivityStatus.PENDING, txHash = told.txHash, error = null)
+                session.recordActivity(sent)
+                session.scope.launch { confirm(sent) }
+            } else {
+                session.recordActivity(row.copy(txHash = told.txHash))
+            }
         }
     }
 
@@ -287,6 +312,10 @@ class Transactions internal constructor(private val session: WalletSession) {
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
+
+        /** A transaction whose proof went, with no answer since: it may still be sent. */
+        const val UNCERTAIN = "No answer came after this transaction's proof was handed over: it may still be sent. Wait for " +
+            "its outcome before sending it again; locking and unlocking the wallet ends the wait."
 
         /** Why the wallet engine was stopped after a transaction it left unanswered. */
         const val STUCK = "The wallet engine stopped answering during a transaction. It was stopped so that transaction can never " +

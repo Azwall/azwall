@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
@@ -118,6 +119,12 @@ enum class TransferKind(val wire: String) { PRIVATE("private"), PUBLIC("public")
 /** Typed API of a PXE host (pxe/<bundle>/src/api.ts). Every call may take seconds; proving calls, tens. */
 class PxeClient(private val caller: PxeCaller) {
     private val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * This client, with every call carrying [op]: the history row of the transaction it makes. The PXE tells that
+     * transaction's hash with it (txSubmitting), so the hash reaches that row whatever else is waiting.
+     */
+    fun labelled(op: String): PxeClient = PxeClient { method, params -> caller.call(method, JsonObject(params + ("op" to JsonPrimitive(op)))) }
 
     suspend fun open(networkParamsJson: String, dbKeyHex: String): NetworkCheck = typed(
         "open",

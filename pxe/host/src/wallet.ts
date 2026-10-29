@@ -141,8 +141,28 @@ export class AzwallWallet extends EmbeddedWallet {
   readonly #told = new Told();
 
   /** A send that fails after its transaction reached the node throws with its `txHash` (submit.ts). */
+  /** The label for the next sendTx of a native call (`labelled`): the app's id of the transaction it makes. */
+  #nextLabel: string | undefined;
+
+  /**
+   * Runs a native call whose transaction is the app's history row `label`: its sendTx takes the label when it starts,
+   * so the hash it tells (txSubmitting) goes to that row, even when the app stopped waiting for this call and a retry
+   * is already queued behind it.
+   */
+  async labelled<T>(label: string, call: () => Promise<T>): Promise<T> {
+    this.#nextLabel = label;
+    try {
+      return await call();
+    } finally {
+      // Only its own: a later call may have set the next one meanwhile.
+      if (this.#nextLabel === label) this.#nextLabel = undefined;
+    }
+  }
+
   override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
-    return this.sendLabelled(undefined, payload, opts);
+    const label = this.#nextLabel;
+    this.#nextLabel = undefined;
+    return this.sendLabelled(label, payload, opts);
   }
 
   /**

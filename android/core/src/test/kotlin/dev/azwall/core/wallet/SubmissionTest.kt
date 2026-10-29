@@ -207,5 +207,42 @@ class SubmissionTest {
         assertEquals(ActivityStatus.PENDING, restarted.item("first")?.status)
         assertEquals(null, restarted.item("second")?.txHash)
     }
+
+    /**
+     * Final open-test re-audit (FO-01): a send whose proof went, then no answer, may still be sent. It is never called
+     * failed, a retry waits for its outcome, and its late hash reaches its own row, by id.
+     */
+    @Test
+    fun aReleasedButUnansweredSendStaysUncertainUntilItsHashComes() = runTest {
+        val s = session().apply { open() }
+        pxe.whileSending = { throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min", unanswered = true) }
+        val error = runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }.exceptionOrNull()
+        assertTrue(error is UncertainSubmission)
+        val first = s.store.proving().single()
+        assertEquals(Transactions.UNCERTAIN, first.error)
+        // A retry would pay twice if the first one lands: refused while the outcome is unknown.
+        pxe.whileSending = {}
+        val retry = runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }.exceptionOrNull()
+        assertEquals(Transactions.UNCERTAIN, retry?.message)
+        // The first send goes out late: its hash, told with its id, makes it pending and followed.
+        events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"addr-abab","txHash":"0xlate","id":"${first.id}"}""")))
+        runCurrent()
+        val settled = s.store.item(first.id)!!
+        assertEquals("0xlate", settled.txHash)
+        assertEquals(ActivityStatus.PENDING, settled.status)
+    }
+
+    @Test
+    fun anUncertainSendSaysSoAfterARestart() = runTest {
+        val s = session().apply { open() }
+        pxe.whileSending = { throw dev.azwall.core.pxe.PxeException("transfer: no answer", unanswered = true) }
+        runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }
+        val id = s.store.proving().single().id
+        s.close()
+        val restarted = WalletStore(tmp.root, network.id)
+        restarted.failInterrupted()
+        assertEquals(ActivityStatus.FAILED, restarted.item(id)?.status)
+        assertEquals("never 'not sent': it may have been", Transactions.UNCERTAIN, restarted.item(id)?.error)
+    }
 }
 

@@ -146,7 +146,14 @@ class WalletStore(private val dir: File, private val networkId: String) {
     fun failInterrupted() {
         val stale = data.activity.filter { it.status == ActivityStatus.PROVING }
         stale.forEach {
-            upsert(if (it.txHash != null) it.copy(status = ActivityStatus.PENDING) else it.copy(status = ActivityStatus.FAILED, error = "interrupted before the proof was sent"))
+            upsert(
+                when {
+                    it.txHash != null -> it.copy(status = ActivityStatus.PENDING)
+                    // No answer came after its proof went: it may have been sent; the text says so, never "not sent".
+                    it.error == Transactions.UNCERTAIN -> it.copy(status = ActivityStatus.FAILED)
+                    else -> it.copy(status = ActivityStatus.FAILED, error = "interrupted before the proof was sent")
+                },
+            )
         }
     }
 
