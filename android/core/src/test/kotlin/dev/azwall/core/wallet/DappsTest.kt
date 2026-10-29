@@ -261,7 +261,7 @@ class DappLinkTest {
         val tx = """"id":"t3","account":"0xme","origin":"https://vote.example","summary":"vote""""
         pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
         advanceUntilIdle()
-        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold"}""")))
+        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold","id":"t3"}""")))
         advanceUntilIdle()
         pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"sent"}""")))
         advanceUntilIdle()
@@ -278,7 +278,7 @@ class DappLinkTest {
         val tx = """"id":"t4","account":"0xme","origin":"https://vote.example","summary":"vote""""
         pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"proving"}""")))
         advanceUntilIdle()
-        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold"}""")))
+        pxe.events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"0xme","txHash":"0xtold","id":"t4"}""")))
         advanceUntilIdle()
         pxe.events.emit(PxeEvent("dappTx", Json.parseToJsonElement("""{$tx,"status":"failed","error":"wait timed out"}""")))
         advanceUntilIdle()

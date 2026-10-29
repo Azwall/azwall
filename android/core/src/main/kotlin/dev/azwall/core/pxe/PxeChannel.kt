@@ -92,6 +92,9 @@ class PxeChannel(
     }
 
     /** Fails every pending and future call, e.g. when the web view is destroyed, and says so with a `closed` event. */
+    /** Whether the host stopped (or was stopped): nothing it asked for may be handed back any more. */
+    val closed: Boolean get() = closedReason != null
+
     fun close(reason: String) {
         if (closedReason != null) return
         closedReason = reason

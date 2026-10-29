@@ -140,6 +140,8 @@ class Transactions internal constructor(private val session: WalletSession) {
     /** Proves and sends with [send] (returns the tx hash), then follows the transaction to a block. */
     private suspend fun track(draft: ActivityItem, send: suspend () -> String): ActivityItem {
         check(_proving.value == null) { "another transaction is being proven" }
+        // A failed session has no host to send with; checked before anything reopens the proof gate (retireHost).
+        check(session.state.value.phase != Phase.FAILED) { session.state.value.error ?: "the wallet is not open" }
         // Its review could not say how its fee is paid (Fees.UNKNOWN): nothing is sent on a guess.
         checkNotNull(session.state.value.check) { "the wallet is still reaching the network: try again in a moment" }
         // One cancel gate for every proof (ProofGate): a cancel must never land on a dApp's transaction.
@@ -189,6 +191,9 @@ class Transactions internal constructor(private val session: WalletSession) {
             // opens again, or every dApp proof after it would be refused as cancelled.
             if (!cancelled && e is dev.azwall.core.pxe.PxeException && e.unanswered && !ProofGate.released.value) {
                 ProofGate.cancel()
+                // The gate alone does not hold: the next transaction opens it again. The page that may still finish this
+                // proof is stopped for good, so nothing can send it; Retry starts a new one.
+                session.retireHost(STUCK)
                 throw e
             }
             ProofGate.reset()
@@ -254,8 +259,11 @@ class Transactions internal constructor(private val session: WalletSession) {
             // An unreadable one leaves the item without its hash until the answer brings it; reported, as host and app disagree.
             val told = runCatching { json.decodeFromJsonElement<Submitting>(e.data) }.onFailure { DiagnosticLog.shared.report("transactions", it) }.getOrNull()
                 ?: return@collect
-            val waiting = session.store.proving().filter { it.txHash == null && (told.from == null || it.account.equals(told.from, ignoreCase = true)) }
-            // Two transactions of that account being proven: which one this is cannot be told, and none is guessed.
+            // A dApp transaction comes with its id (the gateway labels its send): that very row. Else the wallet's own,
+            // of which one at most is being proven; never guessed among several.
+            val waiting = session.store.proving().filter { it.txHash == null }.filter {
+                if (told.id != null) it.id == told.id else it.kind != ActivityKind.DAPP && (told.from == null || it.account.equals(told.from, ignoreCase = true))
+            }
             waiting.singleOrNull()?.let { session.recordActivity(it.copy(txHash = told.txHash)) }
         }
     }
@@ -273,10 +281,14 @@ class Transactions internal constructor(private val session: WalletSession) {
     }
 
     @Serializable
-    private data class Submitting(val from: String? = null, val txHash: String)
+    private data class Submitting(val from: String? = null, val txHash: String, val id: String? = null)
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
+
+        /** Why the wallet engine was stopped after a transaction it left unanswered. */
+        const val STUCK = "The wallet engine stopped answering during a transaction. It was stopped so that transaction can never " +
+            "be sent late: check the activity, then tap Retry."
 
         /** Failures read from a receipt: final, never looked at again. */
         const val REVERTED = "reverted on chain"

@@ -215,7 +215,7 @@ export async function openWallet(bridge: Bridge, network: NetworkParams, dbKey: 
   else log('wallet', 'no Sponsored FPC on this network: fees are paid with the account\'s Fee Juice');
   trustFeePayers(wallet.fees === 'sponsored' ? [fpc.instance.address.toString()] : []);
   await sameChainEverywhere(wallet, network);
-  wallet.submitting = (from, txHash) => bridge.emit('txSubmitting', { from: from ?? null, txHash });
+  wallet.submitting = (from, txHash, id) => bridge.emit('txSubmitting', { from: from ?? null, txHash, id: id ?? null });
   if (network.l1) {
     const portal = pinnedPortal(l1ContractAddresses.feeJuicePortalAddress.toString(), network.l1);
     wallet.bridge = {

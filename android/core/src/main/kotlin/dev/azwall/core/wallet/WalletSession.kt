@@ -257,6 +257,18 @@ class WalletSession(
         runCatching { pxe?.client?.flush() }.onFailure { DiagnosticLog.shared.report("pxe", it) }
     }
 
+    /**
+     * Stops the running host for good (it left a transaction unanswered and may still send it late): the session fails
+     * with [reason], and Retry starts a new host.
+     */
+    internal fun retireHost(reason: String) {
+        val host = running.value ?: return
+        running.value = null
+        host.stop()
+        DiagnosticLog.shared.record(DiagnosticLog.Level.WARN, "pxe", reason)
+        _state.update { it.copy(phase = Phase.FAILED, error = reason, refreshing = false, task = null) }
+    }
+
     fun close() {
         closed = true
         // Closing only lets the PXE finish its writes: the host is stopped right after either way. With the app's scope

@@ -52,10 +52,10 @@ class SubmissionTest {
     }
 
     /** A session of the wallet in [tmp]; called again, the same wallet after the app restarted. */
-    private fun TestScope.session(): WalletSession {
+    private fun TestScope.session(onStop: () -> Unit = {}): WalletSession {
         val vault = Vault(tmp.root.resolve("vault"), PlainBox)
         val contents = if (vault.exists()) vault.unlock() else vault.create(AccountSecrets("main", "0x" + "ab".repeat(32), Vault.ZERO_SALT))
-        val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = this@SubmissionTest.events; override fun stop() {} } }
+        val launcher = PxeLauncher { object : RunningPxe { override val client = PxeClient(pxe); override val events = this@SubmissionTest.events; override fun stop() = onStop() } }
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()).also { scopes += it }
         return WalletSession(FakeBackend, launcher, unlocked(vault, contents), tmp.root, network, scope)
     }
@@ -145,17 +145,25 @@ class SubmissionTest {
         sending.await()
     }
 
-    /** Store-release audit (F13): a transaction that failed before its proof left must never be sent behind that failure. */
+    /**
+     * Store-release audit (F13) and open-test audit (OT-01): a transaction left unanswered before its proof left must never
+     * be sent behind that failure, even by the proof finishing after a retry started. Its host is stopped for good.
+     */
     @Test
-    fun aTransactionThatFailedBeforeItsProofLeftIsNeverSentLater() = runTest {
-        val s = session().apply { open() }
+    fun aTransactionLeftUnansweredIsNeverSentLater() = runTest {
+        var stopped = false
+        val s = session(onStop = { stopped = true }).apply { open() }
         pxe.whileProving = { throw dev.azwall.core.pxe.PxeException("transfer: no answer from the wallet engine after 20 min", unanswered = true) }
         val failed = runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE) }.exceptionOrNull()
         assertTrue(failed is dev.azwall.core.pxe.PxeException)
-        // The page finishes that proof later: refused, so it is not sent.
-        org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release() }
+        assertTrue("the page that may still send it is stopped", stopped)
+        assertEquals(Phase.FAILED, s.state.value.phase)
+        assertEquals(Transactions.STUCK, s.state.value.error)
+        // A retry on this session cannot start, so nothing reopens the gate for the old proof.
         pxe.whileProving = {}
-        assertEquals(ActivityStatus.PENDING, s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.ONE).status)
+        assertTrue(runCatching { s.transactions.send(TransferKind.PRIVATE, token, recipient, BigInteger.TWO) }.isFailure)
+        org.junit.Assert.assertThrows(CancelledByUser::class.java) { ProofGate.release() }
+        assertTrue(pxe.sent.isEmpty())
     }
 
     /** Store-release re-audit (R1): a send the page refused must not leave every dApp proof after it refused as cancelled. */
@@ -169,4 +177,29 @@ class SubmissionTest {
         ProofGate.release()
         assertFalse(ProofGate.cancelled)
     }
+
+    private fun dapp(id: String) = PxeEvent(
+        "dappTx", Json.parseToJsonElement("""{"id":"$id","account":"addr-abab","origin":"https://dapp.example","summary":"transfer","status":"proving"}"""),
+    )
+
+    /** Open-test audit (OT-02): with two dApp transactions of one account queued, the hash goes to the one sent. */
+    @Test
+    fun queuedDappSendsKeepTheirHashAcrossARestart() = runTest {
+        val s = session().apply { open() }
+        runCurrent()
+        events.emit(dapp("first"))
+        runCurrent()
+        events.emit(dapp("second"))
+        runCurrent()
+        events.emit(PxeEvent("txSubmitting", Json.parseToJsonElement("""{"from":"addr-abab","txHash":"0xaccepted","id":"first"}""")))
+        runCurrent()
+        // The process dies before the gateway's "sent".
+        s.close()
+        val restarted = WalletStore(tmp.root, network.id)
+        restarted.failInterrupted()
+        assertEquals("0xaccepted", restarted.item("first")?.txHash)
+        assertEquals(ActivityStatus.PENDING, restarted.item("first")?.status)
+        assertEquals(null, restarted.item("second")?.txHash)
+    }
 }
+

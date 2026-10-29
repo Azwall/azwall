@@ -112,7 +112,7 @@ export class AzwallWallet extends EmbeddedWallet {
     confirmSubmissions(this.aztecNode, {
       submitting: hash => {
         this.#told.note(hash);
-        this.submitting?.(this.#senders.current, hash);
+        this.submitting?.(this.#senders.current, hash, this.#senders.label);
       },
     });
   }
@@ -121,7 +121,7 @@ export class AzwallWallet extends EmbeddedWallet {
    * Told the sender and hash of each transaction just before it reaches the node. open.ts tells the app, which keeps the
    * hash with the transaction it belongs to: one the wallet stops sending is still followed.
    */
-  submitting?: (from: string | undefined, txHash: string) => void;
+  submitting?: (from: string | undefined, txHash: string, label: string | undefined) => void;
 
   get node(): AztecNode {
     return this.aztecNode;
@@ -142,8 +142,16 @@ export class AzwallWallet extends EmbeddedWallet {
 
   /** A send that fails after its transaction reached the node throws with its `txHash` (submit.ts). */
   override async sendTx<W extends InteractionWaitOptions = undefined>(payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
+    return this.sendLabelled(undefined, payload, opts);
+  }
+
+  /**
+   * sendTx for a dApp transaction: `label` (its id in the app's history) goes with its hash when it reaches the node, so
+   * the app keeps that hash on that very row, even with several of the account's transactions waiting their turn.
+   */
+  sendLabelled<W extends InteractionWaitOptions = undefined>(label: string | undefined, payload: ExecutionPayload, opts: SendOptions<W>): Promise<SendReturn<W>> {
     const send = () => this.gas.send(this, payload, opts, (p, o) => super.sendTx(p, o));
-    return this.#senders.sending(opts.from.toString(), () => this.#told.during(send));
+    return this.#senders.sending(opts.from.toString(), () => this.#told.during(send), label);
   }
 
   override async createAuthWit(from: AztecAddress, intent: Parameters<EmbeddedWallet['createAuthWit']>[1]) {

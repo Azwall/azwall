@@ -35,3 +35,9 @@ export async function rawCall(wallet: AzwallWallet, method: string, args: unknow
   if ((getSchemaReturnType(schema) as { def?: { type?: string } }).def?.type === 'void') return undefined;
   return JSON.parse(jsonStringify(result));
 }
+
+/** sendTx as rawCall runs it, labelled with the dApp transaction it is (wallet.ts sendLabelled). */
+export async function rawSend(wallet: AzwallWallet, args: unknown[], label: string): Promise<unknown> {
+  const [payload, opts] = (await parseArgs('sendTx', args)) as Parameters<AzwallWallet['sendTx']>;
+  return JSON.parse(jsonStringify(await wallet.sendLabelled(label, payload, opts)));
+}

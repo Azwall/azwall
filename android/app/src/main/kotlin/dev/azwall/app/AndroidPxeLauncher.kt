@@ -6,6 +6,7 @@ import dev.azwall.core.WalletBackend
 import dev.azwall.core.pxe.NativeHandler
 import dev.azwall.core.pxe.PxeClient
 import dev.azwall.core.pxe.PxeEvent
+import dev.azwall.core.pxe.PxeException
 import dev.azwall.core.pxe.PxeHost
 import dev.azwall.core.wallet.DappApprovals
 import dev.azwall.core.wallet.ProofGate
@@ -30,8 +31,10 @@ class AndroidPxeLauncher(
     private val backend: () -> WalletBackend,
 ) : PxeLauncher {
     override suspend fun launch(network: NetworkInfo): RunningPxe {
-        val handlers = mapOf("prove" to prove(), "approve" to { params: JsonObject -> approvals.approve(params) })
-        val host = PxeHost.start(context, network.pxeBundle, handlers)
+        // The prove handler is made before its host: it reads the host once started, to give nothing back to a dead one.
+        var started: PxeHost? = null
+        val handlers = mapOf("prove" to prove { started?.channel?.closed != true }, "approve" to { params: JsonObject -> approvals.approve(params) })
+        val host = PxeHost.start(context, network.pxeBundle, handlers).also { started = it }
         return object : RunningPxe {
             override val client = PxeClient { method, params -> host.channel.call(method, params) }
             override val events: Flow<PxeEvent> = host.channel.events
@@ -41,11 +44,14 @@ class AndroidPxeLauncher(
     }
 
     /** `prove({ network, request })`: base64 AZS2 request in, base64 AZP1 response out (rust/azwall-prover). */
-    private fun prove(): NativeHandler = { params ->
+    private fun prove(alive: () -> Boolean): NativeHandler = { params ->
         val network = params["network"]!!.jsonPrimitive.content
         val request = Base64.getDecoder().decode(params["request"]!!.jsonPrimitive.content)
         ProofGate.check()
         val response = withContext(Dispatchers.Default) { backend().prove(network, request) }
+        // A host stopped meanwhile (it left this transaction unanswered: Transactions retires it) gets nothing back, so
+        // the transaction shown failed is never sent; and this proof must not mark the next transaction as sending.
+        if (!alive()) throw PxeException("the wallet engine that asked for this proof was stopped")
         // Cancelled while proving: the proof is dropped, so the PXE never sends the transaction. Past this, it may.
         ProofGate.release()
         buildJsonObject { put("response", Base64.getEncoder().encodeToString(response)) }

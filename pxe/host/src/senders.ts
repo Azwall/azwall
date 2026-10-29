@@ -6,6 +6,7 @@
 
 export class SenderGuard {
   #sender: string | undefined;
+  #label: string | undefined;
   #queue: Promise<unknown> = Promise.resolve();
 
   /** The account whose transaction is being sent, if any. */
@@ -13,14 +14,21 @@ export class SenderGuard {
     return this.#sender;
   }
 
+  /** The label of the send under way: the dApp transaction it is (its id in the app's history), if any. */
+  get label(): string | undefined {
+    return this.#label;
+  }
+
   /** Runs the sending of a transaction from `from`, once every send started before it has ended. */
-  sending<T>(from: string, send: () => Promise<T>): Promise<T> {
+  sending<T>(from: string, send: () => Promise<T>, label?: string): Promise<T> {
     const turn = this.#queue.then(async () => {
       this.#sender = from.toLowerCase();
+      this.#label = label;
       try {
         return await send();
       } finally {
         this.#sender = undefined;
+        this.#label = undefined;
       }
     });
     // Its caller gets its failure; the next send only waits for it to end.

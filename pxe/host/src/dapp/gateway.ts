@@ -28,7 +28,7 @@ import { list, obj } from './json';
 import { messageFrom, SigningGate } from './limits';
 import { confine, samePage } from './policy';
 import { isSiteClass, markSiteClass, markSiteRegistered } from './provenance';
-import { canonicalArgs, parseArgs, rawCall } from './raw_call';
+import { canonicalArgs, parseArgs, rawCall, rawSend } from './raw_call';
 
 const WALLET = { walletId: 'azwall', walletName: 'Azwall', walletVersion: '0.8.0' };
 
@@ -338,7 +338,7 @@ export class DappGateway {
     const tx = { id: crypto.randomUUID(), account, origin: session.origin, summary };
     this.bridge.emit('dappTx', { ...tx, status: 'proving' });
     try {
-      const result = await rawCall(this.wallet, 'sendTx', args);
+      const result = await rawSend(this.wallet, args, tx.id);
       this.bridge.emit('dappTx', { ...tx, status: 'sent', txHash: txHashOf(result) });
       return result;
     } catch (err) {

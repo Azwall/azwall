@@ -101,6 +101,22 @@ describe('authorizations signed while sending', () => {
     expect(ran).toBe(true);
   });
 
+  // Open-test audit (OT-02): each queued send carries its own label, so its hash lands on its own history row.
+  it('label each send with the dApp transaction it is, only while it runs', async () => {
+    const guard = new SenderGuard();
+    let finishFirst!: () => void;
+    const held = new Promise<void>(resolve => { finishFirst = resolve; });
+    const seen: (string | undefined)[] = [];
+    const first = guard.sending(me, async () => { seen.push(guard.label); await held; }, 'first');
+    const second = guard.sending(me, async () => { seen.push(guard.label); }, 'second');
+    await Promise.resolve();
+    expect(guard.label).toBe('first');
+    finishFirst();
+    await Promise.all([first, second]);
+    expect(seen).toEqual(['first', 'second']);
+    expect(guard.label).toBeUndefined();
+  });
+
   it('go on after a send that failed', async () => {
     const guard = new SenderGuard();
     await expect(guard.sending(other, async () => { throw new Error('rejected'); })).rejects.toThrow('rejected');
