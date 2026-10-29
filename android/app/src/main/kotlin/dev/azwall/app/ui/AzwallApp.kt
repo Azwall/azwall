@@ -3,6 +3,8 @@ package dev.azwall.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,7 +51,8 @@ fun AzwallApp(vm: AppViewModel, auth: (title: String) -> Auth) {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.onBackground() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.onForeground() }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, containerColor = MaterialTheme.colorScheme.background) { padding ->
-        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
+        // Consumed: each screen pads for the navigation bar itself (navigationBarsPadding), which must not count it twice.
+        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()).consumeWindowInsets(PaddingValues(bottom = padding.calculateBottomPadding()))) {
             when (val p = phase) {
                 AppPhase.Booting -> Centered { CircularProgressIndicator() }
                 AppPhase.Onboarding -> OnboardingFlow(

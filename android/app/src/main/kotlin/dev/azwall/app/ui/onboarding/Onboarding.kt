@@ -3,6 +3,7 @@ package dev.azwall.app.ui.onboarding
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -88,22 +90,29 @@ internal fun Screen(onBack: (() -> Unit)? = null, content: @Composable ColumnSco
 
 @Composable
 private fun Welcome(onCreate: () -> Unit, onImport: () -> Unit) = Screen {
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(60.dp).align(Alignment.CenterHorizontally))
-        Text("Azwall", style = MaterialTheme.typography.displaySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
-        Text("Your wallet for the Aztec network.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Feature(Icons.Outlined.Lock, "Private by default", "Balances and transfers stay encrypted. Only you can see them.")
-        Feature(Icons.Outlined.Bolt, "Proven on your phone", "Every transaction is proven on this device, natively, in seconds.")
-        Feature(Icons.Outlined.Hub, "Every Aztec network", "Switch between networks running different Aztec versions.")
+    // At least the screen's height, so the free space can centre the buttons; it scrolls when the text does not fit.
+    BoxWithConstraints(Modifier.weight(1f)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Image(painterResource(R.drawable.azwall_logo), contentDescription = null, modifier = Modifier.height(60.dp).align(Alignment.CenterHorizontally))
+                Text("Azwall", style = MaterialTheme.typography.displaySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
+                Text("Your wallet for the Aztec network.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Feature(Icons.Outlined.Lock, "Private by default", "Balances and transfers stay encrypted. Only you can see them.")
+                Feature(Icons.Outlined.Bolt, "Proven on your phone", "Every transaction is proven on this device, natively, in seconds.")
+                Feature(Icons.Outlined.Hub, "Every Aztec network", "Switch between networks running different Aztec versions.")
+            }
+            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.weight(1f))
+            PrimaryButton("Create a new wallet", onClick = onCreate)
+            Spacer(Modifier.height(12.dp))
+            SecondaryButton("Restore a wallet", onClick = onImport)
+            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.weight(1f))
+            // Before anything is created: what the wallet sends where, and what stays on the phone. At the very bottom.
+            PrivacyPolicyLink(Modifier.align(Alignment.CenterHorizontally))
+            Spacer(Modifier.height(10.dp))
+        }
     }
-    Spacer(Modifier.height(20.dp))
-    PrimaryButton("Create a new wallet", onClick = onCreate)
-    Spacer(Modifier.height(12.dp))
-    SecondaryButton("Restore a wallet", onClick = onImport)
-    Spacer(Modifier.height(32.dp))
-    // Before anything is created: what the wallet sends where, and what stays on the phone. At the very bottom.
-    PrivacyPolicyLink(Modifier.align(Alignment.CenterHorizontally))
-    Spacer(Modifier.height(8.dp))
 }
 
 @Composable
